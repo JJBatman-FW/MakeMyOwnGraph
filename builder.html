@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>編輯器原型 - 發布流程完整版</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/react-grid-layout.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/css/styles.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-resizable/3.0.5/css/styles.min.css" />
+
+    <style>
+        :root { --primary: #086788; --secondary: #F8F8F8; --border: #e0e0e0; --accent: #F0C808;}
+        body { font-family: "Noto Sans TC", sans-serif; background: var(--secondary); margin: 0; padding: 20px; color: #333; }
+        
+        .top-nav { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); max-width: 1400px; margin-left: auto; margin-right: auto; }
+        .mode-toggle { display: flex; }
+        .mode-toggle button { padding: 10px 20px; font-size: 1rem; font-weight: bold; border: 2px solid var(--primary); cursor: pointer; background: white; color: var(--primary); transition: 0.2s; }
+        .mode-toggle button.active { background: var(--primary); color: white; }
+        .mode-toggle button:first-child { border-radius: 8px 0 0 8px; }
+        .mode-toggle button:last-child { border-radius: 0 8px 8px 0; }
+        
+        /* 🌟 新增：發布按鈕樣式 */
+        .publish-btn { padding: 10px 25px; font-size: 1rem; font-weight: bold; background: #E67E22; color: white; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3);}
+        .publish-btn:hover { background: #d35400; transform: translateY(-2px); }
+        .publish-btn:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        .builder-container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; height: 80vh; }
+        
+        .toolbar-area { flex: 0 0 200px; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 10px; overflow-y: auto;}
+        .add-btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; }
+        .add-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        .action-btn { background: var(--accent); color: #333; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 5px; }
+
+        .canvas-area { flex: 1; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow-y: auto; }
+        .grid-bg { background-image: linear-gradient(to right, #e8e8e8 1px, transparent 1px), linear-gradient(to bottom, #e8e8e8 1px, transparent 1px); background-size: calc(100% / 12) 60px; min-height: 500px; }
+        
+        .grid-item { width: 100%; height: 100%; background: #FFFFFF; border: 2px solid #ccc; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; color: #555; cursor: grab; user-select: none; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; transition: border-color 0.2s; box-sizing: border-box; overflow: hidden;}
+        .grid-item:active { cursor: grabbing; }
+        .grid-item.selected { border-color: #3498DB; border-width: 3px; background: #f0f8fa; box-shadow: 0 0 15px rgba(52, 152, 219, 0.4); }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: #E74C3C; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 12px; cursor: pointer; z-index: 10; opacity: 0; transition: 0.2s; }
+        .grid-item:hover .delete-btn { opacity: 1; }
+        .type-badge { background: #ddd; color: #333; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; margin-top: 5px; }
+
+        .right-panel { flex: 0 0 350px; display: flex; flex-direction: column; gap: 20px; }
+        .property-area, .json-area { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow-y: auto; }
+        .property-area { flex: 1; }
+        .json-area { flex: 1; background: #282c34; color: #abb2bf; }
+        
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
+        .form-group label { font-size: 0.85rem; font-weight: bold; color: #666; }
+        .form-group input[type="text"], .form-group select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; outline: none; transition: 0.1s; font-family: inherit; }
+        .form-group input[type="color"] { width: 100%; height: 40px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; padding: 2px;}
+        .form-group input:focus, .form-group select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(8, 103, 136, 0.1); }
+        .notice-box { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-size: 0.85rem; border: 1px solid #ffeeba; margin-bottom: 15px;}
+
+        .preview-container { background: #fff; padding: 30px; border-radius: 12px; width: 100%; max-width: 1000px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); min-height: 500px; }
+        .preview-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
+        .preview-card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; flex-direction: column; overflow: hidden;}
+        .preview-card-title { margin-top: 0; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;}
+        .preview-metric-value { margin: auto 0; overflow-y: auto; max-height: 100%; padding-right: 5px;} 
+        .reset-filter-btn { background: #eee; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; margin-left: auto; display: block; margin-bottom: 15px; color: #555;}
+        .reset-filter-btn:hover { background: #ddd; }
+        .waiting-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px; color: #999; font-weight: bold; background: #f9f9f9; border-radius: 8px; border: 2px dashed #ddd; text-align: center; padding: 20px;}
+
+        /* 🌟 新增：彈出視窗 (Modal) 樣式 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(3px);}
+        .modal-content { background: #fff; padding: 40px; border-radius: 16px; width: 600px; max-width: 90%; box-shadow: 0 20px 50px rgba(0,0,0,0.2); position: relative; animation: slideUp 0.3s ease-out;}
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .code-snippet { background: #282c34; color: #abb2bf; padding: 20px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 0.95rem; word-break: break-all; margin: 20px 0; border: 1px solid #1e2227; line-height: 1.5; }
+        .close-modal-btn { position: absolute; top: 20px; right: 20px; background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: #999; }
+        .close-modal-btn:hover { color: #333; }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const RGL = window.ReactGridLayout;
+
+        Chart.register(ChartDataLabels);
+
+        // PreviewViewer 組件 (包含所有圖表與過濾邏輯，保持不變)
+        function PreviewViewer({ config }) {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [filters, setFilters] = useState({});
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    if (!config.dataSource.sheetId) {
+                        setError("請先在編輯模式設定 Google Sheet ID");
+                        setLoading(false); return;
+                    }
+                    try {
+                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&tq&gid=${config.dataSource.gid}`;
+                        const res = await fetch(url);
+                        const text = await res.text();
+                        const json = JSON.parse(text.substring(47, text.length - 2));
+                        
+                        const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
+                        const parsedData = json.table.rows.map(row => {
+                            let obj = {};
+                            row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.v !== null ? String(cell.v) : '') : ''; });
+                            return obj;
+                        });
+                        setData(parsedData);
+                    } catch (err) {
+                        setError("資料讀取失敗，請確認 Sheet ID 與權限。");
+                    }
+                    setLoading(false);
+                };
+                fetchData();
+            }, [config.dataSource]);
+
+            const sortedComponents = [...config.components].sort((a, b) => {
+                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
+                return a.layout.y - b.layout.y;
+            });
+
+            const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
+            const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
+            const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
+            const isChartVisible = firstDropdownCol ? !!filters[firstDropdownCol] : true;
+
+            const dropdownState = {};
+            for (let i = 0; i < dropdownComps.length; i++) {
+                const col = dropdownComps[i].categoryColumn;
+                if (i === 0) dropdownState[col] = false; 
+                else dropdownState[col] = !filters[dropdownComps[i-1].categoryColumn]; 
+            }
+
+            const filteredData = data.filter(row => {
+                for (let key in filters) {
+                    if (filters[key] && row[key] !== filters[key]) return false;
+                }
+                return true;
+            });
+
+            const handleFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
+                    if (changedIdx !== -1) {
+                        for (let i = changedIdx + 1; i < dropdownComps.length; i++) {
+                            newFilters[dropdownComps[i].categoryColumn] = '';
+                        }
+                    }
+                    return newFilters;
+                });
+            };
+            
+            const clearFilters = () => setFilters({});
+
+            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
+                if (!valueCol) return {}; 
+                let result = {};
+                rawData.forEach(row => {
+                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                    if (aggType === 'first') {
+                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
+                        return; 
+                    }
+                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
+                        let parts = catRaw.split('|');
+                        parts.forEach(part => {
+                            let [subCat, subValStr] = part.split(':');
+                            if (subCat && subValStr !== undefined) {
+                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                if (val > 0) {
+                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
+                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
+                                }
+                            }
+                        });
+                    } else {
+                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
+                        if (val > 0 || aggType === 'count') {
+                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
+                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
+                        }
+                    }
+                });
+                return result;
+            };
+
+            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
+                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
+                let datasetsMap = {}; 
+                categories.forEach((cat, catIndex) => {
+                    const rows = rawData.filter(r => r[categoryCol] === cat);
+                    rows.forEach(r => {
+                        valueCols.forEach(col => {
+                            if (!col) return;
+                            let valRaw = r[col];
+                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
+                                let parts = valRaw.split('|');
+                                parts.forEach(part => {
+                                    let [subCat, subValStr] = part.split(':');
+                                    if (subCat && subValStr !== undefined) {
+                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
+                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
+                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                    }
+                                });
+                            } else {
+                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
+                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
+                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
+                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                            }
+                        });
+                    });
+                });
+                const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
+                return { categories, datasets };
+            };
+
+            if (loading) return <div className="preview-container"><h3 style={{textAlign:'center'}}>資料載入中，請稍候...</h3></div>;
+            if (error) return <div className="preview-container"><h3 style={{color:'red', textAlign:'center'}}>{error}</h3></div>;
+
+            return (
+                <div className="preview-container">
+                    <h2 style={{textAlign: 'center', color: '#086788', marginBottom: '10px'}}>{config.meta.title}</h2>
+                    {Object.values(filters).some(v => v) && (
+                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
+                    )}
+                    <div className="preview-grid">
+                        {sortedComponents.map(comp => (
+                            <ChartComponent 
+                                key={comp.id} comp={comp} rawData={data} filteredData={filteredData} 
+                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
+                                isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
+                                firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
+                                aggregateStackedData={aggregateStackedData} 
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
+            const canvasRef = useRef(null);
+            const chartInstance = useRef(null);
+            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
+
+            useEffect(() => {
+                if (isChartType && isChartVisible) {
+                    if (!comp.categoryColumn || (!comp.valueColumn && !comp.stackValueColumns)) return; 
+                    const ctx = canvasRef.current.getContext('2d');
+                    if (chartInstance.current) chartInstance.current.destroy();
+                    let chartType = 'bar';
+                    let options = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, datalabels: { display: false } } };
+                    const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
+                    const mainColor = comp.themeColor || '#086788';
+                    let labels = [];
+                    let datasets = [];
+
+                    if (comp.type === 'stackedBarChart') {
+                        chartType = 'bar';
+                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
+                        labels = stackedData.categories;
+                        datasets = stackedData.datasets;
+                        const isHorizontal = comp.chartOrientation === 'horizontal';
+                        if (isHorizontal) {
+                            options.indexAxis = 'y';
+                            options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
+                        } else {
+                            options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
+                        }
+                        datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
+                        if (comp.isPercentageStacked) {
+                            const numCategories = labels.length;
+                            const numDatasets = datasets.length;
+                            for (let j = 0; j < numCategories; j++) {
+                                let total = 0;
+                                for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
+                                if (total > 0) {
+                                    for (let i = 0; i < numDatasets; i++) {
+                                        datasets[i].data[j] = (datasets[i].data[j] / total) * 100;
+                                    }
+                                }
+                            }
+                            options.plugins.datalabels = {
+                                display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
+                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold' } 
+                            };
+                        }
+                    } else {
+                        const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
+                        labels = Object.keys(aggData1);
+                        const data1 = Object.values(aggData1);
+                        datasets = [{
+                            label: comp.compareValueColumn ? comp.valueColumn : comp.title, 
+                            data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor,
+                            borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true
+                        }];
+                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
+                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
+                            const data2 = labels.map(label => aggData2[label] || 0);
+                            datasets.push({
+                                label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', 
+                                borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true
+                            });
+                        }
+                        if (comp.type === 'pieChart') chartType = 'doughnut';
+                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
+                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
+                    }
+
+                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels: labels, datasets: datasets }, options: options });
+                }
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); }
+            }, [comp, filteredData, isChartVisible]);
+
+            const gridStyle = { gridColumn: `span ${comp.layout.desktopCols}` };
+
+            if (comp.type !== 'dropdown' && !isChartVisible) {
+                return (
+                    <div className="preview-card" style={gridStyle}>
+                        <h3 className="preview-card-title">{comp.title}</h3>
+                        <div className="waiting-placeholder">請先於上方選擇「{firstDropdownCol}」<br/>以載入分析圖表</div>
+                    </div>
+                );
+            }
+
+            const renderMetricValue = () => {
+                if (!comp.valueColumn) return '-';
+                const aggResult = aggregateData(filteredData, null, comp.valueColumn, comp.aggregation)['總計'];
+                if (aggResult === undefined) return '-';
+                const isTextMode = comp.aggregation === 'first';
+                const displayVal = (!isTextMode && typeof aggResult === 'number') ? aggResult.toLocaleString() : String(aggResult);
+                const finalFontSize = comp.fontSize || (isTextMode ? '1.1rem' : '2.2rem');
+                const finalFontFamily = comp.fontFamily || 'inherit';
+                const finalFontWeight = comp.fontWeight || '900'; 
+                const dynamicAlign = isTextMode ? 'left' : 'center';
+
+                return (
+                    <div className="preview-metric-value" style={{color: comp.themeColor || '#086788', fontSize: finalFontSize, fontFamily: finalFontFamily, fontWeight: finalFontWeight, textAlign: dynamicAlign, whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
+                        {displayVal}
+                    </div>
+                );
+            };
+
+            const renderMetricCompare = () => {
+                if (!comp.compareValueColumn || comp.aggregation === 'first') return null; 
+                const compResult = aggregateData(filteredData, null, comp.compareValueColumn, comp.aggregation)['總計'];
+                if (compResult === undefined) return null;
+                const compareDisplay = typeof compResult === 'number' ? compResult.toLocaleString() : String(compResult);
+                return (
+                    <div style={{fontSize: '1rem', color: '#888', marginTop: '10px', fontWeight: 'normal', textAlign: 'center'}}>相比 {comp.compareValueColumn}: {compareDisplay}</div>
+                );
+            };
+
+            return (
+                <div className="preview-card" style={gridStyle}>
+                    <h3 className="preview-card-title">{comp.title}</h3>
+                    {comp.type === 'metricCard' && (<>{renderMetricValue()}{renderMetricCompare()}</>)}
+                    {isChartType && (
+                        <div style={{ position: 'relative', height: '250px', width: '100%' }}>
+                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{color:'#999', textAlign:'center', marginTop:'100px'}}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
+                        </div>
+                    )}
+                    {comp.type === 'dropdown' && (() => {
+                        if (!comp.categoryColumn) return <p style={{color:'#999'}}>未綁定目標欄位</p>;
+                        if (isDropdownDisabled) {
+                            return <select disabled style={{padding: '10px', fontSize:'1rem', width: '100%', background:'#f0f0f0', color:'#999', border:'1px dashed #ccc'}}><option>請先選擇上一層選單</option></select>;
+                        }
+                        const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
+                        const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
+                        const optionsData = rawData.filter(row => {
+                            for (let upstreamCol of upstreamCols) {
+                                if (filters[upstreamCol] && row[upstreamCol] !== filters[upstreamCol]) return false;
+                            }
+                            return true;
+                        });
+                        const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+                        
+                        return (
+                            <select style={{padding: '10px', fontSize:'1rem', width: '100%'}} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
+                                <option value="">請選擇 {comp.categoryColumn}...</option>
+                                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        );
+                    })()}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // 編輯器主程式 (Builder)
+        // ==========================================
+        function DashboardApp() {
+            const [viewMode, setViewMode] = useState('builder'); 
+            const [dashboardTitle, setDashboardTitle] = useState("中央政府總預算生成器");
+            const [sheetId, setSheetId] = useState("1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs");
+            const [sheetGid, setSheetGid] = useState("612819456");
+            const [availableColumns, setAvailableColumns] = useState([]);
+            const [isFetching, setIsFetching] = useState(false);
+
+            // 🌟 發布流程的 State
+            const [isPublishing, setIsPublishing] = useState(false);
+            const [showPublishModal, setShowPublishModal] = useState(false);
+            const [publishedId, setPublishedId] = useState('');
+
+            const [blocks, setBlocks] = useState([
+                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900' }
+            ]);
+            const [selectedBlockId, setSelectedBlockId] = useState(null);
+
+            const fetchSheetColumns = async () => {
+                if (!sheetId) return alert("請輸入試算表 ID");
+                setIsFetching(true);
+                try {
+                    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&tq=limit%201&gid=${sheetGid}`;
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    const json = JSON.parse(text.substring(47, text.length - 2));
+                    const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
+                    setAvailableColumns(cols);
+                    alert("✅ 成功讀取表頭欄位！");
+                } catch (error) {
+                    alert("❌ 讀取失敗，請確認試算表權限。");
+                }
+                setIsFetching(false);
+            };
+
+            const handleLayoutChange = (newLayout) => {
+                const updatedBlocks = blocks.map(block => {
+                    const layoutItem = newLayout.find(l => l.i === block.i);
+                    return layoutItem ? { ...block, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : block;
+                });
+                setBlocks(updatedBlocks);
+            };
+
+            const addBlock = (type, title, defaultW, defaultH) => {
+                const newId = 'comp_' + Date.now(); 
+                setBlocks(prev => [...prev, { i: newId, x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: 'sum', chartOrientation: 'vertical', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900' }]);
+                setSelectedBlockId(newId);
+            };
+
+            const removeBlock = (idToRemove) => {
+                setBlocks(prev => prev.filter(block => block.i !== idToRemove));
+                if (selectedBlockId === idToRemove) setSelectedBlockId(null);
+            };
+
+            const updateBlockProperty = (id, key, value) => {
+                setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: value } : block));
+            };
+
+            const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
+
+            const finalJSON = {
+                meta: { title: dashboardTitle },
+                dataSource: { type: "googleSheet", sheetId: sheetId, gid: sheetGid },
+                components: blocks.map(b => ({
+                    id: b.i,
+                    type: b.type,
+                    title: b.title,
+                    categoryColumn: b.categoryCol || null,
+                    valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null,
+                    stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null,
+                    isPercentageStacked: b.isPercentageStacked || false,
+                    compareValueColumn: b.compareValueCol || null, 
+                    aggregation: b.aggregation,
+                    chartOrientation: b.chartOrientation || 'vertical',
+                    themeColor: b.themeColor || '#086788',         
+                    fontSize: b.fontSize || null,
+                    fontFamily: b.fontFamily || null,
+                    fontWeight: b.fontWeight || '900',
+                    layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
+                }))
+            };
+
+            // 🌟 模擬發布 API 呼叫
+            const handlePublish = () => {
+                setIsPublishing(true);
+                // 模擬網路延遲 1.5 秒
+                setTimeout(() => {
+                    // 產生一組亂數假 ID，假裝是資料庫建出來的
+                    const newId = 'dash_' + Math.random().toString(36).substr(2, 9);
+                    setPublishedId(newId);
+                    setIsPublishing(false);
+                    setShowPublishModal(true); // 打開彈出視窗
+                }, 1500);
+            };
+
+            // 🌟 複製 Iframe 代碼到剪貼簿
+            const handleCopy = () => {
+                const iframeCode = `<iframe \n    src="https://your-news-site.com/viewer.html?id=${publishedId}" \n    width="100%" \n    height="800px" \n    frameborder="0" \n    scrolling="no"\n></iframe>`;
+                navigator.clipboard.writeText(iframeCode);
+                alert("✅ 嵌入代碼已複製到剪貼簿！您可以直接貼上到 WordPress。");
+            };
+
+            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
+
+            return (
+                <div>
+                    <div className="top-nav">
+                        <h2 style={{margin: 0, color: '#086788'}}>儀表板生成器 (Builder)</h2>
+                        <div style={{display: 'flex', gap: '20px', alignItems: 'center'}}>
+                            <div className="mode-toggle">
+                                <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
+                                <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
+                            </div>
+                            {/* 🌟 新增的發布按鈕 */}
+                            <button className="publish-btn" onClick={handlePublish} disabled={isPublishing}>
+                                {isPublishing ? '發布中...' : '🚀 發布儀表板'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {viewMode === 'builder' && (
+                        <div className="builder-container">
+                            {/* 左側與中間畫布保持不變... */}
+                            <div className="toolbar-area">
+                                <h3 style={{marginTop: 0}}>🛠️ 積木工具</h3>
+                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{background: '#F0C808', color: '#333'}}>+ 下拉選單</button>
+                                <hr style={{borderColor: '#eee', width: '100%'}}/>
+                                <button className="add-btn" onClick={() => addBlock('metricCard', '新數據卡片', 4, 3)}>+ 數據卡片</button>
+                                <button className="add-btn" onClick={() => addBlock('pieChart', '新圓餅圖', 6, 5)}>+ 圓餅圖</button>
+                                <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{background: '#E74C3C'}}>+ 時間趨勢線</button>
+                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{background: '#E67E22'}}>+ 堆疊直條圖</button>
+                            </div>
+
+                            <div className="canvas-area">
+                                <h2 style={{marginTop: 0}}>{dashboardTitle}</h2>
+                                <div className="grid-bg" onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
+                                    <RGL layout={blocks} cols={12} rowHeight={30} width={600} margin={[15, 15]} onLayoutChange={handleLayoutChange} draggableCancel=".delete-btn">
+                                        {blocks.map(block => (
+                                            <div key={block.i}>
+                                                <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
+                                                    <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
+                                                    <span style={{fontSize: '1.2rem'}}>{block.title}</span>
+                                                    <div className="type-badge">{
+                                                        block.type === 'stackedBarChart' ? '堆疊圖' : 
+                                                        block.type === 'lineChart' ? '折線圖' : block.type
+                                                    }</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </RGL>
+                                </div>
+                            </div>
+
+                            <div className="right-panel">
+                                <div className="property-area">
+                                    {currentSelectedBlock ? (
+                                        <div>
+                                            <h3 style={{marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px'}}>⚙️ 積木設定</h3>
+                                            
+                                            <div className="form-group">
+                                                <label>顯示標題</label>
+                                                <input type="text" value={currentSelectedBlock.title} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)} />
+                                            </div>
+
+                                            {currentSelectedBlock.type === 'metricCard' && (
+                                                <>
+                                                <h4 style={{marginTop: '25px', marginBottom: '10px', color: '#086788'}}>🔤 文字樣式設定</h4>
+                                                <div className="form-group">
+                                                    <label>字體顏色 (主要顏色)</label>
+                                                    <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>文字大小</label>
+                                                    <select value={currentSelectedBlock.fontSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
+                                                        <option value="">預設 (自動判斷)</option>
+                                                        <option value="1rem">小 (16px)</option>
+                                                        <option value="1.5rem">中 (24px)</option>
+                                                        <option value="2.2rem">大 (35px)</option>
+                                                        <option value="3rem">特大 (48px)</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>字體粗細 (字重)</label>
+                                                    <select value={currentSelectedBlock.fontWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
+                                                        <option value="normal">正常 (Normal)</option>
+                                                        <option value="bold">粗體 (Bold)</option>
+                                                        <option value="900">特粗 (Black)</option>
+                                                        <option value="300">細體 (Light)</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label>字型 (字體)</label>
+                                                    <select value={currentSelectedBlock.fontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontFamily', e.target.value)}>
+                                                        <option value="">預設 (Noto Sans TC)</option>
+                                                        <option value="Arial, sans-serif">黑體 (Arial)</option>
+                                                        <option value="'Times New Roman', serif">明體/宋體 (Times)</option>
+                                                        <option value="'Courier New', monospace">等寬字體 (Monospace)</option>
+                                                    </select>
+                                                </div>
+                                                </>
+                                            )}
+
+                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart') && (
+                                                <>
+                                                <h4 style={{marginTop: '25px', marginBottom: '10px', color: '#086788'}}>🎨 外觀設定</h4>
+                                                
+                                                <div className="form-group">
+                                                    <label>主要顏色</label>
+                                                    <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                </div>
+
+                                                {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') && (
+                                                    <div className="form-group">
+                                                        <label>長條圖方向</label>
+                                                        <select value={currentSelectedBlock.chartOrientation || 'vertical'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'chartOrientation', e.target.value)}>
+                                                            <option value="vertical">直向長條圖</option>
+                                                            <option value="horizontal">橫向長條圖</option>
+                                                        </select>
+                                                    </div>
+                                                )}
+
+                                                {currentSelectedBlock.type === 'stackedBarChart' && (
+                                                    <div className="form-group">
+                                                        <label>
+                                                            <input type="checkbox" checked={currentSelectedBlock.isPercentageStacked || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'isPercentageStacked', e.target.checked)} />
+                                                            {' '}百分比堆疊直條圖 (總高皆為 100%)
+                                                        </label>
+                                                    </div>
+                                                )}
+                                                </>
+                                            )}
+
+                                            <h4 style={{marginTop: '25px', marginBottom: '10px', color: '#086788'}}>📊 資料綁定</h4>
+                                            
+                                            {availableColumns.length === 0 ? (
+                                                <div className="notice-box">請先在「全局設定」點擊讀取表頭，才能綁定欄位。</div>
+                                            ) : (
+                                                <>
+                                                    {isChartType && (
+                                                        <div className="form-group">
+                                                            <label>分類欄位 (X軸標籤)</label>
+                                                            <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
+                                                                <option value="">請選擇...</option>
+                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    )}
+
+                                                    {currentSelectedBlock.type === 'dropdown' && (
+                                                        <div className="form-group">
+                                                            <label>過濾目標欄位</label>
+                                                            <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
+                                                                <option value="">請選擇要過濾的欄位...</option>
+                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {currentSelectedBlock.type !== 'dropdown' && (
+                                                        <>
+                                                            {currentSelectedBlock.type === 'stackedBarChart' ? (
+                                                                <div className="form-group">
+                                                                    <label>堆疊數值欄位</label>
+                                                                    <p style={{fontSize:'0.75rem', color:'#888', margin:'0 0 5px 0'}}>提示：如果欄位含有「人事費:0|業務費:10」這樣的複合字串，只需新增【一個】欄位，系統會自動切出所有項目並疊好。</p>
+                                                                    {(currentSelectedBlock.stackValueCols || []).map((col, index) => (
+                                                                        <div key={index} style={{display:'flex', gap:'5px', marginBottom:'5px'}}>
+                                                                            <select value={col} onChange={(e) => {
+                                                                                const newCols = [...currentSelectedBlock.stackValueCols];
+                                                                                newCols[index] = e.target.value;
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                            }}>
+                                                                                <option value="">請選擇...</option>
+                                                                                {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
+                                                                            </select>
+                                                                            <button onClick={() => {
+                                                                                const newCols = currentSelectedBlock.stackValueCols.filter((_, i) => i !== index);
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                            }} style={{padding:'5px'}}>✕</button>
+                                                                        </div>
+                                                                    ))}
+                                                                    <button className="reset-filter-btn" onClick={() => {
+                                                                        const existingCols = currentSelectedBlock.stackValueCols || [];
+                                                                        const updatedCols = [...existingCols, ''];
+                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', updatedCols);
+                                                                    }}>+ 添加堆疊欄位</button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="form-group">
+                                                                    <label>{currentSelectedBlock.type === 'metricCard' ? '數值來源欄位' : '主要數值欄位 (Y軸資料)'}</label>
+                                                                    <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
+                                                                        <option value="">請選擇...</option>
+                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+
+                                                            {currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && (
+                                                                <div className="form-group">
+                                                                    <label>比較數值欄位 (選填)</label>
+                                                                    <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
+                                                                        <option value="">無 (單一資料)</option>
+                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="form-group">
+                                                                <label>資料計算方式</label>
+                                                                <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
+                                                                    <option value="sum">加總金額/數值 (Sum)</option>
+                                                                    <option value="count">計算筆數 (Count)</option>
+                                                                    {currentSelectedBlock.type === 'metricCard' && (
+                                                                        <option value="first">顯示純文字 (Text)</option>
+                                                                    )}
+                                                                </select>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <h3 style={{marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px'}}>🌐 全局設定</h3>
+                                            <div className="form-group">
+                                                <label>儀表板總標題</label>
+                                                <input type="text" value={dashboardTitle} onChange={(e) => setDashboardTitle(e.target.value)} />
+                                            </div>
+                                            <h4 style={{marginTop: '30px', marginBottom: '10px', color: '#086788'}}>🔗 外部資料源綁定</h4>
+                                            <div className="form-group">
+                                                <label>Google Sheet ID</label>
+                                                <input type="text" value={sheetId} onChange={(e) => setSheetId(e.target.value)} />
+                                            </div>
+                                            <div className="form-group">
+                                                <label>表單 GID</label>
+                                                <input type="text" value={sheetGid} onChange={(e) => setSheetGid(e.target.value)} />
+                                            </div>
+                                            <button className="action-btn" onClick={fetchSheetColumns} disabled={isFetching}>
+                                                {isFetching ? "讀取中..." : "📥 讀取表頭欄位"}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="json-area" style={{display: 'none'}}></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {viewMode === 'preview' && (
+                        <div className="builder-container" style={{justifyContent: 'center', height: 'auto'}}>
+                            <PreviewViewer config={finalJSON} />
+                        </div>
+                    )}
+
+                    {/* 🌟 彈出視窗 (Modal) UI */}
+                    {showPublishModal && (
+                        <div className="modal-overlay">
+                            <div className="modal-content">
+                                <button className="close-modal-btn" onClick={() => setShowPublishModal(false)}>✕</button>
+                                <h2 style={{color: '#086788', marginTop: 0}}>🎉 發布成功！</h2>
+                                <p style={{lineHeight: '1.6'}}>
+                                    您的儀表板已經安全地打包並儲存。這份藍圖的專屬 ID 為：<strong style={{background: '#eee', padding: '2px 6px', borderRadius: '4px'}}>{publishedId}</strong>
+                                </p>
+                                <p style={{fontWeight: 'bold', marginTop: '20px'}}>請複製以下的 iframe 程式碼，並貼上到您的 WordPress 或是 CMS 新聞後台中：</p>
+                                
+                                <div className="code-snippet">
+                                    &lt;iframe <br/>
+                                    &nbsp;&nbsp;src="https://your-news-site.com/viewer.html?id={publishedId}" <br/>
+                                    &nbsp;&nbsp;width="100%" <br/>
+                                    &nbsp;&nbsp;height="800px" <br/>
+                                    &nbsp;&nbsp;frameborder="0" <br/>
+                                    &nbsp;&nbsp;scrolling="no"<br/>
+                                    &gt;&lt;/iframe&gt;
+                                </div>
+
+                                <div style={{display: 'flex', gap: '15px', marginTop: '30px', justifyContent: 'flex-end'}}>
+                                    <button className="action-btn" style={{background: '#eee', color: '#555', padding: '10px 20px'}} onClick={() => setShowPublishModal(false)}>關閉</button>
+                                    <button className="publish-btn" onClick={handleCopy}>📋 一鍵複製代碼</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<DashboardApp />);
+    </script>
+</body>
+</html>
