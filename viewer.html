@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新聞儀表板</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+        // 你的專屬 Firebase 金鑰
+        const firebaseConfig = {
+            apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
+            authDomain: "makeowndashboard.firebaseapp.com",
+            projectId: "makeowndashboard",
+            storageBucket: "makeowndashboard.firebasestorage.app",
+            messagingSenderId: "791722954695",
+            appId: "1:791722954695:web:ce22cc59fad57d22d053e2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 全域函數：根據 ID 從 Firestore 抓取藍圖
+        window.fetchDashboardConfig = async (id) => {
+            const docRef = doc(db, "dashboards", id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            } else {
+                throw new Error("找不到此儀表板設定檔！");
+            }
+        };
+    </script>
+
+    <style>
+        :root { --primary: #086788; --secondary: #FFFFFF; --border: #e0e0e0; --accent: #F0C808;}
+        /* 為了讓 iframe 嵌入時完美融合背景，把 body 背景設為透明或純白，並移除 margin */
+        body { font-family: "Noto Sans TC", sans-serif; background: transparent; margin: 0; padding: 10px; color: #333; }
+        
+        /* 只保留預覽區需要的 CSS，其餘全部刪除以保持輕量 */
+        .preview-container { background: #fff; padding: 20px; border-radius: 12px; width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box;}
+        .preview-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
+        @media (max-width: 768px) {
+            /* 簡單的 RWD：在手機上，所有圖表都變成滿版 (span 12) */
+            .preview-card { grid-column: span 12 !important; }
+        }
+        
+        .preview-card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;}
+        .preview-card-title { margin-top: 0; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;}
+        .preview-metric-value { margin: auto 0; overflow-y: auto; max-height: 100%; padding-right: 5px;} 
+        .reset-filter-btn { background: #eee; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; margin-left: auto; display: block; margin-bottom: 15px; color: #555;}
+        .reset-filter-btn:hover { background: #ddd; }
+        .waiting-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px; color: #999; font-weight: bold; background: #f9f9f9; border-radius: 8px; border: 2px dashed #ddd; text-align: center; padding: 20px;}
+        
+        .loading-screen { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 1.2rem; color: #666; font-weight: bold;}
+        .error-screen { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 1.2rem; color: #E74C3C; font-weight: bold; text-align: center; padding: 20px;}
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        Chart.register(ChartDataLabels);
+
+        // 🌟 1. 完整複製編輯器裡的 PreviewViewer 模組
+        function PreviewViewer({ config }) {
+            const [data, setData] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [filters, setFilters] = useState({});
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    if (!config.dataSource || !config.dataSource.sheetId) {
+                        setError("無效的資料來源設定");
+                        setLoading(false); return;
+                    }
+                    try {
+                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&tq&gid=${config.dataSource.gid}`;
+                        const res = await fetch(url);
+                        const text = await res.text();
+                        const json = JSON.parse(text.substring(47, text.length - 2));
+                        
+                        const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
+                        const parsedData = json.table.rows.map(row => {
+                            let obj = {};
+                            row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.v !== null ? String(cell.v) : '') : ''; });
+                            return obj;
+                        });
+                        setData(parsedData);
+                    } catch (err) {
+                        setError("Google Sheet 資料讀取失敗。");
+                    }
+                    setLoading(false);
+                };
+                fetchData();
+            }, [config.dataSource]);
+
+            const sortedComponents = [...config.components].sort((a, b) => {
+                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
+                return a.layout.y - b.layout.y;
+            });
+
+            const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
+            const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
+            const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
+            const isChartVisible = firstDropdownCol ? !!filters[firstDropdownCol] : true;
+
+            const dropdownState = {};
+            for (let i = 0; i < dropdownComps.length; i++) {
+                const col = dropdownComps[i].categoryColumn;
+                if (i === 0) dropdownState[col] = false; 
+                else dropdownState[col] = !filters[dropdownComps[i-1].categoryColumn]; 
+            }
+
+            const filteredData = data.filter(row => {
+                for (let key in filters) {
+                    if (filters[key] && row[key] !== filters[key]) return false;
+                }
+                return true;
+            });
+
+            const handleFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
+                    if (changedIdx !== -1) {
+                        for (let i = changedIdx + 1; i < dropdownComps.length; i++) {
+                            newFilters[dropdownComps[i].categoryColumn] = '';
+                        }
+                    }
+                    return newFilters;
+                });
+            };
+            
+            const clearFilters = () => setFilters({});
+
+            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
+                if (!valueCol) return {}; 
+                let result = {};
+                rawData.forEach(row => {
+                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                    if (aggType === 'first') {
+                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
+                        return; 
+                    }
+                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
+                        let parts = catRaw.split('|');
+                        parts.forEach(part => {
+                            let [subCat, subValStr] = part.split(':');
+                            if (subCat && subValStr !== undefined) {
+                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                if (val > 0) {
+                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
+                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
+                                }
+                            }
+                        });
+                    } else {
+                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
+                        if (val > 0 || aggType === 'count') {
+                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
+                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
+                        }
+                    }
+                });
+                return result;
+            };
+
+            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
+                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
+                let datasetsMap = {}; 
+                categories.forEach((cat, catIndex) => {
+                    const rows = rawData.filter(r => r[categoryCol] === cat);
+                    rows.forEach(r => {
+                        valueCols.forEach(col => {
+                            if (!col) return;
+                            let valRaw = r[col];
+                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
+                                let parts = valRaw.split('|');
+                                parts.forEach(part => {
+                                    let [subCat, subValStr] = part.split(':');
+                                    if (subCat && subValStr !== undefined) {
+                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
+                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
+                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                    }
+                                });
+                            } else {
+                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
+                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
+                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
+                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                            }
+                        });
+                    });
+                });
+                const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
+                return { categories, datasets };
+            };
+
+            if (loading) return <div className="loading-screen">資料載入中，請稍候...</div>;
+            if (error) return <div className="error-screen">{error}</div>;
+
+            return (
+                <div className="preview-container">
+                    <h2 style={{textAlign: 'center', color: '#086788', marginBottom: '20px'}}>{config.meta.title}</h2>
+                    {Object.values(filters).some(v => v) && (
+                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
+                    )}
+                    <div className="preview-grid">
+                        {sortedComponents.map(comp => (
+                            <ChartComponent 
+                                key={comp.id} comp={comp} rawData={data} filteredData={filteredData} 
+                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
+                                isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
+                                firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
+                                aggregateStackedData={aggregateStackedData} 
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // 🌟 2. 完整複製編輯器裡的 ChartComponent 模組
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
+            const canvasRef = useRef(null);
+            const chartInstance = useRef(null);
+            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
+
+            useEffect(() => {
+                if (isChartType && isChartVisible) {
+                    if (!comp.categoryColumn || (!comp.valueColumn && !comp.stackValueColumns)) return; 
+                    const ctx = canvasRef.current.getContext('2d');
+                    if (chartInstance.current) chartInstance.current.destroy();
+                    let chartType = 'bar';
+                    let options = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, datalabels: { display: false } } };
+                    const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
+                    const mainColor = comp.themeColor || '#086788';
+                    let labels = [];
+                    let datasets = [];
+
+                    if (comp.type === 'stackedBarChart') {
+                        chartType = 'bar';
+                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
+                        labels = stackedData.categories;
+                        datasets = stackedData.datasets;
+                        const isHorizontal = comp.chartOrientation === 'horizontal';
+                        if (isHorizontal) {
+                            options.indexAxis = 'y';
+                            options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
+                        } else {
+                            options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
+                        }
+                        datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
+                        if (comp.isPercentageStacked) {
+                            const numCategories = labels.length;
+                            const numDatasets = datasets.length;
+                            for (let j = 0; j < numCategories; j++) {
+                                let total = 0;
+                                for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
+                                if (total > 0) {
+                                    for (let i = 0; i < numDatasets; i++) {
+                                        datasets[i].data[j] = (datasets[i].data[j] / total) * 100;
+                                    }
+                                }
+                            }
+                            options.plugins.datalabels = {
+                                display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
+                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold' } 
+                            };
+                        }
+                    } else {
+                        const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
+                        labels = Object.keys(aggData1);
+                        const data1 = Object.values(aggData1);
+                        datasets = [{
+                            label: comp.compareValueColumn ? comp.valueColumn : comp.title, 
+                            data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor,
+                            borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true
+                        }];
+                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
+                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
+                            const data2 = labels.map(label => aggData2[label] || 0);
+                            datasets.push({
+                                label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', 
+                                borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true
+                            });
+                        }
+                        if (comp.type === 'pieChart') chartType = 'doughnut';
+                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
+                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
+                    }
+
+                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels: labels, datasets: datasets }, options: options });
+                }
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); }
+            }, [comp, filteredData, isChartVisible]);
+
+            // 🌟 這裡根據原本設定的桌面網格(span)，套用 RWD 讓卡片在嵌入時自動適應寬度
+            const gridStyle = { gridColumn: `span ${comp.layout.desktopCols}` };
+
+            if (comp.type !== 'dropdown' && !isChartVisible) {
+                return (
+                    <div className="preview-card" style={gridStyle}>
+                        <h3 className="preview-card-title">{comp.title}</h3>
+                        <div className="waiting-placeholder">請先於上方選擇「{firstDropdownCol}」<br/>以載入分析圖表</div>
+                    </div>
+                );
+            }
+
+            const renderMetricValue = () => {
+                if (!comp.valueColumn) return '-';
+                const aggResult = aggregateData(filteredData, null, comp.valueColumn, comp.aggregation)['總計'];
+                if (aggResult === undefined) return '-';
+                const isTextMode = comp.aggregation === 'first';
+                const displayVal = (!isTextMode && typeof aggResult === 'number') ? aggResult.toLocaleString() : String(aggResult);
+                const finalFontSize = comp.fontSize || (isTextMode ? '1.1rem' : '2.2rem');
+                const finalFontFamily = comp.fontFamily || 'inherit';
+                const finalFontWeight = comp.fontWeight || '900'; 
+                const dynamicAlign = isTextMode ? 'left' : 'center';
+
+                return (
+                    <div className="preview-metric-value" style={{color: comp.themeColor || '#086788', fontSize: finalFontSize, fontFamily: finalFontFamily, fontWeight: finalFontWeight, textAlign: dynamicAlign, whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
+                        {displayVal}
+                    </div>
+                );
+            };
+
+            const renderMetricCompare = () => {
+                if (!comp.compareValueColumn || comp.aggregation === 'first') return null; 
+                const compResult = aggregateData(filteredData, null, comp.compareValueColumn, comp.aggregation)['總計'];
+                if (compResult === undefined) return null;
+                const compareDisplay = typeof compResult === 'number' ? compResult.toLocaleString() : String(compResult);
+                return (
+                    <div style={{fontSize: '1rem', color: '#888', marginTop: '10px', fontWeight: 'normal', textAlign: 'center'}}>相比 {comp.compareValueColumn}: {compareDisplay}</div>
+                );
+            };
+
+            return (
+                <div className="preview-card" style={gridStyle}>
+                    <h3 className="preview-card-title">{comp.title}</h3>
+                    {comp.type === 'metricCard' && (<>{renderMetricValue()}{renderMetricCompare()}</>)}
+                    {isChartType && (
+                        <div style={{ position: 'relative', height: '250px', width: '100%' }}>
+                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{color:'#999', textAlign:'center', marginTop:'100px'}}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
+                        </div>
+                    )}
+                    {comp.type === 'dropdown' && (() => {
+                        if (!comp.categoryColumn) return <p style={{color:'#999'}}>未綁定目標欄位</p>;
+                        if (isDropdownDisabled) {
+                            return <select disabled style={{padding: '10px', fontSize:'1rem', width: '100%', background:'#f0f0f0', color:'#999', border:'1px dashed #ccc'}}><option>請先選擇上一層選單</option></select>;
+                        }
+                        const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
+                        const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
+                        const optionsData = rawData.filter(row => {
+                            for (let upstreamCol of upstreamCols) {
+                                if (filters[upstreamCol] && row[upstreamCol] !== filters[upstreamCol]) return false;
+                            }
+                            return true;
+                        });
+                        const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+                        
+                        return (
+                            <select style={{padding: '10px', fontSize:'1rem', width: '100%'}} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
+                                <option value="">請選擇 {comp.categoryColumn}...</option>
+                                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        );
+                    })()}
+                </div>
+            );
+        }
+
+        // 🌟 3. 獨立的 ViewerApp (負責處理 URL ID 與發送 Firestore 請求)
+        function ViewerApp() {
+            const [config, setConfig] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                // 抓取網址後面的 ?id=xxx
+                const urlParams = new URLSearchParams(window.location.search);
+                const dashboardId = urlParams.get('id');
+
+                if (!dashboardId) {
+                    setError("⚠️ 網址缺少儀表板 ID。正確格式：viewer.html?id=你的ID");
+                    setLoading(false);
+                    return;
+                }
+
+                // 呼叫 Firestore API
+                if (window.fetchDashboardConfig) {
+                    window.fetchDashboardConfig(dashboardId)
+                        .then(fetchedConfig => {
+                            setConfig(fetchedConfig);
+                            setLoading(false);
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            setError("⚠️ 讀取失敗：" + err.message);
+                            setLoading(false);
+                        });
+                }
+            }, []);
+
+            if (loading) return <div className="loading-screen">🔄 正在從雲端讀取儀表板藍圖...</div>;
+            if (error) return <div className="error-screen">{error}</div>;
+            if (!config) return <div className="error-screen">無法解析儀表板設定。</div>;
+
+            // 成功拿到藍圖！交給 PreviewViewer 去抓試算表資料並畫圖
+            return <PreviewViewer config={config} />;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ViewerApp />);
+    </script>
+</body>
+</html>
