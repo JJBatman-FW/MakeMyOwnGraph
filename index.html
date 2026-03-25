@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>編輯器原型 - 發布流程完整版</title>
+    <title>編輯器原型 - UI升級與發布完整版</title>
 
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -19,10 +19,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        // 額外引入 Firestore 資料庫的功能
         import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-        // 貼上你的專屬金鑰
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
             authDomain: "makeowndashboard.firebaseapp.com",
@@ -33,18 +31,16 @@
             measurementId: "G-20DS6V8JDB"
         };
 
-        // 初始化 Firebase
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        // 🌟 建立一個全域函數，讓 React 可以呼叫它來存檔
+        // 全域函數：發布到 Firebase
         window.publishToFirebase = async (dashboardJSON) => {
             try {
-                // 將 JSON 存入名為 'dashboards' 的資料夾(集合)
                 const docRef = await addDoc(collection(db, "dashboards"), dashboardJSON);
                 console.log("✅ 儲存成功！文件 ID: ", docRef.id);
-                return docRef.id; // 回傳真實的資料庫 ID
+                return docRef.id;
             } catch (e) {
                 console.error("❌ 儲存失敗: ", e);
                 throw e;
@@ -110,7 +106,7 @@
             border-radius: 0 8px 8px 0;
         }
 
-        /* 🌟 新增：發布按鈕樣式 */
+        /* 發布按鈕樣式 */
         .publish-btn {
             padding: 10px 25px;
             font-size: 1rem;
@@ -173,18 +169,7 @@
             opacity: 0.9;
         }
 
-        .action-btn {
-            background: var(--accent);
-            color: #333;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-            margin-top: 5px;
-        }
-
+        /* ver. 1.01替換：移除 overflow-x: hidden，避免邊緣被裁切 */
         .canvas-area {
             flex: 1;
             background: #fff;
@@ -194,10 +179,31 @@
             overflow-y: auto;
         }
 
+        /* ver. 1.01新增：右側面板專用的刪除按鈕 */
+        .delete-panel-btn {
+            width: 100%;
+            background: #E74C3C;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            margin-top: 15px;
+        }
+
+        .delete-panel-btn:hover {
+            background: #c0392b;
+        }
+
+        /* ver. 1.02 替換：移除混淆的網格線條，改為乾淨微凸起的畫布背景 */
         .grid-bg {
-            background-image: linear-gradient(to right, #e8e8e8 1px, transparent 1px), linear-gradient(to bottom, #e8e8e8 1px, transparent 1px);
-            background-size: calc(100% / 12) 60px;
+            background: #fdfdfd;
             min-height: 500px;
+            width: 100%;
+            border-radius: 8px;
+            border: 2px dashed #eee;
         }
 
         .grid-item {
@@ -262,6 +268,19 @@
             margin-top: 5px;
         }
 
+        /* 顯示格數的小標籤 */
+        .size-badge {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.05);
+            color: #888;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
         .right-panel {
             flex: 0 0 350px;
             display: flex;
@@ -269,24 +288,14 @@
             gap: 20px;
         }
 
-        .property-area,
-        .json-area {
+        .property-area {
             background: #fff;
             padding: 20px;
             border-radius: 12px;
             border: 1px solid var(--border);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
             overflow-y: auto;
-        }
-
-        .property-area {
             flex: 1;
-        }
-
-        .json-area {
-            flex: 1;
-            background: #282c34;
-            color: #abb2bf;
         }
 
         .form-group {
@@ -338,6 +347,19 @@
             margin-bottom: 15px;
         }
 
+        .action-btn {
+            background: var(--accent);
+            color: #333;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+            margin-top: 5px;
+        }
+
+        /* 新聞預覽版面專用樣式 */
         .preview-container {
             background: #fff;
             padding: 30px;
@@ -346,12 +368,72 @@
             max-width: 1000px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
             min-height: 500px;
+            margin: 0 auto;
         }
 
+        /* ver. 1.11 重新設計版頭與版尾 */
+        .news-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+
+        .news-title {
+            margin: 0;
+            color: #222;
+            font-size: 1.8rem;
+            font-weight: 900;
+        }
+
+        .news-meta {
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        /* ver. 1.11 讓頁腳變成左右彈性排版 */
+        .news-footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px dashed #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        .news-footer-left {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            text-align: left;
+        }
+
+        .news-footer a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .news-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .news-watermark {
+            object-fit: contain;
+        }
+
+        /* ver 1.22 讓預覽區的網格長寬與編輯器 100% 吻合 */
         .preview-grid {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
-            gap: 20px;
+            grid-auto-rows: 30px;
+            /* 基礎高度 30px */
+            gap: 15px;
+            /* 積木間距 15px */
         }
 
         .preview-card {
@@ -394,10 +476,6 @@
             color: #555;
         }
 
-        .reset-filter-btn:hover {
-            background: #ddd;
-        }
-
         .waiting-placeholder {
             display: flex;
             align-items: center;
@@ -413,7 +491,7 @@
             padding: 20px;
         }
 
-        /* 🌟 新增：彈出視窗 (Modal) 樣式 */
+        /* 發布彈出視窗 Modal */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -478,6 +556,228 @@
         .close-modal-btn:hover {
             color: #333;
         }
+
+        /* ver. 1.21 RWD 切換按鈕樣式 */
+        .device-toggle {
+            display: flex;
+            background: #eee;
+            border-radius: 8px;
+            padding: 3px;
+        }
+
+        .device-toggle button {
+            background: transparent;
+            border: none;
+            padding: 6px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #777;
+            transition: 0.2s;
+        }
+
+        .device-toggle button.active {
+            background: #fff;
+            color: var(--primary);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ver. 1.21 手機模擬器外框 */
+        .preview-wrapper {
+            transition: all 0.3s ease;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .preview-wrapper.desktop {
+            max-width: 1000px;
+        }
+
+        .preview-wrapper.mobile {
+            width: 375px;
+            /* 標準手機寬度 */
+            border: 12px solid #333;
+            border-radius: 36px;
+            padding: 10px 0;
+            background: #fff;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        /* ver. 1.21 當處於手機預覽模式時的強制覆寫 (RWD 魔法) */
+        .preview-wrapper.mobile .preview-container {
+            padding: 15px;
+            box-shadow: none;
+        }
+
+        .preview-wrapper.mobile .preview-card {
+            width: 100% !important;
+            max-width: 100%;
+            grid-column: 1 / -1 !important;
+            /* ver 1.22 寬度強制滿版 */
+            grid-row: auto !important;
+            /* ver 1.22 關鍵：手機版解除上下坐標與高度限制 */
+            height: auto !important;
+            /* ver 1.22 關鍵：手機版自動撐高 */
+            min-height: 150px;
+        }
+
+        /* ver. 1.21強制所有積木滿版 */
+        .preview-wrapper.mobile .news-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        /* ver. 1.21標題與浮水印改為上下排列 */
+        .preview-wrapper.mobile .news-watermark {
+            margin-left: 0 !important;
+            align-self: flex-start;
+        }
+
+        .preview-wrapper.mobile .news-footer {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .preview-wrapper.mobile .news-title {
+            font-size: 1.5rem !important;
+        }
+
+        /* ver. 1.22 修正手機版溢出問題 (Box Model 與佈局安全調整) */
+        .preview-container,
+        .preview-card {
+            box-sizing: border-box;
+            /* 魔法指令：確保 padding 不會把外框撐破 */
+        }
+
+        .preview-wrapper.mobile .preview-grid {
+            display: flex;
+            /* 在手機版放棄 12 格網格系統，改成彈性盒子 */
+            flex-direction: column;
+            /* 強制所有積木由上往下垂直排列 */
+            gap: 15px;
+        }
+
+        .preview-wrapper.mobile .preview-card {
+            width: 100% !important;
+            /* 卡片強制佔滿 100% 寬度 */
+            max-width: 100%;
+            /* 雙重保險，絕對不允許超出邊界 */
+        }
+
+        /* 讓清除篩選的按鈕在手機版也不會超出邊界 */
+        .preview-wrapper.mobile .reset-filter-btn {
+            width: 100%;
+            text-align: center;
+        }
+
+        /* ver. 1.31 新增：時間軸 (Timeline) 樣式 */
+        .timeline-container {
+            padding-left: 25px;
+            border-left: 2px solid var(--primary);
+            margin: 15px 0 15px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            height: calc(100% - 40px);
+        }
+
+        .timeline-item {
+            position: relative;
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -32px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: 3px solid #fff;
+            box-shadow: 0 0 0 2px var(--primary);
+        }
+
+        .timeline-date {
+            font-weight: bold;
+            color: var(--primary);
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .timeline-title {
+            font-weight: 900;
+            font-size: 1.1rem;
+            margin: 0 0 5px 0;
+            color: #333;
+        }
+
+        .timeline-desc {
+            margin: 0;
+            color: #666;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* ver. 1.31 新增：動作按鈕 (Button) 樣式 */
+        .custom-btn-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .custom-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            text-align: center;
+            color: #fff;
+            transition: 0.2s;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 80%;
+        }
+
+        .custom-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            filter: brightness(1.1);
+        }
+
+        /* ver. 1.41 右側面板頁籤樣式 */
+        .panel-tabs {
+            display: flex;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 20px;
+        }
+
+        .panel-tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px 5px;
+            cursor: pointer;
+            color: #999;
+            font-weight: bold;
+            border-bottom: 3px solid transparent;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .panel-tab:hover {
+            color: #555;
+        }
+
+        .panel-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
     </style>
 </head>
 
@@ -488,10 +788,11 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
         const RGL = window.ReactGridLayout;
+        // ver. 1.02 新增這行：將原本固定的網格，升級為「自動適應寬度」的響應式網格
+        const ResponsiveRGL = RGL.WidthProvider(RGL);
 
         Chart.register(ChartDataLabels);
 
-        // PreviewViewer 組件 (包含所有圖表與過濾邏輯，保持不變)
         function PreviewViewer({ config }) {
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -569,6 +870,7 @@
                 let result = {};
                 rawData.forEach(row => {
                     let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                    // 文字卡片強制使用 first 邏輯
                     if (aggType === 'first') {
                         if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
                         return;
@@ -634,10 +936,32 @@
 
             return (
                 <div className="preview-container">
-                    <h2 style={{ textAlign: 'center', color: '#086788', marginBottom: '10px' }}>{config.meta.title}</h2>
+
+                    {/* 🌟 渲染專業的新聞 Header */}
+                    {/* ver. 1.11 乾淨的 Header (主標題 + 右上角浮水印) */}
+                    {/* ver. 1.13 乾淨的 Header (套用標題自訂樣式) */}
+                    {/* ver 1.14 乾淨的 Header (套用標題對齊與自訂樣式) */}
+                    <div className="news-header">
+                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
+                            <h2 className="news-title" style={{
+                                color: config.meta.titleColor || '#222',
+                                fontSize: config.meta.titleFontSize || '1.8rem',
+                                fontWeight: config.meta.titleFontWeight || '900',
+                                fontFamily: config.meta.titleFontFamily || 'inherit',
+                                margin: 0
+                            }}>
+                                {config.meta.title}
+                            </h2>
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px`, marginLeft: '15px' }} />
+                        )}
+                    </div>
+
                     {Object.values(filters).some(v => v) && (
                         <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
                     )}
+
                     <div className="preview-grid">
                         {sortedComponents.map(comp => (
                             <ChartComponent
@@ -648,6 +972,35 @@
                                 aggregateStackedData={aggregateStackedData}
                             />
                         ))}
+                    </div>
+
+                    {/* 🌟 渲染新聞 Footer (資料來源) */}
+                    {/* ver 1.13 重新排版的 Footer (左：更新時間+多筆資料來源) */}
+                    <div className="news-footer">
+                        <div className="news-footer-left">
+                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
+
+                            {/* ver 1.13 判斷如果有資料來源陣列，就用迴圈把它們印出來，中間加頓號 */}
+                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                    <span>資料來源：</span>
+                                    {config.meta.dataSources.map((source, idx) => (
+                                        <span key={idx}>
+                                            {source.url ? (
+                                                <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a>
+                                            ) : (
+                                                <span>{source.name || '未命名來源'}</span>
+                                            )}
+                                            {/* ver 1.13 如果不是最後一個來源，就加一個頓號分隔 */}
+                                            {idx < config.meta.dataSources.length - 1 && '、'}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />
+                        )}
                     </div>
                 </div>
             );
@@ -722,59 +1075,135 @@
                         if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
                     }
 
-                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels: labels, datasets: datasets }, options: options });
+                    chartInstance.current = new Chart(ctx, {
+                        type: chartType, data: { labels: labels, datasets: datasets }, options: {
+                            responsive: true,
+                            maintainAspectRatio: false, // 讓圖表能適應我們設定的 div 高度
+                            plugins: {
+                                legend: {
+                                    position: 'top', // 圖例放上面
+                                },
+                                title: {
+                                    display: false, // 👉 🌟 關鍵修正：強制關閉 Chart.js 內建的標題！我們用外面的 <h3> 就好
+                                    text: comp.title
+                                }
+                            }
+                        }
+                    });
                 }
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); }
             }, [comp, filteredData, isChartVisible]);
+            // ver. 1.45 魔法防護盾必須移到最前面！確保所有狀態 (包含未選擇時) 都能吃到佈局設定
+            const colWidth = comp.layout?.desktopCols || comp.layout?.w || comp.w || 6;
+            const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
+            const rowY = comp.layout?.y !== undefined ? (comp.layout.y + 1) : 'auto';
 
-            const gridStyle = { gridColumn: `span ${comp.layout.desktopCols}` };
+            const gridStyle = { 
+                gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
+                gridRow: rowY !== 'auto' ? `${rowY} / span ${comp.layout?.h || comp.h || 6}` : 'auto',
+                overflow: 'hidden', 
+                boxSizing: 'border-box',
+                padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: comp.showTitle !== false ? 'flex-start' : 'center', 
+                alignItems: 'stretch',
+                minWidth: 0, 
+                width: '100%' 
+            };
 
+            // ver. 1.45 處理「未選擇下拉選單」時的等待狀態 (現在它有防護盾保護了！)
             if (comp.type !== 'dropdown' && !isChartVisible) {
                 return (
                     <div className="preview-card" style={gridStyle}>
-                        <h3 className="preview-card-title">{comp.title}</h3>
-                        <div className="waiting-placeholder">請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表</div>
+                        {comp.showTitle !== false && comp.title && (
+                            <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
+                                {comp.title}
+                            </h3>
+                        )}
+                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表
+                        </div>
                     </div>
                 );
             }
 
-            const renderMetricValue = () => {
-                if (!comp.valueColumn) return '-';
-                const aggResult = aggregateData(filteredData, null, comp.valueColumn, comp.aggregation)['總計'];
-                if (aggResult === undefined) return '-';
-                const isTextMode = comp.aggregation === 'first';
-                const displayVal = (!isTextMode && typeof aggResult === 'number') ? aggResult.toLocaleString() : String(aggResult);
-                const finalFontSize = comp.fontSize || (isTextMode ? '1.1rem' : '2.2rem');
-                const finalFontFamily = comp.fontFamily || 'inherit';
-                const finalFontWeight = comp.fontWeight || '900';
-                const dynamicAlign = isTextMode ? 'left' : 'center';
+            // ver. 1.45 渲染數字與文字內容
+            const renderMetricOrText = () => {
+                if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
 
-                return (
-                    <div className="preview-metric-value" style={{ color: comp.themeColor || '#086788', fontSize: finalFontSize, fontFamily: finalFontFamily, fontWeight: finalFontWeight, textAlign: dynamicAlign, whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                        {displayVal}
-                    </div>
-                );
+                // 數據卡片 (metricCard)
+                if (comp.type === 'metricCard') {
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定數值欄位</p>;
+                    let value;
+                    if (comp.aggregation === 'count') {
+                        value = filteredData.length;
+                    } else {
+                        value = filteredData.reduce((sum, row) => sum + (parseFloat(row[comp.valueColumn]) || 0), 0);
+                    }
+                    const formattedValue = value.toLocaleString('zh-TW');
+
+                    return (
+                        <div className="metric-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                            <div className="metric-value" style={{ color: comp.themeColor || '#086788', fontSize: '3.5rem', fontWeight: '900', lineHeight: 1 }}>
+                                {formattedValue}
+                            </div>
+                        </div>
+                    );
+                }
+
+                // 文字區塊 (textCard)
+                if (comp.type === 'textCard') {
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定文字欄位</p>;
+                    const latestRow = filteredData[filteredData.length - 1]; 
+                    const textContent = latestRow[comp.valueColumn] || ' (無文字內容) ';
+
+                    return (
+                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center' }}>
+                            <p className="text-card-content" style={{ fontSize: '1.2rem', lineHeight: '1.6', margin: 0 }}>{textContent}</p>
+                        </div>
+                    );
+                }
+                return null;
             };
 
             const renderMetricCompare = () => {
-                if (!comp.compareValueColumn || comp.aggregation === 'first') return null;
-                const compResult = aggregateData(filteredData, null, comp.compareValueColumn, comp.aggregation)['總計'];
-                if (compResult === undefined) return null;
-                const compareDisplay = typeof compResult === 'number' ? compResult.toLocaleString() : String(compResult);
+                if (comp.type !== 'metricCard' || !comp.compareValueColumn) return null;
+                const compareValue = filteredData.reduce((sum, row) => sum + (parseFloat(row[comp.compareValueColumn]) || 0), 0);
+                const formattedCompareValue = compareValue.toLocaleString('zh-TW');
+
                 return (
-                    <div style={{ fontSize: '1rem', color: '#888', marginTop: '10px', fontWeight: 'normal', textAlign: 'center' }}>相比 {comp.compareValueColumn}: {compareDisplay}</div>
+                    <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textALign: 'center', width: '100%' }}>
+                        相比 {comp.compareValueColumn}：{formattedCompareValue}
+                    </div>
                 );
             };
 
             return (
                 <div className="preview-card" style={gridStyle}>
-                    <h3 className="preview-card-title">{comp.title}</h3>
-                    {comp.type === 'metricCard' && (<>{renderMetricValue()}{renderMetricCompare()}</>)}
-                    {isChartType && (
-                        <div style={{ position: 'relative', height: '250px', width: '100%' }}>
-                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{ color: '#999', textAlign: 'center', marginTop: '100px' }}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
+                    {/* 1. 統一標題 */}
+                    {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
+                        <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
+                            {comp.title}
+                        </h3>
+                    )}
+
+                    {/* 2. 數字卡與文字區塊 (加入寬度 100% 與置中確保排版不歪掉) */}
+                    {(comp.type === 'metricCard' || comp.type === 'textCard') && (
+                        <div style={{ width: '100%', textAlign: 'center' }}>
+                            {renderMetricOrText()}
+                            {renderMetricCompare()}
                         </div>
                     )}
+
+                    {/* 3. 圖表渲染：加入 flex: 1 讓它自動把剩下的「高度」完美填滿！ */}
+                    {isChartType && (
+                        <div style={{ position: 'relative', flex: 1, width: '100%', minHeight: '150px' }}>
+                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{ color: '#999', textAlign: 'center', marginTop: '30%' }}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
+                        </div>
+                    )}
+
+                    {/* 4. 下拉選單 */}
                     {comp.type === 'dropdown' && (() => {
                         if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
                         if (isDropdownDisabled) {
@@ -797,27 +1226,93 @@
                             </select>
                         );
                     })()}
+
+                    {/* 5. 動作按鈕 */}
+                    {comp.type === 'button' && (
+                        <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
+                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>
+                                {comp.title || '點擊連結'}
+                            </a>
+                        </div>
+                    )}
+
+                    {/* 6. 新聞時間軸 */}
+                    {comp.type === 'timeline' && (
+                        <div className="timeline-container" style={{ '--primary': comp.themeColor || '#086788', marginTop: '10px', width: '100%' }}>
+                            {(!comp.categoryColumn || !comp.valueColumn) ? (
+                                <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題」欄位</p>
+                            ) : (
+                                filteredData.map((row, idx) => {
+                                    if (!row[comp.valueColumn]) return null;
+                                    return (
+                                        <div key={idx} className="timeline-item">
+                                            <div className="timeline-dot"></div>
+                                            {row[comp.categoryColumn] && <div className="timeline-date">{row[comp.categoryColumn]}</div>}
+                                            <h4 className="timeline-title">{row[comp.valueColumn]}</h4>
+                                            {comp.compareValueColumn && row[comp.compareValueColumn] && (
+                                                <p className="timeline-desc">{row[comp.compareValueColumn]}</p>
+                                            )}
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        // ==========================================
-        // 編輯器主程式 (Builder)
-        // ==========================================
         function DashboardApp() {
             const [viewMode, setViewMode] = useState('builder');
-            const [dashboardTitle, setDashboardTitle] = useState("中央政府總預算生成器");
+            // ver. 1.21 新增這行：紀錄預覽裝置 (desktop 或 mobile)
+            const [previewDevice, setPreviewDevice] = useState('desktop');
+            // ver. 1.41 新增這行：紀錄右側面板目前選中的頁籤
+            const [activeTab, setActiveTab] = useState('basic');
+
+            // 全局設定狀態 (包含版頭版尾)
+            // ver 1.11 擴充全局設定，加入大小與位置
+            const [globalMeta, setGlobalMeta] = useState({
+                title: "請輸入主標題",
+                titleColor: "#222222",
+                titleFontSize: "1.8rem",
+                titleFontWeight: "900",
+                titleFontFamily: "",
+                titleAlign: "left", // ver 1.14 新增：標題對齊方式
+                lastUpdated: "",
+                // ver 1.13把單一來源改成「動態陣列」
+                dataSources: [{ name: "新增資料來源", url: "" }],
+                watermarkUrl: "",
+                watermarkName: "",             // ver 1.12 新增這行
+                watermarkSize: 40,             // 預設高度 40px
+                watermarkPosition: "top-right" // 預設右上角
+            });
+
+            // ver 1.11 新增：處理本機圖片上傳並轉成 Base64 字串存起來
+            // ver 1.12 修改上傳邏輯，把檔名一起存起來
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        // 同時更新 Url 和 Name
+                        setGlobalMeta(prev => ({ ...prev, watermarkUrl: reader.result, watermarkName: file.name }));
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
             const [sheetId, setSheetId] = useState("1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs");
             const [sheetGid, setSheetGid] = useState("612819456");
             const [availableColumns, setAvailableColumns] = useState([]);
             const [isFetching, setIsFetching] = useState(false);
 
+            // 🌟 發布流程狀態
             const [isPublishing, setIsPublishing] = useState(false);
             const [showPublishModal, setShowPublishModal] = useState(false);
             const [publishedId, setPublishedId] = useState('');
 
             const [blocks, setBlocks] = useState([
-                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900' }
+                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900', textAlign: 'center' }
             ]);
             const [selectedBlockId, setSelectedBlockId] = useState(null);
 
@@ -837,6 +1332,7 @@
                 }
                 setIsFetching(false);
             };
+
             const handleLayoutChange = (newLayout) => {
                 const updatedBlocks = blocks.map(block => {
                     const layoutItem = newLayout.find(l => l.i === block.i);
@@ -844,51 +1340,74 @@
                 });
                 setBlocks(updatedBlocks);
             };
+
             const addBlock = (type, title, defaultW, defaultH) => {
                 const newId = 'comp_' + Date.now();
-                setBlocks(prev => [...prev, { i: newId, x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: 'sum', chartOrientation: 'vertical', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900' }]);
+                setBlocks(prev => [...prev, { i: newId, x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' }]);
                 setSelectedBlockId(newId);
             };
+
             const removeBlock = (idToRemove) => {
                 setBlocks(prev => prev.filter(block => block.i !== idToRemove));
                 if (selectedBlockId === idToRemove) setSelectedBlockId(null);
             };
+
             const updateBlockProperty = (id, key, value) => {
                 setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: value } : block));
             };
 
+            // ver. 1.01 新增這段：處理手動輸入寬高數字的邏輯
+            const updateBlockLayout = (id, key, value) => {
+                const numValue = parseInt(value, 10);
+                if (isNaN(numValue) || numValue < 1) return;
+                setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: numValue } : block));
+            };
+
+            const updateGlobalMeta = (key, value) => {
+                setGlobalMeta(prev => ({ ...prev, [key]: value }));
+            }
+
             const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
 
+            // 匯出最終的 JSON 藍圖
             const finalJSON = {
-                meta: { title: dashboardTitle },
+                meta: globalMeta,
                 dataSource: { type: "googleSheet", sheetId: sheetId, gid: sheetGid },
                 components: blocks.map(b => ({
-                    id: b.i, type: b.type, title: b.title, categoryColumn: b.categoryCol || null,
+                    id: b.i,
+                    type: b.type,
+                    title: b.title,
+                    showTitle: b.showTitle !== false, // 🌟 新增這行：記錄標題開關狀態
+                    buttonUrl: b.buttonUrl || null, // ver 1.31 新增這一行確保網址有存進去！
+                    categoryColumn: b.categoryCol || null,
                     valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null,
                     stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null,
                     isPercentageStacked: b.isPercentageStacked || false,
-                    compareValueColumn: b.compareValueCol || null, aggregation: b.aggregation,
-                    chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor || '#086788',
-                    fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || '900',
+                    compareValueColumn: b.compareValueCol || null,
+                    aggregation: b.aggregation,
+                    chartOrientation: b.chartOrientation || 'vertical',
+                    themeColor: b.themeColor,
+                    fontSize: b.fontSize || null,
+                    fontFamily: b.fontFamily || null,
+                    fontWeight: b.fontWeight || null,
+                    textAlign: b.textAlign || null,
                     layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
                 }))
             };
 
-            // 🌟 核心修改：真的呼叫 Firebase 儲存資料！
+            // 🌟 呼叫 Firebase 的發布邏輯
             const handlePublish = async () => {
                 setIsPublishing(true);
                 try {
-                    // 呼叫我們在最上面 <script type="module"> 定義的全域函數
                     if (window.publishToFirebase) {
                         const newId = await window.publishToFirebase(finalJSON);
                         setPublishedId(newId);
-                        setShowPublishModal(true); // 成功後打開視窗
+                        setShowPublishModal(true);
                     } else {
                         alert("⚠️ Firebase 尚未載入完成，請稍候重試！");
                     }
                 } catch (error) {
-                    // 如果報錯，會在這裡顯示
-                    alert("❌ 發布失敗！請檢查 Firebase 權限設定（是否為測試模式）。詳細錯誤：" + error.message);
+                    alert("❌ 發布失敗！詳細錯誤：" + error.message);
                 } finally {
                     setIsPublishing(false);
                 }
@@ -904,10 +1423,16 @@
 
             return (
                 <div>
-
                     <div className="top-nav">
                         <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
                         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                            {/* ver. 1.21 新增：只有在預覽模式才會出現的裝置切換鈕 */}
+                            {viewMode === 'preview' && (
+                                <div className="device-toggle">
+                                    <button className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>💻 電腦版</button>
+                                    <button className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>📱 手機版</button>
+                                </div>
+                            )}
                             <div className="mode-toggle">
                                 <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
                                 <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
@@ -917,37 +1442,52 @@
                             </button>
                         </div>
                     </div>
+
                     {viewMode === 'builder' && (
                         <div className="builder-container">
-                            {/* 左側與中間畫布保持不變... */}
                             <div className="toolbar-area">
-                                <h3 style={{ marginTop: 0 }}>🛠️ 積木工具</h3>
+                                <h3 style={{ marginTop: 0, marginBottom: '5px' }}>🛠️ 積木工具</h3>
+
+                                {/* ver. 1.41 控制器類型 */}
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '10px', marginBottom: '5px' }}>🎛️ 控制器</div>
                                 <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{ background: '#F0C808', color: '#333' }}>+ 下拉選單</button>
-                                <hr style={{ borderColor: '#eee', width: '100%' }} />
-                                <button className="add-btn" onClick={() => addBlock('metricCard', '新數據卡片', 4, 3)}>+ 數據卡片</button>
-                                <button className="add-btn" onClick={() => addBlock('pieChart', '新圓餅圖', 6, 5)}>+ 圓餅圖</button>
+                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 2)} style={{ background: '#2ECC71', color: '#000' }}>+ 動作按鈕</button>
+
+                                {/* ver. 1.41 卡片 */}
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📇 卡片</div>
+                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 文字區塊</button>
+                                <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 4, 3)}>+ 數據卡片</button>
+
+                                {/* ver. 1.41 圖表 */}
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📊 圖表</div>
                                 <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('pieChart', '圓餅圖', 6, 5)}>+ 圓餅圖</button>
                                 <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 時間趨勢線</button>
                                 <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊直條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 新聞時間軸</button>
                             </div>
 
                             <div className="canvas-area">
-                                <h2 style={{ marginTop: 0 }}>{dashboardTitle}</h2>
                                 <div className="grid-bg" onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
-                                    <RGL layout={blocks} cols={12} rowHeight={30} width={600} margin={[15, 15]} onLayoutChange={handleLayoutChange} draggableCancel=".delete-btn">
+                                    {/* ver. 1.01 把原本的 width={800} 改成 680 */}
+                                    {/* ver. 1.02 把 <RGL> 換成 <ResponsiveRGL>，並刪除 width 屬性 👇 */}
+                                    <ResponsiveRGL layout={blocks} cols={12} rowHeight={30} margin={[15, 15]} onLayoutChange={handleLayoutChange} draggableCancel=".delete-btn" style={{ minHeight: '100%' }}>
                                         {blocks.map(block => (
                                             <div key={block.i}>
                                                 <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
                                                     <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
-                                                    <span style={{ fontSize: '1.2rem' }}>{block.title}</span>
+                                                    <span style={{ fontSize: '1.2rem' }}>{block.title || '(無標題)'}</span>
                                                     <div className="type-badge">{
                                                         block.type === 'stackedBarChart' ? '堆疊圖' :
-                                                            block.type === 'lineChart' ? '折線圖' : block.type
+                                                            block.type === 'lineChart' ? '折線圖' :
+                                                                block.type === 'textCard' ? '文字區塊' : block.type
                                                     }</div>
+                                                    {/* 🌟 網格提示標籤 */}
+                                                    <div className="size-badge">{block.w} / 12 格</div>
                                                 </div>
                                             </div>
                                         ))}
-                                    </RGL>
+                                    </ResponsiveRGL>
                                 </div>
                             </div>
 
@@ -955,178 +1495,309 @@
                                 <div className="property-area">
                                     {currentSelectedBlock ? (
                                         <div>
-                                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px' }}>⚙️ 積木設定</h3>
+                                            <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>⚙️ {currentSelectedBlock.title || '積木設定'}</h3>
 
-                                            <div className="form-group">
-                                                <label>顯示標題</label>
-                                                <input type="text" value={currentSelectedBlock.title} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)} />
+                                            {/* ver. 1.41 頁籤導覽列 */}
+                                            <div className="panel-tabs">
+                                                <div className={`panel-tab ${activeTab === 'basic' ? 'active' : ''}`} onClick={() => setActiveTab('basic')}>📐 基本</div>
+                                                <div className={`panel-tab ${activeTab === 'data' ? 'active' : ''}`} onClick={() => setActiveTab('data')}>📊 資料</div>
+                                                <div className={`panel-tab ${activeTab === 'style' ? 'active' : ''}`} onClick={() => setActiveTab('style')}>🎨 樣式</div>
                                             </div>
 
-                                            {currentSelectedBlock.type === 'metricCard' && (
-                                                <>
-                                                    <h4 style={{ marginTop: '25px', marginBottom: '10px', color: '#086788' }}>🔤 文字樣式設定</h4>
-                                                    <div className="form-group">
-                                                        <label>字體顏色 (主要顏色)</label>
-                                                        <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                            {/* ver. 1.41 頁籤 1：基本與尺寸 */}
+                                            {activeTab === 'basic' && (
+                                                <div className="panel-content">
+
+                                                    {/* ver. 1.42 新增：標題開關與輸入框 */}
+                                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            id="toggleTitle"
+                                                            checked={currentSelectedBlock.showTitle !== false} // 預設為 true
+                                                            onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showTitle', e.target.checked)}
+                                                        />
+                                                        <label htmlFor="toggleTitle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>顯示積木主標題</label>
                                                     </div>
-                                                    <div className="form-group">
-                                                        <label>文字大小</label>
-                                                        <select value={currentSelectedBlock.fontSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
-                                                            <option value="">預設 (自動判斷)</option>
-                                                            <option value="1rem">小 (16px)</option>
-                                                            <option value="1.5rem">中 (24px)</option>
-                                                            <option value="2.2rem">大 (35px)</option>
-                                                            <option value="3rem">特大 (48px)</option>
-                                                        </select>
+
+                                                    {currentSelectedBlock.showTitle !== false && (
+                                                        <div className="form-group" style={{ marginTop: '-5px' }}>
+                                                            <input type="text" value={currentSelectedBlock.title || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)} placeholder="請輸入標題 (例如：本月營收)" />
+                                                        </div>
+                                                    )}
+
+                                                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                                                        <div className="form-group" style={{ flex: 1 }}>
+                                                            <label>寬度 (1~12格)</label>
+                                                            <input type="number" min="1" max="12" value={currentSelectedBlock.w} onChange={(e) => updateBlockLayout(currentSelectedBlock.i, 'w', e.target.value)} />
+                                                        </div>
+                                                        <div className="form-group" style={{ flex: 1 }}>
+                                                            <label>編輯器高度 (格)</label>
+                                                            <input type="number" min="1" value={currentSelectedBlock.h} onChange={(e) => updateBlockLayout(currentSelectedBlock.i, 'h', e.target.value)} />
+                                                        </div>
                                                     </div>
-                                                    <div className="form-group">
-                                                        <label>字體粗細 (字重)</label>
-                                                        <select value={currentSelectedBlock.fontWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
-                                                            <option value="normal">正常 (Normal)</option>
-                                                            <option value="bold">粗體 (Bold)</option>
-                                                            <option value="900">特粗 (Black)</option>
-                                                            <option value="300">細體 (Light)</option>
-                                                        </select>
+
+                                                    {/* ver. 1.42 新增：智慧高度建議提示 */}
+                                                    <div style={{ fontSize: '0.85rem', color: '#086788', background: '#f0f8fa', padding: '10px', borderRadius: '6px', marginBottom: '15px', lineHeight: '1.5' }}>
+                                                        💡 <b>無捲軸的最佳高度建議：</b><br />
+                                                        {currentSelectedBlock.type === 'dropdown' ? (currentSelectedBlock.showTitle !== false ? '👉 3 格 (含標題)' : '👉 2 格 (無標題剛好)') :
+                                                            currentSelectedBlock.type === 'button' ? '👉 2 格' :
+                                                                currentSelectedBlock.type === 'metricCard' ? (currentSelectedBlock.showTitle !== false ? '👉 4 格' : '👉 3 格') :
+                                                                    isChartType ? '👉 至少 8 ~ 10 格 (讓圖表有空間伸展)' :
+                                                                        '👉 視文字或事件內容多寡而定'}
                                                     </div>
-                                                    <div className="form-group">
-                                                        <label>字型 (字體)</label>
-                                                        <select value={currentSelectedBlock.fontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontFamily', e.target.value)}>
-                                                            <option value="">預設 (Noto Sans TC)</option>
-                                                            <option value="Arial, sans-serif">黑體 (Arial)</option>
-                                                            <option value="'Times New Roman', serif">明體/宋體 (Times)</option>
-                                                            <option value="'Courier New', monospace">等寬字體 (Monospace)</option>
-                                                        </select>
-                                                    </div>
-                                                </>
+
+                                                    <button className="delete-panel-btn" onClick={() => removeBlock(currentSelectedBlock.i)}>🗑️ 刪除此積木</button>
+                                                </div>
                                             )}
 
-                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart') && (
-                                                <>
-                                                    <h4 style={{ marginTop: '25px', marginBottom: '10px', color: '#086788' }}>🎨 外觀設定</h4>
-
-                                                    <div className="form-group">
-                                                        <label>主要顏色</label>
-                                                        <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
-                                                    </div>
-
-                                                    {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') && (
+                                            {/* ver. 1.41 頁籤 2：資料綁定 (把你剛剛寫好的複雜邏輯安全收納進來) */}
+                                            {activeTab === 'data' && (
+                                                <div className="panel-content">
+                                                    {currentSelectedBlock.type === 'button' && (
                                                         <div className="form-group">
-                                                            <label>長條圖方向</label>
-                                                            <select value={currentSelectedBlock.chartOrientation || 'vertical'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'chartOrientation', e.target.value)}>
-                                                                <option value="vertical">直向長條圖</option>
-                                                                <option value="horizontal">橫向長條圖</option>
-                                                            </select>
+                                                            <label>按鈕點擊連結 (URL)</label>
+                                                            <input type="text" value={currentSelectedBlock.buttonUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonUrl', e.target.value)} placeholder="https://..." />
                                                         </div>
                                                     )}
 
-                                                    {currentSelectedBlock.type === 'stackedBarChart' && (
-                                                        <div className="form-group">
-                                                            <label>
-                                                                <input type="checkbox" checked={currentSelectedBlock.isPercentageStacked || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'isPercentageStacked', e.target.checked)} />
-                                                                {' '}百分比堆疊直條圖 (總高皆為 100%)
-                                                            </label>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-
-                                            <h4 style={{ marginTop: '25px', marginBottom: '10px', color: '#086788' }}>📊 資料綁定</h4>
-
-                                            {availableColumns.length === 0 ? (
-                                                <div className="notice-box">請先在「全局設定」點擊讀取表頭，才能綁定欄位。</div>
-                                            ) : (
-                                                <>
-                                                    {isChartType && (
-                                                        <div className="form-group">
-                                                            <label>分類欄位 (X軸標籤)</label>
-                                                            <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                <option value="">請選擇...</option>
-                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                            </select>
-                                                        </div>
-                                                    )}
-
-                                                    {currentSelectedBlock.type === 'dropdown' && (
-                                                        <div className="form-group">
-                                                            <label>過濾目標欄位</label>
-                                                            <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                <option value="">請選擇要過濾的欄位...</option>
-                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                            </select>
-                                                        </div>
-                                                    )}
-
-                                                    {currentSelectedBlock.type !== 'dropdown' && (
+                                                    {currentSelectedBlock.type !== 'button' && availableColumns.length === 0 ? (
+                                                        <div className="notice-box">請先點擊背景進入「全局設定」，讀取表頭後才能綁定欄位。</div>
+                                                    ) : currentSelectedBlock.type !== 'button' && (
                                                         <>
-                                                            {currentSelectedBlock.type === 'stackedBarChart' ? (
+                                                            {(isChartType || currentSelectedBlock.type === 'timeline') && (
                                                                 <div className="form-group">
-                                                                    <label>堆疊數值欄位</label>
-                                                                    <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 5px 0' }}>提示：如果欄位含有「人事費:0|業務費:10」這樣的複合字串，只需新增【一個】欄位，系統會自動切出所有項目並疊好。</p>
-                                                                    {(currentSelectedBlock.stackValueCols || []).map((col, index) => (
-                                                                        <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                                                                            <select value={col} onChange={(e) => {
-                                                                                const newCols = [...currentSelectedBlock.stackValueCols];
-                                                                                newCols[index] = e.target.value;
-                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
-                                                                            }}>
-                                                                                <option value="">請選擇...</option>
-                                                                                {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
-                                                                            </select>
-                                                                            <button onClick={() => {
-                                                                                const newCols = currentSelectedBlock.stackValueCols.filter((_, i) => i !== index);
-                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
-                                                                            }} style={{ padding: '5px' }}>✕</button>
-                                                                        </div>
-                                                                    ))}
-                                                                    <button className="reset-filter-btn" onClick={() => {
-                                                                        const existingCols = currentSelectedBlock.stackValueCols || [];
-                                                                        const updatedCols = [...existingCols, ''];
-                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', updatedCols);
-                                                                    }}>+ 添加堆疊欄位</button>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="form-group">
-                                                                    <label>{currentSelectedBlock.type === 'metricCard' ? '數值來源欄位' : '主要數值欄位 (Y軸資料)'}</label>
-                                                                    <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
+                                                                    <label>{currentSelectedBlock.type === 'timeline' ? '日期/時間欄位' : '分類欄位 (X軸)'}</label>
+                                                                    <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
                                                                         <option value="">請選擇...</option>
                                                                         {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                     </select>
                                                                 </div>
                                                             )}
 
-                                                            {currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && (
+                                                            {currentSelectedBlock.type === 'dropdown' && (
                                                                 <div className="form-group">
-                                                                    <label>比較數值欄位 (選填)</label>
-                                                                    <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
-                                                                        <option value="">無 (單一資料)</option>
+                                                                    <label>過濾目標欄位</label>
+                                                                    <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
+                                                                        <option value="">請選擇要過濾的欄位...</option>
                                                                         {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                     </select>
                                                                 </div>
                                                             )}
 
-                                                            <div className="form-group">
-                                                                <label>資料計算方式</label>
-                                                                <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
-                                                                    <option value="sum">加總金額/數值 (Sum)</option>
-                                                                    <option value="count">計算筆數 (Count)</option>
-                                                                    {currentSelectedBlock.type === 'metricCard' && (
-                                                                        <option value="first">顯示純文字 (Text)</option>
+                                                            {currentSelectedBlock.type !== 'dropdown' && (
+                                                                <>
+                                                                    {currentSelectedBlock.type === 'stackedBarChart' ? (
+                                                                        <div className="form-group">
+                                                                            <label>堆疊數值欄位</label>
+                                                                            {(currentSelectedBlock.stackValueCols || []).map((col, index) => (
+                                                                                <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                                                                                    <select value={col} onChange={(e) => {
+                                                                                        const newCols = [...currentSelectedBlock.stackValueCols];
+                                                                                        newCols[index] = e.target.value;
+                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                                    }}>
+                                                                                        <option value="">請選擇...</option>
+                                                                                        {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
+                                                                                    </select>
+                                                                                    <button onClick={() => {
+                                                                                        const newCols = currentSelectedBlock.stackValueCols.filter((_, i) => i !== index);
+                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                                    }} style={{ padding: '5px' }}>✕</button>
+                                                                                </div>
+                                                                            ))}
+                                                                            <button className="reset-filter-btn" onClick={() => {
+                                                                                const updatedCols = [...(currentSelectedBlock.stackValueCols || []), ''];
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', updatedCols);
+                                                                            }}>+ 添加堆疊欄位</button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="form-group">
+                                                                            <label>
+                                                                                {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
+                                                                                    currentSelectedBlock.type === 'timeline' ? '事件標題欄位' : '數值欄位 (Y軸)'}
+                                                                            </label>
+                                                                            <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
+                                                                                <option value="">請選擇...</option>
+                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                            </select>
+                                                                        </div>
                                                                     )}
-                                                                </select>
-                                                            </div>
+
+                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'dropdown' && (
+                                                                        <div className="form-group">
+                                                                            <label>{currentSelectedBlock.type === 'timeline' ? '事件內文說明 (選填)' : '比較數值欄位 (選填)'}</label>
+                                                                            <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
+                                                                                <option value="">無</option>
+                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && (
+                                                                        <div className="form-group">
+                                                                            <label>資料計算方式</label>
+                                                                            <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
+                                                                                <option value="sum">加總金額/數值 (Sum)</option>
+                                                                                <option value="count">計算筆數 (Count)</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            )}
                                                         </>
                                                     )}
-                                                </>
+                                                </div>
+                                            )}
+
+                                            {/* ver. 1.41 頁籤 3：外觀樣式 */}
+                                            {activeTab === 'style' && (
+                                                <div className="panel-content">
+                                                    <div className="form-group">
+                                                        <label>積木主題顏色 (適用於按鈕、時間軸)</label>
+                                                        <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                    </div>
+                                                    <p style={{ fontSize: '0.85rem', color: '#888' }}>💡 未來如果要個別修改圖表的顏色、字體大小或卡片背景色，都會集中收納在這裡！</p>
+                                                </div>
                                             )}
                                         </div>
                                     ) : (
                                         <div>
-                                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px' }}>🌐 全局設定</h3>
+                                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px' }}>🌐 全局設定 (Header & Footer)</h3>
+
+                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📰 標題與樣式設定</h4>
                                             <div className="form-group">
-                                                <label>儀表板總標題</label>
-                                                <input type="text" value={dashboardTitle} onChange={(e) => setDashboardTitle(e.target.value)} />
+                                                <label>大標題 (主標)</label>
+                                                <input type="text" value={globalMeta.title} onChange={(e) => updateGlobalMeta('title', e.target.value)} />
                                             </div>
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🔗 外部資料源綁定</h4>
+
+                                            {/* ver 1.13 新增：標題排版選項 */}
+                                            {/* ver 1.14 標題排版選項 (加入對齊選單) */}
+                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                    <label>標題顏色</label>
+                                                    <input type="color" value={globalMeta.titleColor || '#222222'} onChange={(e) => updateGlobalMeta('titleColor', e.target.value)} />
+                                                </div>
+                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                    <label>對齊方式</label>
+                                                    <select value={globalMeta.titleAlign || 'left'} onChange={(e) => updateGlobalMeta('titleAlign', e.target.value)}>
+                                                        <option value="left">靠左</option>
+                                                        <option value="center">置中</option>
+                                                        <option value="right">靠右</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                    <label>大小</label>
+                                                    <select value={globalMeta.titleFontSize || '1.8rem'} onChange={(e) => updateGlobalMeta('titleFontSize', e.target.value)}>
+                                                        <option value="1.5rem">小 (24px)</option>
+                                                        <option value="1.8rem">中 (28px)</option>
+                                                        <option value="2.2rem">大 (35px)</option>
+                                                        <option value="2.8rem">特大 (45px)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <div className="form-group" style={{ flex: 1 }}>
+                                                    <label>字體粗細</label>
+                                                    <select value={globalMeta.titleFontWeight || '900'} onChange={(e) => updateGlobalMeta('titleFontWeight', e.target.value)}>
+                                                        <option value="normal">正常 (Normal)</option>
+                                                        <option value="bold">粗體 (Bold)</option>
+                                                        <option value="900">特粗 (Black)</option>
+                                                    </select>
+                                                </div>
+                                                <div className="form-group" style={{ flex: 1 }}>
+                                                    <label>字型</label>
+                                                    <select value={globalMeta.titleFontFamily || ''} onChange={(e) => updateGlobalMeta('titleFontFamily', e.target.value)}>
+                                                        <option value="">預設 (Noto Sans)</option>
+                                                        <option value="Arial, sans-serif">黑體 (Arial)</option>
+                                                        <option value="'Times New Roman', serif">明體 (Times)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group" style={{ marginTop: '10px' }}>
+                                                <label>最後更新時間 (顯示於左下角)</label>
+                                                <input type="text" value={globalMeta.lastUpdated} onChange={(e) => updateGlobalMeta('lastUpdated', e.target.value)} placeholder="例如：2023/03/27 22:23" />
+                                            </div>
+
+                                            {/* ver 1.13 升級：動態資料來源清單 */}
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>📚 資料來源設定</h4>
+                                            {(globalMeta.dataSources || []).map((source, index) => (
+                                                <div key={index} style={{ background: '#f9f9f9', padding: '10px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
+                                                    <div className="form-group" style={{ marginBottom: '10px' }}>
+                                                        <label>來源名稱 {index + 1}</label>
+                                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                                            <input type="text" style={{ flex: 1 }} value={source.name} onChange={(e) => {
+                                                                const newSources = [...globalMeta.dataSources];
+                                                                newSources[index].name = e.target.value;
+                                                                updateGlobalMeta('dataSources', newSources);
+                                                            }} placeholder="例如：主計處" />
+                                                            <button className="action-btn" style={{ margin: 0, background: '#E74C3C', color: 'white', padding: '0 10px' }} onClick={() => {
+                                                                const newSources = globalMeta.dataSources.filter((_, i) => i !== index);
+                                                                updateGlobalMeta('dataSources', newSources);
+                                                            }}>✕</button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                        <label>網址連結 (選填)</label>
+                                                        <input type="text" value={source.url} onChange={(e) => {
+                                                            const newSources = [...globalMeta.dataSources];
+                                                            newSources[index].url = e.target.value;
+                                                            updateGlobalMeta('dataSources', newSources);
+                                                        }} placeholder="https://..." />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <button className="reset-filter-btn" onClick={() => {
+                                                const newSources = [...(globalMeta.dataSources || []), { name: '', url: '' }];
+                                                updateGlobalMeta('dataSources', newSources);
+                                            }}>+ 新增資料來源</button>
+
+                                            {/* ... 下面接著是浮水印的 UI，保留你原本寫好的不用動 ... */}
+
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🖼️ 浮水印設定</h4>
+                                            <div className="form-group">
+                                                <label>上傳浮水印圖片</label>
+                                                {globalMeta.watermarkUrl ? (
+                                                    <div style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                        <div style={{ fontSize: '0.85rem', color: '#086788', fontWeight: 'bold', wordBreak: 'break-all' }}>
+                                                            ✅ 已上傳：{globalMeta.watermarkName || '自訂圖片'}
+                                                        </div>
+                                                        {/* 小小的圖片預覽 */}
+                                                        <div style={{ background: '#fff', padding: '5px', borderRadius: '4px', border: '1px dashed #ccc', textAlign: 'center' }}>
+                                                            <img src={globalMeta.watermarkUrl} alt="預覽" style={{ maxHeight: '40px', maxWidth: '100%', objectFit: 'contain' }} />
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                                                            <label style={{ flex: 1, textAlign: 'center', background: '#086788', color: 'white', padding: '6px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                                                🔄 重新上傳
+                                                                <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                                                            </label>
+                                                            <button className="action-btn" style={{ flex: 1, background: '#E74C3C', color: 'white', margin: 0, padding: '6px', fontSize: '0.85rem' }} onClick={() => setGlobalMeta(prev => ({ ...prev, watermarkUrl: '', watermarkName: '' }))}>
+                                                                🗑️ 移除
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <input type="file" accept="image/*" onChange={handleImageUpload} style={{ padding: '5px 0', border: 'none' }} />
+                                                )}
+                                            </div>
+
+                                            {globalMeta.watermarkUrl && (
+                                                <>
+                                                    <div className="form-group">
+                                                        <label>浮水印位置</label>
+                                                        <select value={globalMeta.watermarkPosition || 'top-right'} onChange={(e) => updateGlobalMeta('watermarkPosition', e.target.value)}>
+                                                            <option value="top-right">右上角 (主標題旁)</option>
+                                                            <option value="bottom-right">右下角 (頁腳旁)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label>浮水印大小 (高度 px)</label>
+                                                        <input type="number" value={globalMeta.watermarkSize || 40} onChange={(e) => updateGlobalMeta('watermarkSize', e.target.value)} min="10" max="200" />
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🔗 試算表綁定</h4>
                                             <div className="form-group">
                                                 <label>Google Sheet ID</label>
                                                 <input type="text" value={sheetId} onChange={(e) => setSheetId(e.target.value)} />
@@ -1141,19 +1812,20 @@
                                         </div>
                                     )}
                                 </div>
-                                <div className="json-area" style={{ display: 'none' }}></div>
                             </div>
                         </div>
                     )}
 
                     {viewMode === 'preview' && (
-                        <div className="builder-container" style={{ justifyContent: 'center', height: 'auto' }}>
-                            <PreviewViewer config={finalJSON} />
+                        <div className="builder-container" style={{ justifyContent: 'center', height: 'auto', background: '#e8e8e8', padding: '40px 20px', borderRadius: '12px' }}>
+                            {/* ver. 1.21 新增外框，它會根據 previewDevice 變換 class */}
+                            <div className={`preview-wrapper ${previewDevice}`}>
+                                <PreviewViewer config={finalJSON} />
+                            </div>
                         </div>
                     )}
 
-                    {/* ... 編輯器與屬性面板 UI ... */}
-
+                    {/* 🌟 發布成功的彈出視窗 */}
                     {showPublishModal && (
                         <div className="modal-overlay">
                             <div className="modal-content">
