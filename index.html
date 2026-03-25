@@ -1098,18 +1098,18 @@
             const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
             const rowY = comp.layout?.y !== undefined ? (comp.layout.y + 1) : 'auto';
 
-            const gridStyle = { 
+            const gridStyle = {
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
                 gridRow: rowY !== 'auto' ? `${rowY} / span ${comp.layout?.h || comp.h || 6}` : 'auto',
-                overflow: 'hidden', 
+                overflow: 'hidden',
                 boxSizing: 'border-box',
                 padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: comp.showTitle !== false ? 'flex-start' : 'center', 
+                justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
                 alignItems: 'stretch',
-                minWidth: 0, 
-                width: '100%' 
+                minWidth: 0,
+                width: '100%'
             };
 
             // ver. 1.45 處理「未選擇下拉選單」時的等待狀態 (現在它有防護盾保護了！)
@@ -1129,38 +1129,98 @@
             }
 
             // ver. 1.45 渲染數字與文字內容
+            // ver. 1.52 核心引擎：獨立出數字格式化與換算函數
+            const processAndFormatNumber = (rawValue) => {
+                const multiplier = comp.multiplier !== undefined ? comp.multiplier : 1;
+                let num = rawValue * multiplier;
+                num = Math.round(num * 100000) / 100000; // 修正微小的浮點數計算誤差
+
+                const format = comp.numberFormat || 'comma';
+                if (format === 'plain') return num.toString();
+                if (format === 'comma') return num.toLocaleString('zh-TW');
+
+                // 處理中文單位格式 (zh-scale 與 zh-scale-qian)
+                if (num === 0) return '0';
+                const isNegative = num < 0;
+                let str = Math.abs(num).toString();
+                let [intPart, decPart] = str.split('.');
+                let result = '';
+                const units = ['', '萬', '億', '兆', '京'];
+                let chunks = [];
+
+                // 每 4 位數切成一塊
+                while (intPart.length > 0) {
+                    chunks.push(intPart.slice(-4));
+                    intPart = intPart.slice(0, -4);
+                }
+
+                for (let i = chunks.length - 1; i >= 0; i--) {
+                    let chunkNum = parseInt(chunks[i], 10);
+                    if (chunkNum > 0) {
+                        let chunkStr = chunkNum.toString();
+                        // 處理「千」的特殊格式
+                        if (format === 'zh-scale-qian' && i === 0 && chunkStr.length === 4) {
+                            let qian = chunkStr[0];
+                            let restNum = parseInt(chunkStr.slice(1), 10);
+                            chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
+                        }
+                        result += chunkStr + units[i];
+                    }
+                }
+
+                if (isNegative) result = '-' + result;
+                if (decPart) result += '.' + decPart;
+                return result || '0';
+            };
+
             const renderMetricOrText = () => {
                 if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
 
-                // 數據卡片 (metricCard)
                 if (comp.type === 'metricCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定數值欄位</p>;
-                    let value;
-                    if (comp.aggregation === 'count') {
-                        value = filteredData.length;
-                    } else {
-                        value = filteredData.reduce((sum, row) => sum + (parseFloat(row[comp.valueColumn]) || 0), 0);
-                    }
-                    const formattedValue = value.toLocaleString('zh-TW');
+                    // 為了避免來源資料帶有逗號，加上 replace(/,/g, '') 強制轉回純數字
+                    let value = comp.aggregation === 'count'
+                        ? filteredData.length
+                        : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+
+                    const formattedValue = processAndFormatNumber(value);
+                    const finalDisplayValue = `${comp.prefix || ''}${formattedValue}${comp.suffix || ''}`;
+                    const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
 
                     return (
-                        <div className="metric-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-                            <div className="metric-value" style={{ color: comp.themeColor || '#086788', fontSize: '3.5rem', fontWeight: '900', lineHeight: 1 }}>
-                                {formattedValue}
+                        <div className="metric-content" style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}>
+                            <div className="metric-value" style={{
+                                color: comp.themeColor || '#086788',
+                                fontSize: comp.fontSize || '3.5rem',
+                                fontWeight: comp.fontWeight || '900',
+                                lineHeight: 1
+                            }}>
+                                {finalDisplayValue}
                             </div>
                         </div>
                     );
                 }
 
-                // 文字區塊 (textCard)
                 if (comp.type === 'textCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定文字欄位</p>;
-                    const latestRow = filteredData[filteredData.length - 1]; 
+                    const latestRow = filteredData[filteredData.length - 1];
                     const textContent = latestRow[comp.valueColumn] || ' (無文字內容) ';
+                    const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
 
                     return (
-                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center' }}>
-                            <p className="text-card-content" style={{ fontSize: '1.2rem', lineHeight: '1.6', margin: 0 }}>{textContent}</p>
+                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}>
+                            <p className="text-card-content" style={{
+                                fontSize: comp.fontSize || '1.2rem',
+                                fontWeight: comp.fontWeight || 'normal',
+                                textAlign: comp.textAlign || 'left',
+                                color: comp.themeColor || '#333333',
+                                lineHeight: '1.6',
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',   // ver. 1.53 魔法屬性 1：強制保留原始資料的斷行與空白！
+                                wordBreak: 'break-word'   // ver. 1.53 魔法屬性 2：遇到超級長的英文網址時自動換行，防止破版！
+                            }}>
+                                {textContent}
+                            </p>
                         </div>
                     );
                 }
@@ -1169,12 +1229,16 @@
 
             const renderMetricCompare = () => {
                 if (comp.type !== 'metricCard' || !comp.compareValueColumn) return null;
-                const compareValue = filteredData.reduce((sum, row) => sum + (parseFloat(row[comp.compareValueColumn]) || 0), 0);
-                const formattedCompareValue = compareValue.toLocaleString('zh-TW');
+                const compareValue = filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.compareValueColumn]).replace(/,/g, '')) || 0), 0);
+
+                const formattedCompareValue = processAndFormatNumber(compareValue);
+                // 比較值也一併套用前後綴，保持單位統一
+                const finalCompareValue = `${comp.prefix || ''}${formattedCompareValue}${comp.suffix || ''}`;
+                const align = comp.textAlign === 'left' ? 'left' : (comp.textAlign === 'right' ? 'right' : 'center');
 
                 return (
-                    <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textALign: 'center', width: '100%' }}>
-                        相比 {comp.compareValueColumn}：{formattedCompareValue}
+                    <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textAlign: align, width: '100%' }}>
+                        相比 {comp.compareValueColumn}：{finalCompareValue}
                     </div>
                 );
             };
@@ -1377,7 +1441,10 @@
                     id: b.i,
                     type: b.type,
                     title: b.title,
-                    showTitle: b.showTitle !== false, // 🌟 新增這行：記錄標題開關狀態
+                    showTitle: b.showTitle !== false,
+                    buttonUrl: b.buttonUrl || null,
+                    prefix: b.prefix || '', // ver. 1.51 新增：存下前綴符號
+                    suffix: b.suffix || '', // ver. 1.51 新增：存下後綴符號
                     buttonUrl: b.buttonUrl || null, // ver 1.31 新增這一行確保網址有存進去！
                     categoryColumn: b.categoryCol || null,
                     valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null,
@@ -1387,6 +1454,11 @@
                     aggregation: b.aggregation,
                     chartOrientation: b.chartOrientation || 'vertical',
                     themeColor: b.themeColor,
+                    // Ver. 1.52 補上這四行：存下前後綴、格式與換算乘數
+                    prefix: b.prefix || '',
+                    suffix: b.suffix || '',
+                    numberFormat: b.numberFormat || 'comma',
+                    multiplier: b.multiplier !== undefined ? b.multiplier : 1,
                     fontSize: b.fontSize || null,
                     fontFamily: b.fontFamily || null,
                     fontWeight: b.fontWeight || null,
@@ -1551,6 +1623,7 @@
                                             )}
 
                                             {/* ver. 1.41 頁籤 2：資料綁定 (把你剛剛寫好的複雜邏輯安全收納進來) */}
+                                            {/* ver. 1.52 頁籤 2：資料綁定 (已加入數字換算與格式選項) */}
                                             {activeTab === 'data' && (
                                                 <div className="panel-content">
                                                     {currentSelectedBlock.type === 'button' && (
@@ -1642,6 +1715,26 @@
                                                                             </select>
                                                                         </div>
                                                                     )}
+
+                                                                    {/* 🌟 這裡就是剛剛一直報錯的「數字卡片專屬」換算區，現在已經安全放入了！ */}
+                                                                    {currentSelectedBlock.type === 'metricCard' && (
+                                                                        <>
+                                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數值換算與格式</h4>
+                                                                            <div className="form-group">
+                                                                                <label>數值換算 (乘數) 💡單位為千元想轉元，請輸入 1000</label>
+                                                                                <input type="number" step="any" value={currentSelectedBlock.multiplier !== undefined ? currentSelectedBlock.multiplier : 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'multiplier', parseFloat(e.target.value) || 1)} />
+                                                                            </div>
+                                                                            <div className="form-group">
+                                                                                <label>數字顯示格式</label>
+                                                                                <select value={currentSelectedBlock.numberFormat || 'comma'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'numberFormat', e.target.value)}>
+                                                                                    <option value="comma">標準逗號 (1,234,567)</option>
+                                                                                    <option value="plain">純數字 (1234567)</option>
+                                                                                    <option value="zh-scale">中文單位-萬億兆 (123萬4567)</option>
+                                                                                    <option value="zh-scale-qian">中文單位含千 (123萬4千567)</option>
+                                                                                </select>
+                                                                            </div>
+                                                                        </>
+                                                                    )}
                                                                 </>
                                                             )}
                                                         </>
@@ -1653,10 +1746,62 @@
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
                                                     <div className="form-group">
-                                                        <label>積木主題顏色 (適用於按鈕、時間軸)</label>
+                                                        <label>積木主題顏色 (適用於數字、按鈕、時間軸)</label>
                                                         <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
                                                     </div>
-                                                    <p style={{ fontSize: '0.85rem', color: '#888' }}>💡 未來如果要個別修改圖表的顏色、字體大小或卡片背景色，都會集中收納在這裡！</p>
+
+                                                    {/* ver. 1.51 卡片專屬：文字與排版設定 */}
+                                                    {(currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'textCard') && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字與排版</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>對齊方式</label>
+                                                                    <select value={currentSelectedBlock.textAlign || (currentSelectedBlock.type === 'textCard' ? 'left' : 'center')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option>
+                                                                        <option value="center">置中</option>
+                                                                        <option value="right">靠右</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>字體粗細</label>
+                                                                    <select value={currentSelectedBlock.fontWeight || (currentSelectedBlock.type === 'textCard' ? 'normal' : '900')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="bold">粗體</option>
+                                                                        <option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>字體大小</label>
+                                                                <select value={currentSelectedBlock.fontSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
+                                                                    <option value="">預設大小</option>
+                                                                    <option value="0.9rem">小</option>
+                                                                    <option value="1.2rem">中 (適合內文)</option>
+                                                                    <option value="1.8rem">大</option>
+                                                                    <option value="2.5rem">特大</option>
+                                                                    <option value="3.5rem">巨大 (適合數字)</option>
+                                                                </select>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* ver. 1.51 數字卡片專屬：前後綴符號 */}
+                                                    {currentSelectedBlock.type === 'metricCard' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數字前後綴</h4>
+                                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>前綴 (如：$)</label>
+                                                                    <input type="text" value={currentSelectedBlock.prefix || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'prefix', e.target.value)} placeholder="無" />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>後綴 (如：人, %)</label>
+                                                                    <input type="text" value={currentSelectedBlock.suffix || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'suffix', e.target.value)} placeholder="無" />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
