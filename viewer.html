@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新聞儀表板</title>
-    
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <title>儀表板預覽</title>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
@@ -15,7 +15,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-        // 你的專屬 Firebase 金鑰
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
             authDomain: "makeowndashboard.firebaseapp.com",
@@ -24,56 +23,273 @@
             messagingSenderId: "791722954695",
             appId: "1:791722954695:web:ce22cc59fad57d22d053e2"
         };
-
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // 全域函數：根據 ID 從 Firestore 抓取藍圖
-        window.fetchDashboardConfig = async (id) => {
-            const docRef = doc(db, "dashboards", id);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                return docSnap.data();
-            } else {
-                throw new Error("找不到此儀表板設定檔！");
-            }
-        };
+        window.db = getFirestore(app);
+        window.doc = doc;
+        window.getDoc = getDoc;
     </script>
 
     <style>
-        :root { --primary: #086788; --secondary: #FFFFFF; --border: #e0e0e0; --accent: #F0C808;}
-        /* 為了讓 iframe 嵌入時完美融合背景，把 body 背景設為透明或純白，並移除 margin */
-        body { font-family: "Noto Sans TC", sans-serif; background: transparent; margin: 0; padding: 10px; color: #333; }
-        
-        /* 只保留預覽區需要的 CSS，其餘全部刪除以保持輕量 */
-        .preview-container { background: #fff; padding: 20px; border-radius: 12px; width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box;}
-        .preview-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; }
-        @media (max-width: 768px) {
-            /* 簡單的 RWD：在手機上，所有圖表都變成滿版 (span 12) */
-            .preview-card { grid-column: span 12 !important; }
+        :root { --primary: #086788; }
+        body {
+            font-family: "Noto Sans TC", sans-serif;
+            background: transparent; /* 讓 iframe 背景透明 */
+            margin: 0;
+            padding: 0;
+            color: #333;
         }
+        .preview-container {
+            background: #fff;
+            padding: 15px; /* iframe 內不需要太大 padding */
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0 auto;
+        }
+        .news-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        .news-title { margin: 0; }
+        .news-watermark { object-fit: contain; }
+        .news-footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px dashed #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 0.85rem;
+            color: #888;
+        }
+        .news-footer-left { display: flex; flex-direction: column; gap: 5px; text-align: left; }
+        .news-footer a { color: var(--primary); text-decoration: none; font-weight: bold; }
+        .news-footer a:hover { text-decoration: underline; }
         
-        .preview-card { background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;}
-        .preview-card-title { margin-top: 0; font-size: 1.1rem; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;}
-        .preview-metric-value { margin: auto 0; overflow-y: auto; max-height: 100%; padding-right: 5px;} 
-        .reset-filter-btn { background: #eee; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; margin-left: auto; display: block; margin-bottom: 15px; color: #555;}
-        .reset-filter-btn:hover { background: #ddd; }
-        .waiting-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 150px; color: #999; font-weight: bold; background: #f9f9f9; border-radius: 8px; border: 2px dashed #ddd; text-align: center; padding: 20px;}
+        .preview-grid {
+            display: flex;
+            flex-direction: column; /* 在獨立 viewer 中預設採用垂直流式排版，完美適應各種寬度的 iframe */
+            gap: 15px;
+        }
+        .preview-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        .preview-card-title {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .reset-filter-btn { background: #eee; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; margin-left: auto; display: block; margin-bottom: 15px; color: #555; }
         
-        .loading-screen { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 1.2rem; color: #666; font-weight: bold;}
-        .error-screen { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 1.2rem; color: #E74C3C; font-weight: bold; text-align: center; padding: 20px;}
+        /* 🌟 時間軸最新樣式 */
+        .timeline-container { margin: 10px 0; display: flex; flex-direction: column; width: 100%; padding: 5px 10px; box-sizing: border-box; }
+        .timeline-item { display: flex; position: relative; }
+        .timeline-left { width: var(--time-width, 20%); flex-shrink: 0; text-align: right; padding-right: var(--timeline-gap, 15px); font-weight: bold; color: var(--time-color, var(--primary)); font-size: 0.95rem; padding-top: 2px; }
+        .timeline-right { flex: 1; padding-left: var(--timeline-gap, 20px); padding-bottom: 25px; border-left: 2px solid var(--line-color, var(--primary)); position: relative; }
+        .timeline-item:last-child .timeline-right { border-left-color: transparent !important; }
+        .timeline-dot { position: absolute; left: -8px; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: var(--node-color, var(--primary)); border: 2px solid #fff; box-shadow: 0 0 0 2px var(--node-color, var(--primary)); box-sizing: border-box; z-index: 2; }
+        .timeline-title { margin: 0 0 5px 0; line-height: 1.4; }
+        .timeline-desc { margin: 0; line-height: 1.6; }
+        
+        .custom-btn-wrapper { display: flex; width: 100%; align-items: center; justify-content: center; }
+        .custom-btn { display: inline-block; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; text-align: center; color: #fff; width: 80%; box-sizing: border-box;}
+        
+        /* RWD 微調 */
+        @media (max-width: 600px) {
+            .news-header { flex-direction: row; align-items: center; }
+            .news-watermark { margin-left: auto !important; max-width: 80px; }
+            .news-footer { flex-direction: row; }
+            .news-title { font-size: 1.4rem !important; word-break: break-word; }
+            .preview-card { padding: 15px; }
+        }
     </style>
 </head>
 <body>
-
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-
         Chart.register(ChartDataLabels);
 
-        // 🌟 1. 完整複製編輯器裡的 PreviewViewer 模組
+        // 🌟 這裡放入我們今天寫好的最新版 ChartComponent
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
+            const canvasRef = useRef(null);
+            const chartInstance = useRef(null);
+            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
+
+            useEffect(() => {
+                if (isChartType && isChartVisible) {
+                    if (!comp.categoryColumn || (!comp.valueColumn && !comp.stackValueColumns)) return;
+                    const ctx = canvasRef.current.getContext('2d');
+                    if (chartInstance.current) chartInstance.current.destroy();
+                    let chartType = 'bar';
+                    let options = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, title: { display: false }, datalabels: { display: false } } };
+                    const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
+                    const mainColor = comp.themeColor || '#086788';
+                    let labels = [];
+                    let datasets = [];
+
+                    if (comp.type === 'stackedBarChart') {
+                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
+                        labels = stackedData.categories; datasets = stackedData.datasets;
+                        if (comp.chartOrientation === 'horizontal') {
+                            options.indexAxis = 'y'; options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
+                        } else {
+                            options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
+                        }
+                        datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
+                        if (comp.isPercentageStacked) {
+                            const numCategories = labels.length; const numDatasets = datasets.length;
+                            for (let j = 0; j < numCategories; j++) {
+                                let total = 0; for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
+                                if (total > 0) { for (let i = 0; i < numDatasets; i++) datasets[i].data[j] = (datasets[i].data[j] / total) * 100; }
+                            }
+                            options.plugins.datalabels = { display: true, formatter: (v) => v > 0 ? v.toFixed(0) + '%' : '', color: 'white', font: { weight: 'bold' } };
+                        }
+                    } else {
+                        const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
+                        labels = Object.keys(aggData1); const data1 = Object.values(aggData1);
+                        datasets = [{ label: comp.compareValueColumn ? comp.valueColumn : comp.title, data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor, borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true }];
+                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
+                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
+                            const data2 = labels.map(label => aggData2[label] || 0);
+                            datasets.push({ label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true });
+                        }
+                        if (comp.type === 'pieChart') chartType = 'doughnut';
+                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
+                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') options.indexAxis = 'y';
+                    }
+                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels, datasets }, options });
+                }
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); }
+            }, [comp, filteredData, isChartVisible]);
+
+            const gridStyle = {
+                overflow: 'hidden',
+                boxSizing: 'border-box',
+                padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
+                display: 'flex', flexDirection: 'column',
+                justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
+                alignItems: 'stretch', minWidth: 0, width: '100%'
+            };
+
+            if (comp.type !== 'dropdown' && !isChartVisible) {
+                return (
+                    <div className="preview-card" style={gridStyle}>
+                        {comp.showTitle !== false && comp.title && <h3 className="preview-card-title" style={{ textAlign: 'center', width: '100%' }}>{comp.title}</h3>}
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color:'#999', minHeight:'150px', background:'#f9f9f9', borderRadius:'8px', border:'2px dashed #ddd' }}>
+                            請先於上方選擇「{firstDropdownCol}」
+                        </div>
+                    </div>
+                );
+            }
+
+            const processAndFormatNumber = (rawValue) => {
+                const multiplier = comp.multiplier !== undefined ? comp.multiplier : 1;
+                let num = rawValue * multiplier;
+                num = Math.round(num * 100000) / 100000;
+                const format = comp.numberFormat || 'comma';
+                if (format === 'plain') return num.toString();
+                if (format === 'comma') return num.toLocaleString('zh-TW');
+                if (num === 0) return '0';
+                const isNegative = num < 0;
+                let str = Math.abs(num).toString();
+                let [intPart, decPart] = str.split('.');
+                let result = '';
+                const units = ['', '萬', '億', '兆', '京'];
+                let chunks = [];
+                while (intPart.length > 0) { chunks.push(intPart.slice(-4)); intPart = intPart.slice(0, -4); }
+                for (let i = chunks.length - 1; i >= 0; i--) {
+                    let chunkNum = parseInt(chunks[i], 10);
+                    if (chunkNum > 0) {
+                        let chunkStr = chunkNum.toString();
+                        if (format === 'zh-scale-qian' && i === 0 && chunkStr.length === 4) {
+                            let qian = chunkStr[0]; let restNum = parseInt(chunkStr.slice(1), 10);
+                            chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
+                        }
+                        result += chunkStr + units[i];
+                    }
+                }
+                if (isNegative) result = '-' + result;
+                if (decPart) result += '.' + decPart;
+                return result || '0';
+            };
+
+            const renderMetricOrText = () => {
+                if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
+                if (comp.type === 'metricCard') {
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                    let value = comp.aggregation === 'count' ? filteredData.length : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+                    const finalVal = `${comp.prefix || ''}${processAndFormatNumber(value)}${comp.suffix || ''}`;
+                    const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
+                    return <div style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}><div style={{ color: comp.themeColor || '#086788', fontSize: comp.fontSize || '3.5rem', fontWeight: comp.fontWeight || '900', lineHeight: 1 }}>{finalVal}</div></div>;
+                }
+                if (comp.type === 'textCard') {
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                    const textContent = filteredData[filteredData.length - 1][comp.valueColumn] || '';
+                    const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
+                    return <div style={{ overflowY: 'auto', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}><p style={{ fontSize: comp.fontSize || '1.2rem', fontWeight: comp.fontWeight || 'normal', textAlign: comp.textAlign || 'left', color: comp.themeColor || '#333', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{textContent}</p></div>;
+                }
+                return null;
+            };
+
+            return (
+                <div className="preview-card" style={gridStyle}>
+                    {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ textAlign: 'center', width: '100%' }}>{comp.title}</h3>}
+                    {(comp.type === 'metricCard' || comp.type === 'textCard') && <div style={{ width: '100%', flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '80px' }}>{renderMetricOrText()}</div>}
+                    {isChartType && <div style={{ position: 'relative', flex: '1 1 auto', width: '100%', minHeight: '200px' }}><canvas ref={canvasRef}></canvas></div>}
+                    {comp.type === 'dropdown' && (() => {
+                        if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%' }}><option>請先選擇上一層</option></select>;
+                        const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
+                        const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
+                        const optionsData = rawData.filter(row => { for (let uCol of upstreamCols) { if (filters[uCol] && row[uCol] !== filters[uCol]) return false; } return true; });
+                        const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+                        return <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}><option value="">請選擇 {comp.categoryColumn}...</option>{options.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>;
+                    })()}
+                    {comp.type === 'button' && <div className="custom-btn-wrapper" style={{ padding: '10px 0' }}><a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a></div>}
+                    
+                    {comp.type === 'timeline' && (
+                        <div className="timeline-container" style={{ '--time-width': `${comp.timeWidthPercent || 20}%`, '--timeline-gap': `${comp.timelineGap || 20}px`, '--time-color': comp.timeColor || '#086788', '--line-color': comp.lineColor || '#086788', '--node-color': comp.nodeColor || '#086788' }}>
+                            {(!comp.categoryColumn || !comp.valueColumn) ? <p>請綁定欄位</p> : filteredData.map((row, idx) => {
+                                if (!row[comp.valueColumn]) return null;
+                                return (
+                                    <div key={idx} className="timeline-item">
+                                        <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
+                                        <div className="timeline-right">
+                                            <div className="timeline-dot"></div>
+                                            {comp.linkColumn && row[comp.linkColumn] ? (
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                                                    <h4 className="timeline-title" style={{ color: comp.themeColor || '#086788', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'underline' }}>{row[comp.valueColumn]} ↗</h4>
+                                                </a>
+                                            ) : (
+                                                <h4 className="timeline-title" style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900' }}>{row[comp.valueColumn]}</h4>
+                                            )}
+                                            {comp.compareValueColumn && row[comp.compareValueColumn] && <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal' }}>{row[comp.compareValueColumn]}</p>}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         function PreviewViewer({ config }) {
             const [data, setData] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -82,36 +298,33 @@
 
             useEffect(() => {
                 const fetchData = async () => {
-                    if (!config.dataSource || !config.dataSource.sheetId) {
-                        setError("無效的資料來源設定");
-                        setLoading(false); return;
-                    }
+                    if (!config.dataSource.sheetId) { setError("未設定 Google Sheet"); setLoading(false); return; }
                     try {
-                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&tq&gid=${config.dataSource.gid}`;
+                        // 🌟 確保這裡有 headers=1 的防呆機制！
+                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${config.dataSource.gid}`;
                         const res = await fetch(url);
                         const text = await res.text();
                         const json = JSON.parse(text.substring(47, text.length - 2));
-                        
-                        const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
-                        const parsedData = json.table.rows.map(row => {
+
+                        let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+                        let rowsData = json.table.rows;
+                        if (cols.length === 0 && rowsData.length > 0) {
+                            cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                            rowsData = rowsData.slice(1); 
+                        }
+                        const parsedData = rowsData.map(row => {
                             let obj = {};
-                            row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.v !== null ? String(cell.v) : '') : ''; });
+                            row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : ''; });
                             return obj;
                         });
                         setData(parsedData);
-                    } catch (err) {
-                        setError("Google Sheet 資料讀取失敗。");
-                    }
+                    } catch (err) { setError("資料讀取失敗，請確認權限。"); }
                     setLoading(false);
                 };
                 fetchData();
-            }, [config.dataSource]);
+            }, [config]);
 
-            const sortedComponents = [...config.components].sort((a, b) => {
-                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
-                return a.layout.y - b.layout.y;
-            });
-
+            const sortedComponents = [...config.components].sort((a, b) => { if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x; return a.layout.y - b.layout.y; });
             const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
             const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
             const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
@@ -120,14 +333,11 @@
             const dropdownState = {};
             for (let i = 0; i < dropdownComps.length; i++) {
                 const col = dropdownComps[i].categoryColumn;
-                if (i === 0) dropdownState[col] = false; 
-                else dropdownState[col] = !filters[dropdownComps[i-1].categoryColumn]; 
+                if (i === 0) dropdownState[col] = false; else dropdownState[col] = !filters[dropdownComps[i - 1].categoryColumn];
             }
 
             const filteredData = data.filter(row => {
-                for (let key in filters) {
-                    if (filters[key] && row[key] !== filters[key]) return false;
-                }
+                for (let key in filters) { if (filters[key] && row[key] !== filters[key]) return false; }
                 return true;
             });
 
@@ -135,44 +345,27 @@
                 setFilters(prev => {
                     const newFilters = { ...prev, [column]: value };
                     const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
-                    if (changedIdx !== -1) {
-                        for (let i = changedIdx + 1; i < dropdownComps.length; i++) {
-                            newFilters[dropdownComps[i].categoryColumn] = '';
-                        }
-                    }
+                    if (changedIdx !== -1) { for (let i = changedIdx + 1; i < dropdownComps.length; i++) newFilters[dropdownComps[i].categoryColumn] = ''; }
                     return newFilters;
                 });
             };
-            
-            const clearFilters = () => setFilters({});
 
             const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
-                if (!valueCol) return {}; 
-                let result = {};
+                if (!valueCol) return {}; let result = {};
                 rawData.forEach(row => {
                     let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
-                    if (aggType === 'first') {
-                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
-                        return; 
-                    }
+                    if (aggType === 'first') { if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || ''; return; }
                     if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
-                        let parts = catRaw.split('|');
-                        parts.forEach(part => {
+                        catRaw.split('|').forEach(part => {
                             let [subCat, subValStr] = part.split(':');
                             if (subCat && subValStr !== undefined) {
                                 let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
-                                if (val > 0) {
-                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
-                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
-                                }
+                                if (val > 0) { if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val; else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1; }
                             }
                         });
                     } else {
                         let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
-                        if (val > 0 || aggType === 'count') {
-                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
-                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
-                        }
+                        if (val > 0 || aggType === 'count') { if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val; else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1; }
                     }
                 });
                 return result;
@@ -180,248 +373,100 @@
 
             const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
                 const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
-                let datasetsMap = {}; 
+                let datasetsMap = {};
                 categories.forEach((cat, catIndex) => {
                     const rows = rawData.filter(r => r[categoryCol] === cat);
                     rows.forEach(r => {
                         valueCols.forEach(col => {
-                            if (!col) return;
-                            let valRaw = r[col];
+                            if (!col) return; let valRaw = r[col];
                             if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
-                                let parts = valRaw.split('|');
-                                parts.forEach(part => {
+                                valRaw.split('|').forEach(part => {
                                     let [subCat, subValStr] = part.split(':');
                                     if (subCat && subValStr !== undefined) {
                                         let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
                                         if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
-                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
-                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val; else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
                                     }
                                 });
                             } else {
                                 let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
                                 if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
-                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
-                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                                if (aggType === 'sum') datasetsMap[col][catIndex] += val; else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
                             }
                         });
                     });
                 });
-                const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
-                return { categories, datasets };
+                return { categories, datasets: Object.keys(datasetsMap).map(label => ({ label, data: datasetsMap[label] })) };
             };
 
-            if (loading) return <div className="loading-screen">資料載入中，請稍候...</div>;
-            if (error) return <div className="error-screen">{error}</div>;
+            if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料載入中...</h3></div>;
+            if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
 
             return (
                 <div className="preview-container">
-                    <h2 style={{textAlign: 'center', color: '#086788', marginBottom: '20px'}}>{config.meta.title}</h2>
-                    {Object.values(filters).some(v => v) && (
-                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
-                    )}
+                    <div className="news-header">
+                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
+                            <h2 className="news-title" style={{ color: config.meta.titleColor || '#222', fontSize: config.meta.titleFontSize || '1.8rem', fontWeight: config.meta.titleFontWeight || '900', fontFamily: config.meta.titleFontFamily || 'inherit' }}>
+                                {config.meta.title}
+                            </h2>
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />}
+                    </div>
+
+                    {Object.values(filters).some(v => v) && <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選</button>}
+
                     <div className="preview-grid">
                         {sortedComponents.map(comp => (
-                            <ChartComponent 
-                                key={comp.id} comp={comp} rawData={data} filteredData={filteredData} 
-                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
-                                isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
-                                firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
-                                aggregateStackedData={aggregateStackedData} 
-                            />
+                            <ChartComponent key={comp.id} comp={comp} rawData={data} filteredData={filteredData} aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange} isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]} firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols} aggregateStackedData={aggregateStackedData} />
                         ))}
                     </div>
-                </div>
-            );
-        }
 
-        // 🌟 2. 完整複製編輯器裡的 ChartComponent 模組
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
-            const canvasRef = useRef(null);
-            const chartInstance = useRef(null);
-            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
-
-            useEffect(() => {
-                if (isChartType && isChartVisible) {
-                    if (!comp.categoryColumn || (!comp.valueColumn && !comp.stackValueColumns)) return; 
-                    const ctx = canvasRef.current.getContext('2d');
-                    if (chartInstance.current) chartInstance.current.destroy();
-                    let chartType = 'bar';
-                    let options = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, datalabels: { display: false } } };
-                    const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
-                    const mainColor = comp.themeColor || '#086788';
-                    let labels = [];
-                    let datasets = [];
-
-                    if (comp.type === 'stackedBarChart') {
-                        chartType = 'bar';
-                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
-                        labels = stackedData.categories;
-                        datasets = stackedData.datasets;
-                        const isHorizontal = comp.chartOrientation === 'horizontal';
-                        if (isHorizontal) {
-                            options.indexAxis = 'y';
-                            options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
-                        } else {
-                            options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
-                        }
-                        datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
-                        if (comp.isPercentageStacked) {
-                            const numCategories = labels.length;
-                            const numDatasets = datasets.length;
-                            for (let j = 0; j < numCategories; j++) {
-                                let total = 0;
-                                for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
-                                if (total > 0) {
-                                    for (let i = 0; i < numDatasets; i++) {
-                                        datasets[i].data[j] = (datasets[i].data[j] / total) * 100;
-                                    }
-                                }
-                            }
-                            options.plugins.datalabels = {
-                                display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
-                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold' } 
-                            };
-                        }
-                    } else {
-                        const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
-                        labels = Object.keys(aggData1);
-                        const data1 = Object.values(aggData1);
-                        datasets = [{
-                            label: comp.compareValueColumn ? comp.valueColumn : comp.title, 
-                            data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor,
-                            borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true
-                        }];
-                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
-                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
-                            const data2 = labels.map(label => aggData2[label] || 0);
-                            datasets.push({
-                                label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', 
-                                borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true
-                            });
-                        }
-                        if (comp.type === 'pieChart') chartType = 'doughnut';
-                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
-                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
-                    }
-
-                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels: labels, datasets: datasets }, options: options });
-                }
-                return () => { if (chartInstance.current) chartInstance.current.destroy(); }
-            }, [comp, filteredData, isChartVisible]);
-
-            // 🌟 這裡根據原本設定的桌面網格(span)，套用 RWD 讓卡片在嵌入時自動適應寬度
-            const gridStyle = { gridColumn: `span ${comp.layout.desktopCols}` };
-
-            if (comp.type !== 'dropdown' && !isChartVisible) {
-                return (
-                    <div className="preview-card" style={gridStyle}>
-                        <h3 className="preview-card-title">{comp.title}</h3>
-                        <div className="waiting-placeholder">請先於上方選擇「{firstDropdownCol}」<br/>以載入分析圖表</div>
-                    </div>
-                );
-            }
-
-            const renderMetricValue = () => {
-                if (!comp.valueColumn) return '-';
-                const aggResult = aggregateData(filteredData, null, comp.valueColumn, comp.aggregation)['總計'];
-                if (aggResult === undefined) return '-';
-                const isTextMode = comp.aggregation === 'first';
-                const displayVal = (!isTextMode && typeof aggResult === 'number') ? aggResult.toLocaleString() : String(aggResult);
-                const finalFontSize = comp.fontSize || (isTextMode ? '1.1rem' : '2.2rem');
-                const finalFontFamily = comp.fontFamily || 'inherit';
-                const finalFontWeight = comp.fontWeight || '900'; 
-                const dynamicAlign = isTextMode ? 'left' : 'center';
-
-                return (
-                    <div className="preview-metric-value" style={{color: comp.themeColor || '#086788', fontSize: finalFontSize, fontFamily: finalFontFamily, fontWeight: finalFontWeight, textAlign: dynamicAlign, whiteSpace: 'pre-wrap', lineHeight: '1.5'}}>
-                        {displayVal}
-                    </div>
-                );
-            };
-
-            const renderMetricCompare = () => {
-                if (!comp.compareValueColumn || comp.aggregation === 'first') return null; 
-                const compResult = aggregateData(filteredData, null, comp.compareValueColumn, comp.aggregation)['總計'];
-                if (compResult === undefined) return null;
-                const compareDisplay = typeof compResult === 'number' ? compResult.toLocaleString() : String(compResult);
-                return (
-                    <div style={{fontSize: '1rem', color: '#888', marginTop: '10px', fontWeight: 'normal', textAlign: 'center'}}>相比 {comp.compareValueColumn}: {compareDisplay}</div>
-                );
-            };
-
-            return (
-                <div className="preview-card" style={gridStyle}>
-                    <h3 className="preview-card-title">{comp.title}</h3>
-                    {comp.type === 'metricCard' && (<>{renderMetricValue()}{renderMetricCompare()}</>)}
-                    {isChartType && (
-                        <div style={{ position: 'relative', height: '250px', width: '100%' }}>
-                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{color:'#999', textAlign:'center', marginTop:'100px'}}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
+                    <div className="news-footer">
+                        <div className="news-footer-left">
+                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
+                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                    <span>資料來源：</span>
+                                    {config.meta.dataSources.map((source, idx) => (
+                                        <span key={idx}>
+                                            {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名'}</a> : <span>{source.name || '未命名'}</span>}
+                                            {idx < config.meta.dataSources.length - 1 && '、'}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
-                    {comp.type === 'dropdown' && (() => {
-                        if (!comp.categoryColumn) return <p style={{color:'#999'}}>未綁定目標欄位</p>;
-                        if (isDropdownDisabled) {
-                            return <select disabled style={{padding: '10px', fontSize:'1rem', width: '100%', background:'#f0f0f0', color:'#999', border:'1px dashed #ccc'}}><option>請先選擇上一層選單</option></select>;
-                        }
-                        const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
-                        const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
-                        const optionsData = rawData.filter(row => {
-                            for (let upstreamCol of upstreamCols) {
-                                if (filters[upstreamCol] && row[upstreamCol] !== filters[upstreamCol]) return false;
-                            }
-                            return true;
-                        });
-                        const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
-                        
-                        return (
-                            <select style={{padding: '10px', fontSize:'1rem', width: '100%'}} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
-                                <option value="">請選擇 {comp.categoryColumn}...</option>
-                                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                        );
-                    })()}
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />}
+                    </div>
                 </div>
             );
         }
 
-        // 🌟 3. 獨立的 ViewerApp (負責處理 URL ID 與發送 Firestore 請求)
         function ViewerApp() {
             const [config, setConfig] = useState(null);
-            const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
 
             useEffect(() => {
-                // 抓取網址後面的 ?id=xxx
-                const urlParams = new URLSearchParams(window.location.search);
-                const dashboardId = urlParams.get('id');
-
-                if (!dashboardId) {
-                    setError("⚠️ 網址缺少儀表板 ID。正確格式：viewer.html?id=你的ID");
-                    setLoading(false);
-                    return;
-                }
-
-                // 呼叫 Firestore API
-                if (window.fetchDashboardConfig) {
-                    window.fetchDashboardConfig(dashboardId)
-                        .then(fetchedConfig => {
-                            setConfig(fetchedConfig);
-                            setLoading(false);
-                        })
-                        .catch(err => {
-                            console.error(err);
-                            setError("⚠️ 讀取失敗：" + err.message);
-                            setLoading(false);
-                        });
-                }
+                const fetchConfig = async () => {
+                    const params = new URLSearchParams(window.location.search);
+                    const id = params.get('id');
+                    if (!id) { setError('❌ 網址錯誤：找不到儀表板 ID。'); return; }
+                    try {
+                        if (!window.db) throw new Error("Firebase 尚未載入");
+                        const docSnap = await window.getDoc(window.doc(window.db, "dashboards", id));
+                        if (docSnap.exists()) setConfig(docSnap.data());
+                        else setError('❌ 找不到此儀表板，請確認 ID 是否正確。');
+                    } catch (err) {
+                        console.error(err);
+                        setError('❌ 無法連線至資料庫，請稍後再試。');
+                    }
+                };
+                fetchConfig();
             }, []);
 
-            if (loading) return <div className="loading-screen">🔄 正在從雲端讀取儀表板藍圖...</div>;
-            if (error) return <div className="error-screen">{error}</div>;
-            if (!config) return <div className="error-screen">無法解析儀表板設定。</div>;
+            if (error) return <div style={{ padding: '20px', color: 'red', textAlign: 'center', fontFamily: 'sans-serif' }}><h2>{error}</h2></div>;
+            if (!config) return <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif', color: '#666' }}><h2>載入中...</h2></div>;
 
-            // 成功拿到藍圖！交給 PreviewViewer 去抓試算表資料並畫圖
             return <PreviewViewer config={config} />;
         }
 
