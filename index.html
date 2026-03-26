@@ -1860,6 +1860,23 @@
                             </button>
                             <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
                         </div>
+
+                        {/* 🌟 救回來的右側按鈕區塊 */}
+                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                            {viewMode === 'preview' && (
+                                <div className="device-toggle">
+                                    <button className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>💻 電腦版</button>
+                                    <button className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>📱 手機版</button>
+                                </div>
+                            )}
+                            <div className="mode-toggle">
+                                <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
+                                <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
+                            </div>
+                            <button className="publish-btn" onClick={handlePublish} disabled={isPublishing}>
+                                {isPublishing ? '發布存檔中...' : '🚀 發布儀表板'}
+                            </button>
+                        </div>
                     </div>
 
                     {viewMode === 'builder' && (
