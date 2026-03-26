@@ -4,23 +4,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>編輯器原型 - UI升級與發布完整版</title>
+    <title>儀表板預覽</title>
 
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/react-grid-layout.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/css/styles.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-resizable/3.0.5/css/styles.min.css" />
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        // ver. 1.81 新增 doc, getDoc, setDoc 函數
-        import { getFirestore, collection, addDoc, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
@@ -28,380 +22,35 @@
             projectId: "makeowndashboard",
             storageBucket: "makeowndashboard.firebasestorage.app",
             messagingSenderId: "791722954695",
-            appId: "1:791722954695:web:ce22cc59fad57d22d053e2",
-            measurementId: "G-20DS6V8JDB"
+            appId: "1:791722954695:web:ce22cc59fad57d22d053e2"
         };
-
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const db = getFirestore(app);
-
-        //ver. 1.81 1. 建立新專案
-        window.publishToFirebase = async (dashboardJSON) => {
-            try {
-                const docRef = await addDoc(collection(db, "dashboards"), dashboardJSON);
-                console.log("✅ 建立成功！文件 ID: ", docRef.id);
-                return docRef.id;
-            } catch (e) {
-                console.error("❌ 建立失敗: ", e);
-                throw e;
-            }
-        };
-
-        // ver. 1.81 2. 覆蓋更新舊專案
-        window.updateToFirebase = async (id, dashboardJSON) => {
-            try {
-                const docRef = doc(db, "dashboards", id);
-                await setDoc(docRef, dashboardJSON); // setDoc 會完全覆蓋舊資料
-                console.log("✅ 更新成功！文件 ID: ", id);
-                return id;
-            } catch (e) {
-                console.error("❌ 更新失敗: ", e);
-                throw e;
-            }
-        };
-
-        // ver. 1.81 3. 讀取雲端專案進度
-        window.loadFromFirebase = async (id) => {
-            try {
-                const docRef = doc(db, "dashboards", id);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    return docSnap.data();
-                } else {
-                    return null;
-                }
-            } catch (e) {
-                console.error("❌ 讀取失敗: ", e);
-                throw e;
-            }
-        };
+        window.db = getFirestore(app);
+        window.doc = doc;
+        window.getDoc = getDoc;
     </script>
 
     <style>
         :root {
             --primary: #086788;
-            --secondary: #F8F8F8;
-            --border: #e0e0e0;
-            --accent: #F0C808;
         }
 
         body {
             font-family: "Noto Sans TC", sans-serif;
-            background: var(--secondary);
+            background: transparent;
             margin: 0;
-            padding: 20px;
+            padding: 0;
             color: #333;
         }
 
-        .top-nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #fff;
-            padding: 15px 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            max-width: 1400px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .mode-toggle {
-            display: flex;
-        }
-
-        .mode-toggle button {
-            padding: 10px 20px;
-            font-size: 1rem;
-            font-weight: bold;
-            border: 2px solid var(--primary);
-            cursor: pointer;
-            background: white;
-            color: var(--primary);
-            transition: 0.2s;
-        }
-
-        .mode-toggle button.active {
-            background: var(--primary);
-            color: white;
-        }
-
-        .mode-toggle button:first-child {
-            border-radius: 8px 0 0 8px;
-        }
-
-        .mode-toggle button:last-child {
-            border-radius: 0 8px 8px 0;
-        }
-
-        /* 發布按鈕樣式 */
-        .publish-btn {
-            padding: 10px 25px;
-            font-size: 1rem;
-            font-weight: bold;
-            background: #E67E22;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: 0.2s;
-            box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3);
-        }
-
-        .publish-btn:hover {
-            background: #d35400;
-            transform: translateY(-2px);
-        }
-
-        .publish-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            box-shadow: none;
-            transform: none;
-        }
-
-        .builder-container {
-            display: flex;
-            gap: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
-            height: 80vh;
-        }
-
-        .toolbar-area {
-            flex: 0 0 200px;
-            background: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            overflow-y: auto;
-        }
-
-        .add-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 1rem;
-            transition: 0.2s;
-        }
-
-        .add-btn:hover {
-            transform: translateY(-2px);
-            opacity: 0.9;
-        }
-
-        /* ver. 1.01替換：移除 overflow-x: hidden，避免邊緣被裁切 */
-        .canvas-area {
-            flex: 1;
-            background: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            overflow-y: auto;
-        }
-
-        /* ver. 1.01新增：右側面板專用的刪除按鈕 */
-        .delete-panel-btn {
-            width: 100%;
-            background: #E74C3C;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-            margin-top: 15px;
-        }
-
-        .delete-panel-btn:hover {
-            background: #c0392b;
-        }
-
-        /* ver. 1.02 替換：移除混淆的網格線條，改為乾淨微凸起的畫布背景 */
-        .grid-bg {
-            background: #fdfdfd;
-            min-height: 500px;
-            width: 100%;
-            border-radius: 8px;
-            border: 2px dashed #eee;
-        }
-
-        .grid-item {
-            width: 100%;
-            height: 100%;
-            background: #FFFFFF;
-            border: 2px solid #ccc;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #555;
-            cursor: grab;
-            user-select: none;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-            position: relative;
-            transition: border-color 0.2s;
-            box-sizing: border-box;
-            overflow: hidden;
-        }
-
-        .grid-item:active {
-            cursor: grabbing;
-        }
-
-        .grid-item.selected {
-            border-color: #3498DB;
-            border-width: 3px;
-            background: #f0f8fa;
-            box-shadow: 0 0 15px rgba(52, 152, 219, 0.4);
-        }
-
-        .delete-btn {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: #E74C3C;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            font-size: 12px;
-            cursor: pointer;
-            z-index: 10;
-            opacity: 0;
-            transition: 0.2s;
-        }
-
-        .grid-item:hover .delete-btn {
-            opacity: 1;
-        }
-
-        .type-badge {
-            background: #ddd;
-            color: #333;
-            padding: 3px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            margin-top: 5px;
-        }
-
-        /* 顯示格數的小標籤 */
-        .size-badge {
-            position: absolute;
-            bottom: 5px;
-            right: 5px;
-            background: rgba(0, 0, 0, 0.05);
-            color: #888;
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            pointer-events: none;
-        }
-
-        .right-panel {
-            flex: 0 0 350px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .property-area {
-            background: #fff;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            overflow-y: auto;
-            flex: 1;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .form-group label {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: #666;
-        }
-
-        .form-group input[type="text"],
-        .form-group select {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            outline: none;
-            transition: 0.1s;
-            font-family: inherit;
-        }
-
-        .form-group input[type="color"] {
-            width: 100%;
-            height: 40px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            cursor: pointer;
-            padding: 2px;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(8, 103, 136, 0.1);
-        }
-
-        .notice-box {
-            background: #fff3cd;
-            color: #856404;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            border: 1px solid #ffeeba;
-            margin-bottom: 15px;
-        }
-
-        .action-btn {
-            background: var(--accent);
-            color: #333;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-            margin-top: 5px;
-        }
-
-        /* 新聞預覽版面專用樣式 */
         .preview-container {
             background: #fff;
-            padding: 30px;
-            border-radius: 12px;
+            padding: 15px;
             width: 100%;
-            max-width: 1000px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-            min-height: 500px;
+            box-sizing: border-box;
             margin: 0 auto;
         }
 
-        /* ver. 1.11 重新設計版頭與版尾 */
         .news-header {
             display: flex;
             justify-content: space-between;
@@ -413,17 +62,12 @@
 
         .news-title {
             margin: 0;
-            color: #222;
-            font-size: 1.8rem;
-            font-weight: 900;
         }
 
-        .news-meta {
-            color: #777;
-            font-size: 0.9rem;
+        .news-watermark {
+            object-fit: contain;
         }
 
-        /* ver. 1.11 讓頁腳變成左右彈性排版 */
         .news-footer {
             margin-top: 30px;
             padding-top: 15px;
@@ -452,18 +96,13 @@
             text-decoration: underline;
         }
 
-        .news-watermark {
-            object-fit: contain;
-        }
-
-        /* ver 1.22 讓預覽區的網格長寬與編輯器 100% 吻合 */
+        /* 🌟 恢復 12 格網格系統，讓電腦版可以完美並排！ */
         .preview-grid {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
             grid-auto-rows: 30px;
-            /* 基礎高度 30px */
+            /* 基礎高度對齊編輯器 */
             gap: 15px;
-            /* 積木間距 15px */
         }
 
         .preview-card {
@@ -474,7 +113,8 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            box-sizing: border-box;
+            width: 100%;
         }
 
         .preview-card-title {
@@ -484,13 +124,6 @@
             border-bottom: 2px solid #eee;
             padding-bottom: 10px;
             margin-bottom: 15px;
-        }
-
-        .preview-metric-value {
-            margin: auto 0;
-            overflow-y: auto;
-            max-height: 100%;
-            padding-right: 5px;
         }
 
         .reset-filter-btn {
@@ -506,223 +139,39 @@
             color: #555;
         }
 
-        .waiting-placeholder {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            min-height: 150px;
-            color: #999;
-            font-weight: bold;
-            background: #f9f9f9;
-            border-radius: 8px;
-            border: 2px dashed #ddd;
-            text-align: center;
-            padding: 20px;
-        }
-
-        /* 發布彈出視窗 Modal */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            backdrop-filter: blur(3px);
-        }
-
-        .modal-content {
-            background: #fff;
-            padding: 40px;
-            border-radius: 16px;
-            width: 600px;
-            max-width: 90%;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
-            position: relative;
-            animation: slideUp 0.3s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(30px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .code-snippet {
-            background: #282c34;
-            color: #abb2bf;
-            padding: 20px;
-            border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.95rem;
-            word-break: break-all;
-            margin: 20px 0;
-            border: 1px solid #1e2227;
-            line-height: 1.5;
-        }
-
-        .close-modal-btn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: transparent;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #999;
-        }
-
-        .close-modal-btn:hover {
+        .preview-card-title {
+            margin-top: 0;
+            font-size: 1.1rem;
             color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
         }
 
-        /* ver. 1.21 RWD 切換按鈕樣式 */
-        .device-toggle {
-            display: flex;
+        .reset-filter-btn {
             background: #eee;
-            border-radius: 8px;
-            padding: 3px;
-        }
-
-        .device-toggle button {
-            background: transparent;
-            border: none;
-            padding: 6px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            color: #777;
-            transition: 0.2s;
-        }
-
-        .device-toggle button.active {
-            background: #fff;
-            color: var(--primary);
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        /* ver. 1.21 手機模擬器外框 */
-        .preview-wrapper {
-            transition: all 0.3s ease;
-            margin: 0 auto;
-            width: 100%;
-        }
-
-        .preview-wrapper.desktop {
-            max-width: 1000px;
-        }
-
-        .preview-wrapper.mobile {
-            width: 375px;
-            /* 標準手機寬度 */
-            border: 12px solid #333;
-            border-radius: 36px;
-            padding: 10px 0;
-            background: #fff;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-        }
-
-        /* ver. 1.21 當處於手機預覽模式時的強制覆寫 (RWD 魔法) */
-        .preview-wrapper.mobile .preview-container {
-            padding: 15px;
-            box-shadow: none;
-        }
-
-        .preview-wrapper.mobile .preview-card {
-            width: 100% !important;
-            max-width: 100%;
-            grid-column: 1 / -1 !important;
-            /* ver 1.22 寬度強制滿版 */
-            grid-row: auto !important;
-            /* ver 1.22 關鍵：手機版解除上下坐標與高度限制 */
-            height: auto !important;
-            /* ver 1.22 關鍵：手機版自動撐高 */
-            min-height: 150px;
-        }
-
-        /* ver. 1.21 手機版版頭與版尾排版 (ver. 1.66 修正：恢復左右並排，浮水印乖乖待在右邊) */
-        .preview-wrapper.mobile .news-header {
-            flex-direction: row;
-            /* 🌟 強制水平排列 */
-            align-items: center;
-            /* 垂直置中 */
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .preview-wrapper.mobile .news-watermark {
-            margin-left: auto !important;
-            /* ver. 1.66 把浮水印推到最右邊 */
-            align-self: center;
-            max-width: 80px;
-            /* 限制手機版浮水印最大寬度，避免擠壓標題 */
-        }
-
-        .preview-wrapper.mobile .news-footer {
-            flex-direction: row;
-            /* ver. 1.66 頁腳也維持水平排列 */
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .preview-wrapper.mobile .news-title {
-            font-size: 1.4rem !important;
-            word-break: break-word;
-            /* ver. 1.66 確保長標題會自動往下斷行，不會把浮水印擠爆 */
-            line-height: 1.3;
-        }
-
-        /* ver. 1.22 修正手機版溢出問題 (Box Model 與佈局安全調整) */
-        .preview-container,
-        .preview-card {
-            box-sizing: border-box;
-            /* 魔法指令：確保 padding 不會把外框撐破 */
-        }
-
-        .preview-wrapper.mobile .preview-grid {
-            display: flex;
-            /* 在手機版放棄 12 格網格系統，改成彈性盒子 */
-            flex-direction: column;
-            /* 強制所有積木由上往下垂直排列 */
-            gap: 15px;
-        }
-
-        .preview-wrapper.mobile .preview-card {
-            width: 100% !important;
-            /* 卡片強制佔滿 100% 寬度 */
-            max-width: 100%;
-            /* 雙重保險，絕對不允許超出邊界 */
-        }
-
-        /* 讓清除篩選的按鈕在手機版也不會超出邊界 */
-        .preview-wrapper.mobile .reset-filter-btn {
-            width: 100%;
-            text-align: center;
-        }
-
-        /* ver. 1.31 新增：時間軸 (Timeline) 樣式 */
-        /* ver. 1.61 全新時間軸排版 (左日期、中軸線、右內容) */
-        .timeline-container {
-            margin: 10px 0;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            height: 100%;
-            width: 100%;
+            border: 1px solid #ccc;
             padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-left: auto;
+            display: block;
+            margin-bottom: 15px;
+            color: #555;
+        }
+
+        /* 🌟 加上 height: 100%; 與 overflow-y: auto; 讓它被限制在格子內並產生捲軸！ */
+        .timeline-container { 
+            margin: 10px 0; 
+            display: flex; 
+            flex-direction: column; 
+            width: 100%; 
+            height: 100%; 
+            overflow-y: auto; 
+            flex: 1;
+            padding: 5px 10px; 
+            box-sizing: border-box;
         }
 
         .timeline-item {
@@ -730,36 +179,29 @@
             position: relative;
         }
 
-        /* 左側：日期區塊 */
         .timeline-left {
             width: var(--time-width, 20%);
-            /* ver. 1.63 升級：改吃百分比變數，完美適應 RWD */
             flex-shrink: 0;
             text-align: right;
             padding-right: var(--timeline-gap, 15px);
-            /* ver. 1.63 升級：吃間距變數 */
             font-weight: bold;
             color: var(--time-color, var(--primary));
             font-size: 0.95rem;
             padding-top: 2px;
         }
 
-        /* 右側：內容區塊與軸線 */
         .timeline-right {
             flex: 1;
             padding-left: var(--timeline-gap, 20px);
-            /* ver. 1.63 升級：吃間距變數 */
             padding-bottom: 25px;
             border-left: 2px solid var(--line-color, var(--primary));
             position: relative;
         }
 
-        /* 讓最後一個事件不要有往下延伸的尾巴線 */
         .timeline-item:last-child .timeline-right {
             border-left-color: transparent !important;
         }
 
-        /* 完美的圓形節點 */
         .timeline-dot {
             position: absolute;
             left: -8px;
@@ -768,34 +210,46 @@
             height: 14px;
             border-radius: 50%;
             background: var(--node-color, var(--primary));
-            /* ver. 1.62 改用變數控制節點顏色 */
             border: 2px solid #fff;
             box-shadow: 0 0 0 2px var(--node-color, var(--primary));
-            /* ver. 1.62 陰影也跟著節點顏色變 */
             box-sizing: border-box;
             z-index: 2;
         }
 
         .timeline-title {
-            font-weight: 900;
-            font-size: 1.1rem;
             margin: 0 0 5px 0;
-            color: #333;
             line-height: 1.4;
         }
 
         .timeline-desc {
             margin: 0;
-            color: #666;
-            font-size: 0.95rem;
             line-height: 1.6;
         }
 
-        /* ver. 1.31 新增：動作按鈕 (Button) 樣式 */
+        .timeline-link-btn {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 5px 12px;
+            font-size: 0.85rem;
+            color: var(--time-color, var(--primary));
+            background: #fff;
+            border: 1px solid var(--time-color, var(--primary));
+            border-radius: 4px;
+            text-decoration: none !important;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .timeline-link-btn:hover {
+            color: #fff;
+            background: var(--time-color, var(--primary));
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
         .custom-btn-wrapper {
             display: flex;
             width: 100%;
-            height: 100%;
             align-items: center;
             justify-content: center;
         }
@@ -808,42 +262,11 @@
             font-weight: bold;
             text-align: center;
             color: #fff;
-            transition: 0.2s;
-            font-size: 1.1rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             width: 80%;
+            box-sizing: border-box;
         }
 
-        .custom-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-            filter: brightness(1.1);
-        }
-
-        .timeline-link-btn {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 5px 12px;
-            font-size: 0.85rem;
-            color: var(--time-color, var(--primary));
-            /* 跟著時間軸主題色走 */
-            background: #fff;
-            border: 1px solid var(--time-color, var(--primary));
-            border-radius: 4px;
-            text-decoration: none !important;
-            /* 強制移除底線 */
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .timeline-link-btn:hover {
-            color: #fff;
-            background: var(--time-color, var(--primary));
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        /* ver. 1.71 輪播卡片 (Carousel) 專用樣式 */
+        /* 輪播卡片 (Carousel) 專用樣式 */
         .carousel-container {
             position: relative;
             width: 100%;
@@ -861,7 +284,6 @@
             justify-content: center;
             text-align: center;
             padding: 10px 30px;
-            /* 左右留空間給箭頭 */
             box-sizing: border-box;
             animation: fadeIn 0.4s ease-in-out;
             overflow-y: auto;
@@ -883,7 +305,6 @@
             width: 100%;
             transform: translateY(-50%);
             pointer-events: none;
-            /* 讓中間區域可以點擊 */
         }
 
         .carousel-arrow {
@@ -940,287 +361,52 @@
             }
         }
 
-        /* ver. 1.41 右側面板頁籤樣式 */
-        .panel-tabs {
-            display: flex;
-            border-bottom: 2px solid #eee;
-            margin-bottom: 20px;
-        }
+        @media (max-width: 600px) {
+            .news-header {
+                flex-direction: row;
+                align-items: center;
+            }
 
-        .panel-tab {
-            flex: 1;
-            text-align: center;
-            padding: 10px 5px;
-            cursor: pointer;
-            color: #999;
-            font-weight: bold;
-            border-bottom: 3px solid transparent;
-            transition: 0.2s;
-            font-size: 0.9rem;
-        }
+            .news-watermark {
+                margin-left: auto !important;
+                max-width: 80px;
+            }
 
-        .panel-tab:hover {
-            color: #555;
-        }
+            .news-footer {
+                flex-direction: row;
+            }
 
-        .panel-tab.active {
-            color: var(--primary);
-            border-bottom-color: var(--primary);
+            .news-title {
+                font-size: 1.4rem !important;
+                word-break: break-word;
+            }
+
+            .preview-card {
+                padding: 15px;
+            }
+
+            /* 🌟 手機版把網格變成堆疊 */
+            .preview-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 15px;
+            }
         }
     </style>
 </head>
 
 <body>
-
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        const RGL = window.ReactGridLayout;
-        const ResponsiveRGL = RGL.WidthProvider(RGL);
-
         Chart.register(ChartDataLabels);
-
-        function PreviewViewer({ config }) {
-            // 🌟 魔王升級：從原本的單一 data 變成儲存多張表的 dataMap
-            const [dataMap, setDataMap] = useState({});
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [filters, setFilters] = useState({});
-
-            useEffect(() => {
-                const fetchData = async () => {
-                    if (!config.sheetSources || config.sheetSources.length === 0) {
-                        setError("請先在編輯模式設定至少一個 Google Sheet 資料源");
-                        setLoading(false); return;
-                    }
-                    try {
-                        const newDataMap = {};
-                        // 🌟 同時抓取所有表單的資料
-                        await Promise.all(config.sheetSources.map(async (source) => {
-                            if (!source.sheetId) return;
-                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
-                            const res = await fetch(url);
-                            const text = await res.text();
-                            const json = JSON.parse(text.substring(47, text.length - 2));
-
-                            let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
-                            let rowsData = json.table.rows;
-
-                            if (cols.length === 0 && rowsData.length > 0) {
-                                cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
-                                rowsData = rowsData.slice(1);
-                            }
-
-                            const parsedData = rowsData.map(row => {
-                                let obj = {};
-                                row.c.forEach((cell, i) => {
-                                    if (cols[i]) {
-                                        obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
-                                    }
-                                });
-                                return obj;
-                            });
-                            newDataMap[source.id] = parsedData;
-                        }));
-                        setDataMap(newDataMap);
-                    } catch (err) {
-                        setError("部分資料庫讀取失敗，請確認 Sheet ID 與權限。");
-                    }
-                    setLoading(false);
-                };
-                fetchData();
-            }, [config.sheetSources]);
-
-            const sortedComponents = [...config.components].sort((a, b) => {
-                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
-                return a.layout.y - b.layout.y;
-            });
-
-            const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
-            const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
-            const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
-            const isChartVisible = firstDropdownCol ? !!filters[firstDropdownCol] : true;
-
-            const dropdownState = {};
-            for (let i = 0; i < dropdownComps.length; i++) {
-                const col = dropdownComps[i].categoryColumn;
-                if (i === 0) dropdownState[col] = false;
-                else dropdownState[col] = !filters[dropdownComps[i - 1].categoryColumn];
-            }
-
-            // 🌟 魔王升級：跨表過濾器 (Cross-Filtering Engine)
-            const filteredDataMap = {};
-            if (config.sheetSources) {
-                config.sheetSources.forEach(source => {
-                    const sourceData = dataMap[source.id] || [];
-                    filteredDataMap[source.id] = sourceData.filter(row => {
-                        for (let key in filters) {
-                            // 💡 魔法在此：只有當這張表「擁有」這個欄位，且值不相符時，才過濾掉！
-                            // 如果 row[key] 是 undefined (代表這張表根本沒這欄位)，就無條件放行！
-                            if (filters[key] && row[key] !== undefined && row[key] !== filters[key]) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    });
-                });
-            }
-
-            const handleFilterChange = (column, value) => {
-                setFilters(prev => {
-                    const newFilters = { ...prev, [column]: value };
-                    const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
-                    if (changedIdx !== -1) {
-                        for (let i = changedIdx + 1; i < dropdownComps.length; i++) {
-                            newFilters[dropdownComps[i].categoryColumn] = '';
-                        }
-                    }
-                    return newFilters;
-                });
-            };
-
-            const clearFilters = () => setFilters({});
-
-            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
-                if (!valueCol) return {};
-                let result = {};
-                rawData.forEach(row => {
-                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
-                    if (aggType === 'first') {
-                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
-                        return;
-                    }
-                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
-                        let parts = catRaw.split('|');
-                        parts.forEach(part => {
-                            let [subCat, subValStr] = part.split(':');
-                            if (subCat && subValStr !== undefined) {
-                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
-                                if (val > 0) {
-                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
-                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
-                                }
-                            }
-                        });
-                    } else {
-                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
-                        if (val > 0 || aggType === 'count') {
-                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
-                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
-                        }
-                    }
-                });
-                return result;
-            };
-
-            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
-                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
-                let datasetsMap = {};
-                categories.forEach((cat, catIndex) => {
-                    const rows = rawData.filter(r => r[categoryCol] === cat);
-                    rows.forEach(r => {
-                        valueCols.forEach(col => {
-                            if (!col) return;
-                            let valRaw = r[col];
-                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
-                                let parts = valRaw.split('|');
-                                parts.forEach(part => {
-                                    let [subCat, subValStr] = part.split(':');
-                                    if (subCat && subValStr !== undefined) {
-                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
-                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
-                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
-                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
-                                    }
-                                });
-                            } else {
-                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
-                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
-                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
-                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
-                            }
-                        });
-                    });
-                });
-                const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
-                return { categories, datasets };
-            };
-
-            if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料載入中，請稍候...</h3></div>;
-            if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
-
-            return (
-                <div className="preview-container">
-                    <div className="news-header">
-                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
-                            <h2 className="news-title" style={{
-                                color: config.meta.titleColor || '#222',
-                                fontSize: config.meta.titleFontSize || '1.8rem',
-                                fontWeight: config.meta.titleFontWeight || '900',
-                                fontFamily: config.meta.titleFontFamily || 'inherit',
-                                margin: 0
-                            }}>
-                                {config.meta.title}
-                            </h2>
-                        </div>
-                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && (
-                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px`, marginLeft: '15px' }} />
-                        )}
-                    </div>
-
-                    {Object.values(filters).some(v => v) && (
-                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
-                    )}
-
-                    <div className="preview-grid">
-                        {sortedComponents.map(comp => (
-                            <ChartComponent
-                                key={comp.id} comp={comp}
-                                /* 🌟 核心傳遞：根據該積木綁定的資料庫 ID，餵給它對應的資料 */
-                                rawData={dataMap[comp.dataSourceId] || []}
-                                filteredData={filteredDataMap[comp.dataSourceId] || []}
-                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
-                                isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
-                                firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
-                                aggregateStackedData={aggregateStackedData}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="news-footer">
-                        <div className="news-footer-left">
-                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
-                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-                                    <span>資料來源：</span>
-                                    {config.meta.dataSources.map((source, idx) => (
-                                        <span key={idx}>
-                                            {source.url ? (
-                                                <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a>
-                                            ) : (
-                                                <span>{source.name || '未命名來源'}</span>
-                                            )}
-                                            {idx < config.meta.dataSources.length - 1 && '、'}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && (
-                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />
-                        )}
-                    </div>
-                </div>
-            );
-        }
 
         function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
             const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
 
-            // 輪播卡片專屬的狀態
             const [currentSlide, setCurrentSlide] = useState(0);
             useEffect(() => { setCurrentSlide(0); }, [filteredData]);
 
@@ -1239,69 +425,49 @@
                     if (comp.type === 'stackedBarChart') {
                         chartType = 'bar';
                         const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
-                        labels = stackedData.categories;
-                        datasets = stackedData.datasets;
-                        const isHorizontal = comp.chartOrientation === 'horizontal';
-                        if (isHorizontal) {
-                            options.indexAxis = 'y';
-                            options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
+                        labels = stackedData.categories; datasets = stackedData.datasets;
+                        if (comp.chartOrientation === 'horizontal') {
+                            options.indexAxis = 'y'; options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
                         } else {
                             options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
                         }
                         datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
                         if (comp.isPercentageStacked) {
-                            const numCategories = labels.length;
-                            const numDatasets = datasets.length;
+                            const numCategories = labels.length; const numDatasets = datasets.length;
                             for (let j = 0; j < numCategories; j++) {
-                                let total = 0;
-                                for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
-                                if (total > 0) {
-                                    for (let i = 0; i < numDatasets; i++) {
-                                        datasets[i].data[j] = (datasets[i].data[j] / total) * 100;
-                                    }
-                                }
+                                let total = 0; for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
+                                if (total > 0) { for (let i = 0; i < numDatasets; i++) datasets[i].data[j] = (datasets[i].data[j] / total) * 100; }
                             }
-                            options.plugins.datalabels = {
-                                display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
-                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold' }
-                            };
+                            options.plugins.datalabels = { display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '', color: 'white', font: { weight: 'bold' } };
                         }
                     } else {
                         const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
-                        labels = Object.keys(aggData1);
-                        const data1 = Object.values(aggData1);
-                        datasets = [{
-                            label: comp.compareValueColumn ? comp.valueColumn : comp.title,
-                            data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor,
-                            borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true
-                        }];
+                        labels = Object.keys(aggData1); const data1 = Object.values(aggData1);
+                        datasets = [{ label: comp.compareValueColumn ? comp.valueColumn : comp.title, data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor, borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true }];
                         if (comp.compareValueColumn && comp.type !== 'pieChart') {
                             const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
                             const data2 = labels.map(label => aggData2[label] || 0);
-                            datasets.push({
-                                label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7',
-                                borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true
-                            });
+                            datasets.push({ label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true });
                         }
                         if (comp.type === 'pieChart') chartType = 'doughnut';
                         if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
-                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
+                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') options.indexAxis = 'y';
                     }
-
-                    chartInstance.current = new Chart(ctx, {
-                        type: chartType, data: { labels: labels, datasets: datasets }, options: options
-                    });
+                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels, datasets }, options });
                 }
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); }
             }, [comp, filteredData, isChartVisible]);
 
+            // 🌟 恢復：把資料庫裡存的 x, y, w, h 抓出來，並轉成 CSS Grid 座標
             const colWidth = comp.layout?.desktopCols || comp.layout?.w || comp.w || 6;
             const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
             const rowY = comp.layout?.y !== undefined ? (comp.layout.y + 1) : 'auto';
 
             const gridStyle = {
+                /* 🌟 把座標餵給 CSS */
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
                 gridRow: rowY !== 'auto' ? `${rowY} / span ${comp.layout?.h || comp.h || 6}` : 'auto',
+
                 overflow: 'hidden',
                 boxSizing: 'border-box',
                 padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
@@ -1316,107 +482,49 @@
             if (comp.type !== 'dropdown' && !isChartVisible) {
                 return (
                     <div className="preview-card" style={gridStyle}>
-                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
-                            <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
-                                {comp.title}
-                            </h3>
-                        )}
-                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表
-                        </div>
+                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ textAlign: 'center', width: '100%' }}>{comp.title}</h3>}
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999', minHeight: '150px', background: '#f9f9f9', borderRadius: '8px', border: '2px dashed #ddd' }}>請先於上方選擇「{firstDropdownCol}」</div>
                     </div>
                 );
             }
 
             const processAndFormatNumber = (rawValue) => {
                 const multiplier = comp.multiplier !== undefined ? comp.multiplier : 1;
-                let num = rawValue * multiplier;
-                num = Math.round(num * 100000) / 100000;
-
+                let num = rawValue * multiplier; num = Math.round(num * 100000) / 100000;
                 const format = comp.numberFormat || 'comma';
                 if (format === 'plain') return num.toString();
                 if (format === 'comma') return num.toLocaleString('zh-TW');
-
                 if (num === 0) return '0';
-                const isNegative = num < 0;
-                let str = Math.abs(num).toString();
-                let [intPart, decPart] = str.split('.');
-                let result = '';
-                const units = ['', '萬', '億', '兆', '京'];
-                let chunks = [];
-
-                while (intPart.length > 0) {
-                    chunks.push(intPart.slice(-4));
-                    intPart = intPart.slice(0, -4);
-                }
-
+                const isNegative = num < 0; let str = Math.abs(num).toString(); let [intPart, decPart] = str.split('.'); let result = ''; const units = ['', '萬', '億', '兆', '京']; let chunks = [];
+                while (intPart.length > 0) { chunks.push(intPart.slice(-4)); intPart = intPart.slice(0, -4); }
                 for (let i = chunks.length - 1; i >= 0; i--) {
                     let chunkNum = parseInt(chunks[i], 10);
                     if (chunkNum > 0) {
                         let chunkStr = chunkNum.toString();
                         if (format === 'zh-scale-qian' && i === 0 && chunkStr.length === 4) {
-                            let qian = chunkStr[0];
-                            let restNum = parseInt(chunkStr.slice(1), 10);
-                            chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
+                            let qian = chunkStr[0]; let restNum = parseInt(chunkStr.slice(1), 10); chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
                         }
                         result += chunkStr + units[i];
                     }
                 }
-
-                if (isNegative) result = '-' + result;
-                if (decPart) result += '.' + decPart;
+                if (isNegative) result = '-' + result; if (decPart) result += '.' + decPart;
                 return result || '0';
             };
 
             const renderMetricOrText = () => {
                 if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
-
                 if (comp.type === 'metricCard') {
-                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定數值欄位</p>;
-                    let value = comp.aggregation === 'count'
-                        ? filteredData.length
-                        : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
-
-                    const formattedValue = processAndFormatNumber(value);
-                    const finalDisplayValue = `${comp.prefix || ''}${formattedValue}${comp.suffix || ''}`;
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                    let value = comp.aggregation === 'count' ? filteredData.length : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+                    const finalVal = `${comp.prefix || ''}${processAndFormatNumber(value)}${comp.suffix || ''}`;
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
-
-                    return (
-                        <div className="metric-content" style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}>
-                            <div className="metric-value" style={{
-                                color: comp.themeColor || '#086788',
-                                fontSize: comp.fontSize || '3.5rem',
-                                fontWeight: comp.fontWeight || '900',
-                                lineHeight: 1
-                            }}>
-                                {finalDisplayValue}
-                            </div>
-                        </div>
-                    );
+                    return <div style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}><div style={{ color: comp.themeColor || '#086788', fontSize: comp.fontSize || '3.5rem', fontWeight: comp.fontWeight || '900', lineHeight: 1 }}>{finalVal}</div></div>;
                 }
-
                 if (comp.type === 'textCard') {
-                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定文字欄位</p>;
-                    const latestRow = filteredData[filteredData.length - 1];
-                    const textContent = latestRow[comp.valueColumn] || ' (無文字內容) ';
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                    const textContent = filteredData[filteredData.length - 1][comp.valueColumn] || '';
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
-
-                    return (
-                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}>
-                            <p className="text-card-content" style={{
-                                fontSize: comp.fontSize || '1.2rem',
-                                fontWeight: comp.fontWeight || 'normal',
-                                textAlign: comp.textAlign || 'left',
-                                color: comp.themeColor || '#333333',
-                                lineHeight: '1.6',
-                                margin: 0,
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word'
-                            }}>
-                                {textContent}
-                            </p>
-                        </div>
-                    );
+                    return <div style={{ overflowY: 'auto', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}><p style={{ fontSize: comp.fontSize || '1.2rem', fontWeight: comp.fontWeight || 'normal', textAlign: comp.textAlign || 'left', color: comp.themeColor || '#333', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{textContent}</p></div>;
                 }
                 return null;
             };
@@ -1424,147 +532,64 @@
             const renderMetricCompare = () => {
                 if (comp.type !== 'metricCard' || !comp.compareValueColumn) return null;
                 const compareValue = filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.compareValueColumn]).replace(/,/g, '')) || 0), 0);
-
                 const formattedCompareValue = processAndFormatNumber(compareValue);
                 const finalCompareValue = `${comp.prefix || ''}${formattedCompareValue}${comp.suffix || ''}`;
                 const align = comp.textAlign === 'left' ? 'left' : (comp.textAlign === 'right' ? 'right' : 'center');
-
-                return (
-                    <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textAlign: align, width: '100%' }}>
-                        相比 {comp.compareValueColumn}：{finalCompareValue}
-                    </div>
-                );
+                return <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textAlign: align, width: '100%' }}>相比 {comp.compareValueColumn}：{finalCompareValue}</div>;
             };
 
             return (
                 <div className="preview-card" style={gridStyle}>
-                    {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
-                        <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
-                            {comp.title}
-                        </h3>
-                    )}
-
-                    {(comp.type === 'metricCard' || comp.type === 'textCard') && (
-                        <div style={{ width: '100%', flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '80px' }}>
-                            {renderMetricOrText()}
-                            {renderMetricCompare()}
-                        </div>
-                    )}
-
-                    {isChartType && (
-                        <div style={{ position: 'relative', flex: '1 1 auto', width: '100%', minHeight: '200px' }}>
-                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{ color: '#999', textAlign: 'center', marginTop: '30%' }}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
-                        </div>
-                    )}
-
+                    {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ textAlign: 'center', width: '100%' }}>{comp.title}</h3>}
+                    {(comp.type === 'metricCard' || comp.type === 'textCard') && <div style={{ width: '100%', flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '80px' }}>{renderMetricOrText()}{renderMetricCompare()}</div>}
+                    {isChartType && <div style={{ position: 'relative', flex: '1 1 auto', width: '100%', minHeight: '200px' }}><canvas ref={canvasRef}></canvas></div>}
                     {comp.type === 'dropdown' && (() => {
-                        if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
-                        if (isDropdownDisabled) {
-                            return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
-                        }
+                        if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定</p>;
+                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%' }}><option>請先選擇上一層</option></select>;
                         const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
                         const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
-                        const optionsData = rawData.filter(row => {
-                            for (let upstreamCol of upstreamCols) {
-                                if (filters[upstreamCol] && row[upstreamCol] !== filters[upstreamCol]) return false;
-                            }
-                            return true;
-                        });
+                        const optionsData = rawData.filter(row => { for (let uCol of upstreamCols) { if (filters[uCol] && row[uCol] !== filters[uCol]) return false; } return true; });
                         const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
-
-                        return (
-                            <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
-                                <option value="">請選擇 {comp.categoryColumn}...</option>
-                                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                        );
+                        return <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}><option value="">請選擇 {comp.categoryColumn}...</option>{options.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>;
                     })()}
-
-                    {comp.type === 'button' && (
-                        <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>
-                                {comp.title || '點擊連結'}
-                            </a>
-                        </div>
-                    )}
+                    {comp.type === 'button' && <div className="custom-btn-wrapper" style={{ padding: '10px 0' }}><a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a></div>}
 
                     {comp.type === 'timeline' && (
-                        <div className="timeline-container" style={{
-                            '--time-width': `${comp.timeWidthPercent || 20}%`,
-                            '--timeline-gap': `${comp.timelineGap || 20}px`,
-                            '--time-color': comp.timeColor || '#086788',
-                            '--line-color': comp.lineColor || '#086788',
-                            '--node-color': comp.nodeColor || '#086788'
-                        }}>
-                            {(!comp.categoryColumn || (!comp.valueColumn && !comp.compareValueColumn)) ? (
-                                <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
-                            ) : (
-                                filteredData.map((row, idx) => {
-                                    if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
-                                    return (
-                                        <div key={idx} className="timeline-item">
-                                            <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
-                                            <div className="timeline-right">
-                                                <div className="timeline-dot"></div>
-                                                {row[comp.valueColumn] && (
-                                                    <h4 className="timeline-title" style={{
-                                                        color: comp.titleColor || '#333333',
-                                                        fontSize: comp.titleSize || '1.1rem',
-                                                        fontWeight: comp.titleWeight || '900',
-                                                        textDecoration: 'none'
-                                                    }}>
-                                                        {row[comp.valueColumn]}
-                                                    </h4>
-                                                )}
-                                                {comp.compareValueColumn && row[comp.compareValueColumn] && (
-                                                    <p className="timeline-desc" style={{
-                                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                                        color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem',
-                                                        fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px'
-                                                    }}>
-                                                        {row[comp.compareValueColumn]}
-                                                    </p>
-                                                )}
-                                                {comp.linkColumn && row[comp.linkColumn] && (
-                                                    <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">
-                                                        看相關新聞 ↗
-                                                    </a>
-                                                )}
-                                            </div>
+                        <div className="timeline-container" style={{ '--time-width': `${comp.timeWidthPercent || 20}%`, '--timeline-gap': `${comp.timelineGap || 20}px`, '--time-color': comp.timeColor || '#086788', '--line-color': comp.lineColor || '#086788', '--node-color': comp.nodeColor || '#086788' }}>
+                            {(!comp.categoryColumn || (!comp.valueColumn && !comp.compareValueColumn)) ? <p>請綁定欄位</p> : filteredData.map((row, idx) => {
+                                if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
+                                return (
+                                    <div key={idx} className="timeline-item">
+                                        <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
+                                        <div className="timeline-right">
+                                            <div className="timeline-dot"></div>
+                                            {row[comp.valueColumn] && (
+                                                <h4 className="timeline-title" style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
+                                            )}
+                                            {comp.compareValueColumn && row[comp.compareValueColumn] && <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>}
+                                            {comp.linkColumn && row[comp.linkColumn] && (
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                                            )}
                                         </div>
-                                    )
-                                })
-                            )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
 
-                    {/* 🎠 內容輪播卡片 (Carousel) */}
                     {comp.type === 'carousel' && (
                         <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
-                            {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
-                                <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在右側資料面板綁定欄位</p>
-                            ) : (
+                            {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請綁定欄位</p> : (
                                 <>
                                     <div className="carousel-slide">
                                         {filteredData[currentSlide] && (
                                             <>
-                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (
-                                                    <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />
-                                                )}
-                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
-                                                    <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>
-                                                        {filteredData[currentSlide][comp.categoryColumn]}
-                                                    </h3>
-                                                )}
-                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
-                                                    <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>
-                                                        {filteredData[currentSlide][comp.valueColumn]}
-                                                    </p>
-                                                )}
+                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
+                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
+                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
                                             </>
                                         )}
                                     </div>
-
                                     {filteredData.length > 1 && (
                                         <>
                                             <div className="carousel-nav">
@@ -1572,9 +597,7 @@
                                                 <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev < filteredData.length - 1 ? prev + 1 : 0); }}>&gt;</button>
                                             </div>
                                             <div className="carousel-dots">
-                                                {filteredData.map((_, i) => (
-                                                    <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>
-                                                ))}
+                                                {filteredData.map((_, i) => <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>)}
                                             </div>
                                         </>
                                     )}
@@ -1586,888 +609,219 @@
             );
         }
 
-        function DashboardApp() {
-            // 🌟 1. 核心升級：新增「目前畫面」狀態 (home = 大廳, editor = 編輯器)
-            const params = new URLSearchParams(window.location.search);
-            const urlId = params.get('id');
-            const [currentScreen, setCurrentScreen] = useState(urlId ? 'editor' : 'home');
+        // 🌟 更新版 PreviewViewer：支援多重資料庫 (BI 引擎)
+        function PreviewViewer({ config }) {
+            const [dataMap, setDataMap] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [filters, setFilters] = useState({});
 
-            // 🌟 2. 新增：本機專案記憶功能
-            const [recentProjects, setRecentProjects] = useState([]);
             useEffect(() => {
-                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
-                setRecentProjects(saved);
-            }, []);
+                const fetchData = async () => {
+                    // 為了相容新舊資料結構，加上防呆：如果沒有 sheetSources 但有 dataSource，幫它轉換
+                    const sourcesToFetch = config.sheetSources || (config.dataSource ? [{ id: 'ds_legacy', sheetId: config.dataSource.sheetId, gid: config.dataSource.gid }] : []);
 
-            const saveToRecent = (id, title) => {
-                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
-                // 把新的專案加到最前面，並過濾掉重複的 ID，最多保留 20 筆紀錄
-                const updated = [{ id, title: title || '未命名專案', date: new Date().toLocaleString('zh-TW') }, ...saved.filter(p => p.id !== id)].slice(0, 20);
-                localStorage.setItem('recentDashboards', JSON.stringify(updated));
-                setRecentProjects(updated);
-            };
+                    if (sourcesToFetch.length === 0) {
+                        setError("未設定 Google Sheet 資料庫");
+                        setLoading(false); return;
+                    }
+                    try {
+                        const newDataMap = {};
+                        await Promise.all(sourcesToFetch.map(async (source) => {
+                            if (!source.sheetId) return;
+                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
+                            const res = await fetch(url);
+                            const text = await res.text();
+                            const json = JSON.parse(text.substring(47, text.length - 2));
 
-            const [viewMode, setViewMode] = useState('builder');
-            const [previewDevice, setPreviewDevice] = useState('desktop');
-            const [activeTab, setActiveTab] = useState('basic');
+                            let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+                            let rowsData = json.table.rows;
+                            if (cols.length === 0 && rowsData.length > 0) {
+                                cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                                rowsData = rowsData.slice(1);
+                            }
+                            const parsedData = rowsData.map(row => {
+                                let obj = {};
+                                row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : ''; });
+                                return obj;
+                            });
+                            newDataMap[source.id] = parsedData;
+                        }));
+                        setDataMap(newDataMap);
+                    } catch (err) { setError("資料讀取失敗，請確認權限。"); }
+                    setLoading(false);
+                };
+                fetchData();
+            }, [config]);
 
-            const [isInitialLoading, setIsInitialLoading] = useState(urlId ? true : false);
+            const sortedComponents = [...config.components].sort((a, b) => { if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x; return a.layout.y - b.layout.y; });
+            const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
+            const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
+            const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
+            const isChartVisible = firstDropdownCol ? !!filters[firstDropdownCol] : true;
 
-            const [globalMeta, setGlobalMeta] = useState({
-                title: "未命名儀表板", titleColor: "#222222", titleFontSize: "1.8rem", titleFontWeight: "900", titleFontFamily: "", titleAlign: "left",
-                lastUpdated: "", dataSources: [{ name: "新增資料來源", url: "" }], watermarkUrl: "", watermarkName: "", watermarkSize: 40, watermarkPosition: "top-right"
+            const dropdownState = {};
+            for (let i = 0; i < dropdownComps.length; i++) {
+                const col = dropdownComps[i].categoryColumn;
+                if (i === 0) dropdownState[col] = false; else dropdownState[col] = !filters[dropdownComps[i - 1].categoryColumn];
+            }
+
+            // 🌟 跨表過濾器核心邏輯
+            const filteredDataMap = {};
+            const sourcesToUse = config.sheetSources || (config.dataSource ? [{ id: 'ds_legacy' }] : []);
+            sourcesToUse.forEach(source => {
+                const sourceData = dataMap[source.id] || [];
+                filteredDataMap[source.id] = sourceData.filter(row => {
+                    for (let key in filters) {
+                        if (filters[key] && row[key] !== undefined && row[key] !== filters[key]) return false;
+                    }
+                    return true;
+                });
             });
 
-            const [sheetSources, setSheetSources] = useState([
-                { id: 'ds_' + Date.now(), name: '預設資料表', sheetId: "1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs", gid: "612819456" }
-            ]);
-            const [columnsMap, setColumnsMap] = useState({});
-            const [isFetching, setIsFetching] = useState(false);
-
-            const [isPublishing, setIsPublishing] = useState(false);
-            const [showPublishModal, setShowPublishModal] = useState(false);
-            const [publishedId, setPublishedId] = useState('');
-
-            const [blocks, setBlocks] = useState([
-                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', dataSourceId: sheetSources[0].id, categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900', textAlign: 'center' }
-            ]);
-            const [selectedBlockId, setSelectedBlockId] = useState(null);
-
-            useEffect(() => {
-                const loadProject = async () => {
-                    if (urlId) {
-                        try {
-                            if (window.loadFromFirebase) {
-                                const data = await window.loadFromFirebase(urlId);
-                                if (data) {
-                                    setGlobalMeta(data.meta || globalMeta);
-                                    if (data.sheetSources) setSheetSources(data.sheetSources);
-                                    else if (data.dataSource) setSheetSources([{ id: 'ds_legacy', name: '舊版資料庫', sheetId: data.dataSource.sheetId, gid: data.dataSource.gid }]);
-
-                                    if (data.components) {
-                                        const loadedBlocks = data.components.map(c => ({
-                                            i: c.id, type: c.type, title: c.title, showTitle: c.showTitle !== false,
-                                            dataSourceId: c.dataSourceId || (data.sheetSources ? data.sheetSources[0]?.id : 'ds_legacy'),
-                                            categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [],
-                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '', aggregation: c.aggregation || 'sum',
-                                            compareValueCol: c.compareValueColumn || '', chartOrientation: c.chartOrientation || 'vertical', themeColor: c.themeColor || '',
-                                            timeWidthPercent: c.timeWidthPercent || 20, timelineGap: c.timelineGap || 20, timeColor: c.timeColor || '', lineColor: c.lineColor || '', nodeColor: c.nodeColor || '',
-                                            titleColor: c.titleColor || '', titleSize: c.titleSize || '', titleWeight: c.titleWeight || '', descColor: c.descColor || '', descSize: c.descSize || '', descWeight: c.descWeight || '',
-                                            prefix: c.prefix || '', suffix: c.suffix || '', numberFormat: c.numberFormat || 'comma', multiplier: c.multiplier !== undefined ? c.multiplier : 1,
-                                            fontSize: c.fontSize || '', fontFamily: c.fontFamily || '', fontWeight: c.fontWeight || '', textAlign: c.textAlign || '',
-                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity
-                                        }));
-                                        setBlocks(loadedBlocks);
-                                    }
-                                    setPublishedId(urlId);
-                                    // 讀檔成功，順便更新本機紀錄的名稱跟時間
-                                    saveToRecent(urlId, data.meta?.title);
-                                } else {
-                                    alert("❌ 找不到此專案紀錄，返回大廳！");
-                                    window.location.href = '?';
-                                }
-                            }
-                        } catch (err) {
-                            console.error(err);
-                            alert("❌ 專案讀取失敗！");
-                        }
-                    }
-                    setIsInitialLoading(false);
-                };
-                if (urlId) setTimeout(loadProject, 500);
-            }, [urlId]);
-
-            const handleImageUpload = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => { setGlobalMeta(prev => ({ ...prev, watermarkUrl: reader.result, watermarkName: file.name })); };
-                    reader.readAsDataURL(file);
-                }
-            };
-
-            const fetchSheetColumns = async () => {
-                setIsFetching(true);
-                let newColsMap = {};
-                try {
-                    await Promise.all(sheetSources.map(async (source) => {
-                        if (!source.sheetId) return;
-                        const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq=limit%202&gid=${source.gid || '0'}`;
-                        const res = await fetch(url);
-                        const text = await res.text();
-                        const json = JSON.parse(text.substring(47, text.length - 2));
-                        let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
-                        if (cols.length === 0 && json.table.rows.length > 0) {
-                            cols = json.table.rows[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
-                        }
-                        newColsMap[source.id] = cols;
-                    }));
-                    setColumnsMap(newColsMap);
-                    alert("✅ 成功讀取所有資料庫的表頭欄位！");
-                } catch (error) { alert("❌ 讀取失敗，請確認試算表已開放權限。"); }
-                setIsFetching(false);
-            };
-
-            const handleLayoutChange = (newLayout) => {
-                const updatedBlocks = blocks.map(block => {
-                    const layoutItem = newLayout.find(l => l.i === block.i);
-                    return layoutItem ? { ...block, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h } : block;
+            const handleFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
+                    if (changedIdx !== -1) { for (let i = changedIdx + 1; i < dropdownComps.length; i++) newFilters[dropdownComps[i].categoryColumn] = ''; }
+                    return newFilters;
                 });
-                setBlocks(updatedBlocks);
             };
 
-            const addBlock = (type, title, defaultW, defaultH) => {
-                const newId = 'comp_' + Date.now();
-                setBlocks(prev => [...prev, { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' }]);
-                setSelectedBlockId(newId);
-            };
-
-            const removeBlock = (idToRemove) => {
-                setBlocks(prev => prev.filter(block => block.i !== idToRemove));
-                if (selectedBlockId === idToRemove) setSelectedBlockId(null);
-            };
-
-            const updateBlockProperty = (id, key, value) => {
-                setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: value } : block));
-            };
-
-            const updateBlockLayout = (id, key, value) => {
-                const numValue = parseInt(value, 10);
-                if (isNaN(numValue) || numValue < 1) return;
-                setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: numValue } : block));
-            };
-
-            const updateGlobalMeta = (key, value) => { setGlobalMeta(prev => ({ ...prev, [key]: value })); }
-            const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
-
-            const finalJSON = {
-                meta: globalMeta,
-                sheetSources: sheetSources,
-                components: blocks.map(b => ({
-                    id: b.i, type: b.type, title: b.title, dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''), showTitle: b.showTitle !== false, buttonUrl: b.buttonUrl || null, categoryColumn: b.categoryCol || null, valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null, stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null, imageColumn: b.imageCol || null, linkColumn: b.linkCol || null, isPercentageStacked: b.isPercentageStacked || false, compareValueColumn: b.compareValueCol || null, aggregation: b.aggregation, chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor, timeWidthPercent: b.timeWidthPercent || 20, timelineGap: b.timelineGap || 20, timeColor: b.timeColor || '', lineColor: b.lineColor || '', nodeColor: b.nodeColor || '', titleColor: b.titleColor || '', titleSize: b.titleSize || '', titleWeight: b.titleWeight || '', descColor: b.descColor || '', descSize: b.descSize || '', descWeight: b.descWeight || '', prefix: b.prefix || '', suffix: b.suffix || '', numberFormat: b.numberFormat || 'comma', multiplier: b.multiplier !== undefined ? b.multiplier : 1, fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || null, textAlign: b.textAlign || null, layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
-                }))
-            };
-
-            const handlePublish = async () => {
-                setIsPublishing(true);
-                try {
-                    if (publishedId && window.updateToFirebase) {
-                        await window.updateToFirebase(publishedId, finalJSON);
-                        saveToRecent(publishedId, globalMeta.title); // 🌟 存入本機紀錄
-                        setShowPublishModal(true);
-                    } else if (window.publishToFirebase) {
-                        const newId = await window.publishToFirebase(finalJSON);
-                        setPublishedId(newId);
-                        saveToRecent(newId, globalMeta.title); // 🌟 存入本機紀錄
-                        window.history.replaceState(null, '', `?id=${newId}`);
-                        setShowPublishModal(true);
+            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
+                if (!valueCol) return {}; let result = {};
+                rawData.forEach(row => {
+                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                    if (aggType === 'first') { if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || ''; return; }
+                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
+                        catRaw.split('|').forEach(part => {
+                            let [subCat, subValStr] = part.split(':');
+                            if (subCat && subValStr !== undefined) {
+                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                if (val > 0) { if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val; else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1; }
+                            }
+                        });
                     } else {
-                        alert("⚠️ Firebase 尚未載入完成，請稍候重試！");
+                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
+                        if (val > 0 || aggType === 'count') { if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val; else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1; }
                     }
-                } catch (error) {
-                    alert("❌ 發布失敗！詳細錯誤：" + error.message);
-                } finally {
-                    setIsPublishing(false);
-                }
+                });
+                return result;
             };
 
-            const handleCopy = () => {
-                const iframeCode = `<iframe \n  src="https://你的帳號.github.io/你的儲存庫/viewer.html?id=${publishedId}" \n  width="100%" \n  height="800px" \n  frameborder="0" \n  scrolling="no"\n></iframe>`;
-                navigator.clipboard.writeText(iframeCode);
-                alert("✅ 嵌入代碼已複製到剪貼簿！");
+            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
+                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
+                let datasetsMap = {};
+                categories.forEach((cat, catIndex) => {
+                    const rows = rawData.filter(r => r[categoryCol] === cat);
+                    rows.forEach(r => {
+                        valueCols.forEach(col => {
+                            if (!col) return; let valRaw = r[col];
+                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
+                                valRaw.split('|').forEach(part => {
+                                    let [subCat, subValStr] = part.split(':');
+                                    if (subCat && subValStr !== undefined) {
+                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
+                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val; else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                    }
+                                });
+                            } else {
+                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
+                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
+                                if (aggType === 'sum') datasetsMap[col][catIndex] += val; else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                            }
+                        });
+                    });
+                });
+                return { categories, datasets: Object.keys(datasetsMap).map(label => ({ label, data: datasetsMap[label] })) };
             };
 
-            // 🌟 3. 畫出超美的「專案大廳 (Home Screen)」
-            if (currentScreen === 'home') {
-                return (
-                    <div style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto', fontFamily: '"Noto Sans TC", sans-serif' }}>
-                        <h1 style={{ color: '#086788', textAlign: 'center', fontSize: '2.5rem', margin: '0 0 10px 0' }}>📊 儀表板生成器</h1>
-                        <p style={{ textAlign: 'center', color: '#666', fontSize: '1.1rem', marginBottom: '40px' }}>請選擇建立新專案，或接續編輯先前的專案。</p>
+            if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料庫連線中...</h3></div>;
+            if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
-                            <div onClick={() => setCurrentScreen('editor')} style={{ background: '#fff', border: '2px dashed #086788', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
-                                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>✨</div>
-                                <h2 style={{ color: '#086788', margin: '0 0 10px 0' }}>建立新專案</h2>
-                                <p style={{ color: '#666', margin: 0 }}>從一張空白畫布開始設計</p>
-                            </div>
-
-                            <div onClick={() => {
-                                const id = prompt("請輸入專案 ID：");
-                                if (id && id.trim() !== "") window.location.href = `?id=${id.trim()}`;
-                            }} style={{ background: '#fff', border: '2px solid #ccc', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
-                                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📁</div>
-                                <h2 style={{ color: '#555', margin: '0 0 10px 0' }}>輸入專案 ID</h2>
-                                <p style={{ color: '#666', margin: 0 }}>手動輸入 ID 來讀取雲端專案</p>
-                            </div>
+            return (
+                <div className="preview-container">
+                    <div className="news-header">
+                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
+                            <h2 className="news-title" style={{ color: config.meta.titleColor || '#222', fontSize: config.meta.titleFontSize || '1.8rem', fontWeight: config.meta.titleFontWeight || '900', fontFamily: config.meta.titleFontFamily || 'inherit' }}>
+                                {config.meta.title}
+                            </h2>
                         </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />}
+                    </div>
 
-                        <div style={{ background: '#fff', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#333' }}>🕒 最近編輯紀錄 (本機存檔)</h3>
-                            {recentProjects.length === 0 ? (
-                                <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0 }}>尚無編輯紀錄，趕快建立一個吧！</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
-                                    {recentProjects.map(p => (
-                                        <div key={p.id} onClick={() => window.location.href = `?id=${p.id}`} style={{ background: '#f9f9f9', padding: '15px 20px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#f0f8fa'} onMouseOut={(e) => e.currentTarget.style.background = '#f9f9f9'}>
-                                            <div>
-                                                <div style={{ fontSize: '1.2rem', color: '#086788', fontWeight: 'bold', marginBottom: '5px' }}>{p.title}</div>
-                                                <div style={{ color: '#888', fontSize: '0.85rem' }}>ID: {p.id}</div>
-                                            </div>
-                                            <div style={{ color: '#999', fontSize: '0.9rem', textAlign: 'right' }}>
-                                                <span style={{ display: 'block', marginBottom: '3px' }}>上次更新</span>
-                                                {p.date}
-                                            </div>
-                                        </div>
+                    {Object.values(filters).some(v => v) && <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選</button>}
+
+                    <div className="preview-grid">
+                        {sortedComponents.map(comp => {
+                            // 🌟 防呆：相容舊的單一資料結構
+                            const dataSourceIdToUse = comp.dataSourceId || 'ds_legacy';
+                            return (
+                                <ChartComponent
+                                    key={comp.id} comp={comp}
+                                    rawData={dataMap[dataSourceIdToUse] || []}
+                                    filteredData={filteredDataMap[dataSourceIdToUse] || []}
+                                    aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
+                                    isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
+                                    firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
+                                    aggregateStackedData={aggregateStackedData}
+                                />
+                            )
+                        })}
+                    </div>
+
+                    <div className="news-footer">
+                        <div className="news-footer-left">
+                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
+                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                    <span>資料來源：</span>
+                                    {config.meta.dataSources.map((source, idx) => (
+                                        <span key={idx}>
+                                            {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名'}</a> : <span>{source.name || '未命名'}</span>}
+                                            {idx < config.meta.dataSources.length - 1 && '、'}
+                                        </span>
                                     ))}
                                 </div>
                             )}
                         </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />}
                     </div>
-                );
-            }
-
-            if (isInitialLoading) {
-                return (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f5f5f5', color: '#086788' }}>
-                        <h2>⏳ 專案環境載入中...</h2>
-                        <p style={{ color: '#666' }}>正為您佈署編輯器</p>
-                    </div>
-                );
-            }
-
-            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
-            const currentDataSourceId = currentSelectedBlock ? (currentSelectedBlock.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : '')) : '';
-            const availableColumns = columnsMap[currentDataSourceId] || [];
-
-            return (
-                <div>
-                    <div className="top-nav">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            {/* 🌟 升級防呆版：帶有警告提示的返回大廳按鈕 */}
-                            <button onClick={() => {
-                                if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) {
-                                    window.location.href = '?';
-                                }
-                            }} style={{
-                                background: '#f5f5f5', border: '1px solid #ccc', color: '#333',
-                                fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px',
-                                borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px',
-                                fontWeight: 'bold', transition: '0.2s'
-                            }}
-                                onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'}
-                                onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
-                                🏠 回大廳
-                            </button>
-                            <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
-                        </div>
-                    </div>
-
-                    {viewMode === 'builder' && (
-                        <div className="builder-container">
-                            <div className="toolbar-area">
-                                <h3 style={{ marginTop: 0, marginBottom: '5px' }}>🛠️ 積木工具</h3>
-
-                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '10px', marginBottom: '5px' }}>🎛️ 控制器</div>
-                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{ background: '#F0C808', color: '#333' }}>+ 下拉選單</button>
-                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 2)} style={{ background: '#2ECC71', color: '#000' }}>+ 動作按鈕</button>
-
-                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📇 卡片</div>
-                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 文字區塊</button>
-                                <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 4, 3)}>+ 數據卡片</button>
-                                <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 6)} style={{ background: '#3498DB' }}>+ 內容輪播</button>
-
-                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📊 圖表</div>
-                                <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
-                                <button className="add-btn" onClick={() => addBlock('pieChart', '圓餅圖', 6, 5)}>+ 圓餅圖</button>
-                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 時間趨勢線</button>
-                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊直條圖</button>
-                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 新聞時間軸</button>
-                            </div>
-
-                            <div className="canvas-area">
-                                <div className="grid-bg" onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
-                                    <ResponsiveRGL layout={blocks} cols={12} rowHeight={30} margin={[15, 15]} onLayoutChange={handleLayoutChange} draggableCancel=".delete-btn" style={{ minHeight: '100%' }}>
-                                        {blocks.map(block => (
-                                            <div key={block.i}>
-                                                <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
-                                                    <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
-                                                    <span style={{ fontSize: '1.2rem' }}>{block.title || '(無標題)'}</span>
-                                                    <div className="type-badge">{
-                                                        block.type === 'stackedBarChart' ? '堆疊圖' :
-                                                            block.type === 'lineChart' ? '折線圖' :
-                                                                block.type === 'textCard' ? '文字區塊' : block.type
-                                                    }</div>
-                                                    <div className="size-badge">{block.w} / 12 格</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </ResponsiveRGL>
-                                </div>
-                            </div>
-
-                            <div className="right-panel">
-                                <div className="property-area">
-                                    {currentSelectedBlock ? (
-                                        <div>
-                                            <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>⚙️ {currentSelectedBlock.title || '積木設定'}</h3>
-
-                                            <div className="panel-tabs">
-                                                <div className={`panel-tab ${activeTab === 'basic' ? 'active' : ''}`} onClick={() => setActiveTab('basic')}>📐 基本</div>
-                                                <div className={`panel-tab ${activeTab === 'data' ? 'active' : ''}`} onClick={() => setActiveTab('data')}>📊 資料</div>
-                                                <div className={`panel-tab ${activeTab === 'style' ? 'active' : ''}`} onClick={() => setActiveTab('style')}>🎨 樣式</div>
-                                            </div>
-
-                                            {activeTab === 'basic' && (
-                                                <div className="panel-content">
-                                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                                                        <input type="checkbox" id="toggleTitle" checked={currentSelectedBlock.showTitle !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showTitle', e.target.checked)} />
-                                                        <label htmlFor="toggleTitle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>顯示積木主標題</label>
-                                                    </div>
-                                                    {currentSelectedBlock.showTitle !== false && (
-                                                        <div className="form-group" style={{ marginTop: '-5px' }}>
-                                                            <input type="text" value={currentSelectedBlock.title || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)} placeholder="請輸入標題 (例如：本月營收)" />
-                                                        </div>
-                                                    )}
-                                                    <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                                                        <div className="form-group" style={{ flex: 1 }}>
-                                                            <label>寬度 (1~12格)</label>
-                                                            <input type="number" min="1" max="12" value={currentSelectedBlock.w} onChange={(e) => updateBlockLayout(currentSelectedBlock.i, 'w', e.target.value)} />
-                                                        </div>
-                                                        <div className="form-group" style={{ flex: 1 }}>
-                                                            <label>編輯器高度 (格)</label>
-                                                            <input type="number" min="1" value={currentSelectedBlock.h} onChange={(e) => updateBlockLayout(currentSelectedBlock.i, 'h', e.target.value)} />
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ fontSize: '0.85rem', color: '#086788', background: '#f0f8fa', padding: '10px', borderRadius: '6px', marginBottom: '15px', lineHeight: '1.5' }}>
-                                                        💡 <b>無捲軸的最佳高度建議：</b><br />
-                                                        {currentSelectedBlock.type === 'dropdown' ? (currentSelectedBlock.showTitle !== false ? '👉 3 格 (含標題)' : '👉 2 格 (無標題剛好)') :
-                                                            currentSelectedBlock.type === 'button' ? '👉 2 格' :
-                                                                currentSelectedBlock.type === 'metricCard' ? (currentSelectedBlock.showTitle !== false ? '👉 4 格' : '👉 3 格') :
-                                                                    isChartType ? '👉 至少 8 ~ 10 格 (讓圖表有空間伸展)' :
-                                                                        '👉 視文字或事件內容多寡而定'}
-                                                    </div>
-                                                    <button className="delete-panel-btn" onClick={() => removeBlock(currentSelectedBlock.i)}>🗑️ 刪除此積木</button>
-                                                </div>
-                                            )}
-
-                                            {activeTab === 'data' && (
-                                                <div className="panel-content">
-
-                                                    {/* 🌟 魔王升級：在這個積木的資料面板，選擇它要聽哪一張表的話 */}
-                                                    {currentSelectedBlock.type !== 'button' && sheetSources.length > 0 && (
-                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px' }}>
-                                                            <label>🗄️ 選擇此積木的資料來源</label>
-                                                            <select value={currentDataSourceId} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataSourceId', e.target.value)} style={{ marginTop: '5px' }}>
-                                                                {sheetSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                            </select>
-                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>切換來源後，請重新綁定下方欄位。</div>
-                                                        </div>
-                                                    )}
-
-                                                    {currentSelectedBlock.type === 'button' && (
-                                                        <div className="form-group">
-                                                            <label>按鈕點擊連結 (URL)</label>
-                                                            <input type="text" value={currentSelectedBlock.buttonUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonUrl', e.target.value)} placeholder="https://..." />
-                                                        </div>
-                                                    )}
-
-                                                    {currentSelectedBlock.type !== 'button' && availableColumns.length === 0 ? (
-                                                        <div className="notice-box">請先點擊背景進入「全局設定」，讀取表單資料後才能綁定欄位。</div>
-                                                    ) : currentSelectedBlock.type !== 'button' && (
-                                                        <>
-                                                            {(isChartType || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel') && (
-                                                                <div className="form-group">
-                                                                    <label>{currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '日期/大標題欄位' : '分類欄位 (X軸)'}</label>
-                                                                    <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                        <option value="">請選擇...</option>
-                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                            )}
-
-                                                            {currentSelectedBlock.type === 'dropdown' && (
-                                                                <div className="form-group">
-                                                                    <label>過濾目標欄位</label>
-                                                                    <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                        <option value="">請選擇要過濾的欄位...</option>
-                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                            )}
-
-                                                            {currentSelectedBlock.type === 'carousel' && (
-                                                                <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
-                                                                    <label>🖼️ 圖片網址欄位 (選填)</label>
-                                                                    <select value={currentSelectedBlock.imageCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imageCol', e.target.value)} style={{ marginTop: '5px' }}>
-                                                                        <option value="">無 (純文字輪播)</option>
-                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                            )}
-
-                                                            {currentSelectedBlock.type !== 'dropdown' && (
-                                                                <>
-                                                                    {currentSelectedBlock.type === 'stackedBarChart' ? (
-                                                                        <div className="form-group">
-                                                                            <label>堆疊數值欄位</label>
-                                                                            {(currentSelectedBlock.stackValueCols || []).map((col, index) => (
-                                                                                <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                                                                                    <select value={col} onChange={(e) => {
-                                                                                        const newCols = [...currentSelectedBlock.stackValueCols];
-                                                                                        newCols[index] = e.target.value;
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
-                                                                                    }}>
-                                                                                        <option value="">請選擇...</option>
-                                                                                        {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
-                                                                                    </select>
-                                                                                    <button onClick={() => {
-                                                                                        const newCols = currentSelectedBlock.stackValueCols.filter((_, i) => i !== index);
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
-                                                                                    }} style={{ padding: '5px' }}>✕</button>
-                                                                                </div>
-                                                                            ))}
-                                                                            <button className="reset-filter-btn" onClick={() => {
-                                                                                const updatedCols = [...(currentSelectedBlock.stackValueCols || []), ''];
-                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', updatedCols);
-                                                                            }}>+ 添加堆疊欄位</button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="form-group">
-                                                                            <label>
-                                                                                {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
-                                                                                    currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' : '數值欄位 (Y軸)'}
-                                                                            </label>
-                                                                            <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
-                                                                                <option value="">請選擇...</option>
-                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'carousel' && (
-                                                                        <div className="form-group">
-                                                                            <label>{currentSelectedBlock.type === 'timeline' ? '事件附屬說明 (選填)' : '比較數值欄位 (選填)'}</label>
-                                                                            <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
-                                                                                <option value="">無</option>
-                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {currentSelectedBlock.type === 'timeline' && (
-                                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
-                                                                            <label>🔗 事件連結網址欄位 (選填)</label>
-                                                                            <select value={currentSelectedBlock.linkCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'linkCol', e.target.value)} style={{ marginTop: '5px' }}>
-                                                                                <option value="">無 (不加連結)</option>
-                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                            </select>
-                                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>若綁定，事件底部將出現按鈕。</div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && (
-                                                                        <div className="form-group">
-                                                                            <label>資料計算方式</label>
-                                                                            <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
-                                                                                <option value="sum">加總金額/數值 (Sum)</option>
-                                                                                <option value="count">計算筆數 (Count)</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {currentSelectedBlock.type === 'metricCard' && (
-                                                                        <>
-                                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數值換算與格式</h4>
-                                                                            <div className="form-group">
-                                                                                <label>數值換算 (乘數) 💡單位為千元想轉元，請輸入 1000</label>
-                                                                                <input type="number" step="any" value={currentSelectedBlock.multiplier !== undefined ? currentSelectedBlock.multiplier : 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'multiplier', parseFloat(e.target.value) || 1)} />
-                                                                            </div>
-                                                                            <div className="form-group">
-                                                                                <label>數字顯示格式</label>
-                                                                                <select value={currentSelectedBlock.numberFormat || 'comma'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'numberFormat', e.target.value)}>
-                                                                                    <option value="comma">標準逗號 (1,234,567)</option>
-                                                                                    <option value="plain">純數字 (1234567)</option>
-                                                                                    <option value="zh-scale">中文單位-萬億兆 (123萬4567)</option>
-                                                                                    <option value="zh-scale-qian">中文單位含千 (123萬4千567)</option>
-                                                                                </select>
-                                                                            </div>
-                                                                        </>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {activeTab === 'style' && (
-                                                <div className="panel-content">
-                                                    {currentSelectedBlock.type !== 'timeline' && (
-                                                        <div className="form-group">
-                                                            <label>積木主題顏色 (適用於數字、按鈕)</label>
-                                                            <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
-                                                        </div>
-                                                    )}
-
-                                                    {(currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'textCard') && (
-                                                        <>
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字與排版</h4>
-                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>對齊方式</label>
-                                                                    <select value={currentSelectedBlock.textAlign || (currentSelectedBlock.type === 'textCard' ? 'left' : 'center')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textAlign', e.target.value)}>
-                                                                        <option value="left">靠左</option>
-                                                                        <option value="center">置中</option>
-                                                                        <option value="right">靠右</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>字體粗細</label>
-                                                                    <select value={currentSelectedBlock.fontWeight || (currentSelectedBlock.type === 'textCard' ? 'normal' : '900')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
-                                                                        <option value="normal">正常</option>
-                                                                        <option value="bold">粗體</option>
-                                                                        <option value="900">特粗</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                            <div className="form-group">
-                                                                <label>字體大小</label>
-                                                                <select value={currentSelectedBlock.fontSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
-                                                                    <option value="">預設大小</option>
-                                                                    <option value="0.9rem">小</option>
-                                                                    <option value="1.2rem">中 (適合內文)</option>
-                                                                    <option value="1.8rem">大</option>
-                                                                    <option value="2.5rem">特大</option>
-                                                                    <option value="3.5rem">巨大 (適合數字)</option>
-                                                                </select>
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {currentSelectedBlock.type === 'metricCard' && (
-                                                        <>
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數字前後綴</h4>
-                                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>前綴 (如：$)</label>
-                                                                    <input type="text" value={currentSelectedBlock.prefix || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'prefix', e.target.value)} placeholder="無" />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>後綴 (如：人, %)</label>
-                                                                    <input type="text" value={currentSelectedBlock.suffix || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'suffix', e.target.value)} placeholder="無" />
-                                                                </div>
-                                                            </div>
-                                                        </>
-                                                    )}
-
-                                                    {currentSelectedBlock.type === 'timeline' && (
-                                                        <>
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📏 佈局與間距</h4>
-                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>左側寬度 (%) 💡支援 RWD</label>
-                                                                    <input type="number" min="10" max="80" value={currentSelectedBlock.timeWidthPercent || 20} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeWidthPercent', parseInt(e.target.value) || 20)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>中軸與文字間距 (%)</label>
-                                                                    <input type="number" min="1" max="20" value={currentSelectedBlock.timelineGap || 2} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timelineGap', parseInt(e.target.value) || 2)} />
-                                                                </div>
-                                                            </div>
-
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 軸線與節點顏色</h4>
-                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>時間</label>
-                                                                    <input type="color" value={currentSelectedBlock.timeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeColor', e.target.value)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>軸線</label>
-                                                                    <input type="color" value={currentSelectedBlock.lineColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'lineColor', e.target.value)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>節點</label>
-                                                                    <input type="color" value={currentSelectedBlock.nodeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'nodeColor', e.target.value)} />
-                                                                </div>
-                                                            </div>
-
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 事件文字樣式</h4>
-                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題顏色</label>
-                                                                    <input type="color" value={currentSelectedBlock.titleColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleColor', e.target.value)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文顏色</label>
-                                                                    <input type="color" value={currentSelectedBlock.descColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descColor', e.target.value)} />
-                                                                </div>
-                                                            </div>
-                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題大小</label>
-                                                                    <select value={currentSelectedBlock.titleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleSize', e.target.value)}>
-                                                                        <option value="1rem">小 (1rem)</option>
-                                                                        <option value="1.1rem">預設 (1.1rem)</option>
-                                                                        <option value="1.3rem">大 (1.3rem)</option>
-                                                                        <option value="1.5rem">特大 (1.5rem)</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題粗細</label>
-                                                                    <select value={currentSelectedBlock.titleWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleWeight', e.target.value)}>
-                                                                        <option value="normal">正常</option>
-                                                                        <option value="bold">粗體</option>
-                                                                        <option value="900">特粗</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文大小</label>
-                                                                    <select value={currentSelectedBlock.descSize || '0.95rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descSize', e.target.value)}>
-                                                                        <option value="0.85rem">小 (0.85rem)</option>
-                                                                        <option value="0.95rem">預設 (0.95rem)</option>
-                                                                        <option value="1.1rem">大 (1.1rem)</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文粗細</label>
-                                                                    <select value={currentSelectedBlock.descWeight || 'normal'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descWeight', e.target.value)}>
-                                                                        <option value="normal">正常</option>
-                                                                        <option value="bold">粗體</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div>
-                                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '10px' }}>🌐 全局設定 (Header & Footer)</h3>
-
-                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📰 標題與樣式設定</h4>
-                                            <div className="form-group">
-                                                <label>大標題 (主標)</label>
-                                                <input type="text" value={globalMeta.title} onChange={(e) => updateGlobalMeta('title', e.target.value)} />
-                                            </div>
-
-                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                    <label>標題顏色</label>
-                                                    <input type="color" value={globalMeta.titleColor || '#222222'} onChange={(e) => updateGlobalMeta('titleColor', e.target.value)} />
-                                                </div>
-                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                    <label>對齊方式</label>
-                                                    <select value={globalMeta.titleAlign || 'left'} onChange={(e) => updateGlobalMeta('titleAlign', e.target.value)}>
-                                                        <option value="left">靠左</option>
-                                                        <option value="center">置中</option>
-                                                        <option value="right">靠右</option>
-                                                    </select>
-                                                </div>
-                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                    <label>大小</label>
-                                                    <select value={globalMeta.titleFontSize || '1.8rem'} onChange={(e) => updateGlobalMeta('titleFontSize', e.target.value)}>
-                                                        <option value="1.5rem">小 (24px)</option>
-                                                        <option value="1.8rem">中 (28px)</option>
-                                                        <option value="2.2rem">大 (35px)</option>
-                                                        <option value="2.8rem">特大 (45px)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <div className="form-group" style={{ flex: 1 }}>
-                                                    <label>字體粗細</label>
-                                                    <select value={globalMeta.titleFontWeight || '900'} onChange={(e) => updateGlobalMeta('titleFontWeight', e.target.value)}>
-                                                        <option value="normal">正常 (Normal)</option>
-                                                        <option value="bold">粗體 (Bold)</option>
-                                                        <option value="900">特粗 (Black)</option>
-                                                    </select>
-                                                </div>
-                                                <div className="form-group" style={{ flex: 1 }}>
-                                                    <label>字型</label>
-                                                    <select value={globalMeta.titleFontFamily || ''} onChange={(e) => updateGlobalMeta('titleFontFamily', e.target.value)}>
-                                                        <option value="">預設 (Noto Sans)</option>
-                                                        <option value="Arial, sans-serif">黑體 (Arial)</option>
-                                                        <option value="'Times New Roman', serif">明體 (Times)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div className="form-group" style={{ marginTop: '10px' }}>
-                                                <label>最後更新時間 (顯示於左下角)</label>
-                                                <input type="text" value={globalMeta.lastUpdated} onChange={(e) => updateGlobalMeta('lastUpdated', e.target.value)} placeholder="例如：2023/03/27 22:23" />
-                                            </div>
-
-                                            {/* 🌟 魔王升級：跨表資料源管理 */}
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>📚 跨表資料庫 (BI 引擎)</h4>
-                                            <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '15px' }}>
-                                                可新增多個 Google Sheet。圖表若綁定「相同名稱」的過濾欄位，即可啟動跨表連動！
-                                            </div>
-                                            {sheetSources.map((source, index) => (
-                                                <div key={source.id} style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
-                                                    <div className="form-group" style={{ marginBottom: '10px' }}>
-                                                        <label>資料源名稱</label>
-                                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                                            <input type="text" style={{ flex: 1, fontWeight: 'bold', color: '#086788' }} value={source.name} onChange={(e) => {
-                                                                const newSources = [...sheetSources];
-                                                                newSources[index].name = e.target.value;
-                                                                setSheetSources(newSources);
-                                                            }} placeholder="例如：113年預算表" />
-                                                            {sheetSources.length > 1 && (
-                                                                <button className="action-btn" style={{ margin: 0, background: '#E74C3C', color: 'white', padding: '0 10px' }} onClick={() => {
-                                                                    setSheetSources(sheetSources.filter(s => s.id !== source.id));
-                                                                }}>刪除</button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="form-group">
-                                                        <label>Google Sheet ID</label>
-                                                        <input type="text" value={source.sheetId} onChange={(e) => {
-                                                            const newSources = [...sheetSources];
-                                                            newSources[index].sheetId = e.target.value;
-                                                            setSheetSources(newSources);
-                                                        }} />
-                                                    </div>
-                                                    <div className="form-group">
-                                                        <label>表單 GID</label>
-                                                        <input type="text" value={source.gid} onChange={(e) => {
-                                                            const newSources = [...sheetSources];
-                                                            newSources[index].gid = e.target.value;
-                                                            setSheetSources(newSources);
-                                                        }} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            <button className="reset-filter-btn" onClick={() => {
-                                                setSheetSources([...sheetSources, { id: 'ds_' + Date.now(), name: '新資料表', sheetId: '', gid: '0' }]);
-                                            }}>+ 新增一張表單</button>
-
-                                            <button className="action-btn" onClick={fetchSheetColumns} disabled={isFetching} style={{ width: '100%', padding: '12px', marginTop: '10px' }}>
-                                                {isFetching ? "讀取中..." : "📥 讀取所有表單欄位"}
-                                            </button>
-
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🔗 頁尾來源連結設定</h4>
-                                            {(globalMeta.dataSources || []).map((source, index) => (
-                                                <div key={index} style={{ background: '#f9f9f9', padding: '10px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
-                                                    <div className="form-group" style={{ marginBottom: '10px' }}>
-                                                        <label>連結名稱 {index + 1}</label>
-                                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                                            <input type="text" style={{ flex: 1 }} value={source.name} onChange={(e) => {
-                                                                const newSources = [...globalMeta.dataSources];
-                                                                newSources[index].name = e.target.value;
-                                                                updateGlobalMeta('dataSources', newSources);
-                                                            }} placeholder="例如：主計處" />
-                                                            <button className="action-btn" style={{ margin: 0, background: '#E74C3C', color: 'white', padding: '0 10px' }} onClick={() => {
-                                                                const newSources = globalMeta.dataSources.filter((_, i) => i !== index);
-                                                                updateGlobalMeta('dataSources', newSources);
-                                                            }}>✕</button>
-                                                        </div>
-                                                    </div>
-                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                        <label>網址連結 (選填)</label>
-                                                        <input type="text" value={source.url} onChange={(e) => {
-                                                            const newSources = [...globalMeta.dataSources];
-                                                            newSources[index].url = e.target.value;
-                                                            updateGlobalMeta('dataSources', newSources);
-                                                        }} placeholder="https://..." />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            <button className="reset-filter-btn" onClick={() => {
-                                                const newSources = [...(globalMeta.dataSources || []), { name: '', url: '' }];
-                                                updateGlobalMeta('dataSources', newSources);
-                                            }}>+ 新增頁尾連結</button>
-
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🖼️ 浮水印設定</h4>
-                                            <div className="form-group">
-                                                <label>上傳浮水印圖片</label>
-                                                {globalMeta.watermarkUrl ? (
-                                                    <div style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                                        <div style={{ fontSize: '0.85rem', color: '#086788', fontWeight: 'bold', wordBreak: 'break-all' }}>
-                                                            ✅ 已上傳：{globalMeta.watermarkName || '自訂圖片'}
-                                                        </div>
-                                                        <div style={{ background: '#fff', padding: '5px', borderRadius: '4px', border: '1px dashed #ccc', textAlign: 'center' }}>
-                                                            <img src={globalMeta.watermarkUrl} alt="預覽" style={{ maxHeight: '40px', maxWidth: '100%', objectFit: 'contain' }} />
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                                                            <label style={{ flex: 1, textAlign: 'center', background: '#086788', color: 'white', padding: '6px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                                                                🔄 重新上傳
-                                                                <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                                                            </label>
-                                                            <button className="action-btn" style={{ flex: 1, background: '#E74C3C', color: 'white', margin: 0, padding: '6px', fontSize: '0.85rem' }} onClick={() => setGlobalMeta(prev => ({ ...prev, watermarkUrl: '', watermarkName: '' }))}>
-                                                                🗑️ 移除
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <input type="file" accept="image/*" onChange={handleImageUpload} style={{ padding: '5px 0', border: 'none' }} />
-                                                )}
-                                            </div>
-
-                                            {globalMeta.watermarkUrl && (
-                                                <>
-                                                    <div className="form-group">
-                                                        <label>浮水印位置</label>
-                                                        <select value={globalMeta.watermarkPosition || 'top-right'} onChange={(e) => updateGlobalMeta('watermarkPosition', e.target.value)}>
-                                                            <option value="top-right">右上角 (主標題旁)</option>
-                                                            <option value="bottom-right">右下角 (頁腳旁)</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="form-group">
-                                                        <label>浮水印大小 (高度 px)</label>
-                                                        <input type="number" value={globalMeta.watermarkSize || 40} onChange={(e) => updateGlobalMeta('watermarkSize', e.target.value)} min="10" max="200" />
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {viewMode === 'preview' && (
-                        <div className="builder-container" style={{ justifyContent: 'center', height: 'auto', background: '#e8e8e8', padding: '40px 20px', borderRadius: '12px' }}>
-                            <div className={`preview-wrapper ${previewDevice}`}>
-                                <PreviewViewer config={finalJSON} />
-                            </div>
-                        </div>
-                    )}
-
-                    {showPublishModal && (
-                        <div className="modal-overlay">
-                            <div className="modal-content">
-                                <button className="close-modal-btn" onClick={() => setShowPublishModal(false)}>✕</button>
-                                <h2 style={{ color: '#086788', marginTop: 0 }}>🎉 發布成功並存入雲端！</h2>
-                                <p style={{ lineHeight: '1.6' }}>
-                                    您的圖表設定已成功存入 Firebase！專屬 ID 為：<strong style={{ background: '#eee', padding: '2px 6px', borderRadius: '4px' }}>{publishedId}</strong>
-                                </p>
-                                <p style={{ fontWeight: 'bold', marginTop: '20px' }}>請複製以下的 iframe 程式碼，並貼上到您的新聞後台中：</p>
-
-                                <div className="code-snippet">
-                                    &lt;iframe <br />
-                                    &nbsp;&nbsp;src="https://你的帳號.github.io/你的儲存庫/viewer.html?id={publishedId}" <br />
-                                    &nbsp;&nbsp;width="100%" <br />
-                                    &nbsp;&nbsp;height="800px" <br />
-                                    &nbsp;&nbsp;frameborder="0" <br />
-                                    &nbsp;&nbsp;scrolling="no"<br />
-                                    &gt;&lt;/iframe&gt;
-                                </div>
-
-                                <div style={{ display: 'flex', gap: '15px', marginTop: '30px', justifyContent: 'flex-end' }}>
-                                    <button className="action-btn" style={{ background: '#eee', color: '#555', padding: '10px 20px' }} onClick={() => setShowPublishModal(false)}>關閉</button>
-                                    <button className="publish-btn" onClick={handleCopy}>📋 一鍵複製代碼</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
 
+        function ViewerApp() {
+            const [config, setConfig] = useState(null);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                const fetchConfig = async () => {
+                    const params = new URLSearchParams(window.location.search);
+                    const id = params.get('id');
+                    if (!id) { setError('❌ 網址錯誤：找不到儀表板 ID。'); return; }
+                    try {
+                        if (!window.db) throw new Error("Firebase 尚未載入");
+                        const docSnap = await window.getDoc(window.doc(window.db, "dashboards", id));
+                        if (docSnap.exists()) setConfig(docSnap.data());
+                        else setError('❌ 找不到此儀表板，請確認 ID 是否正確。');
+                    } catch (err) {
+                        console.error(err);
+                        setError('❌ 無法連線至資料庫，請稍後再試。');
+                    }
+                };
+                fetchConfig();
+            }, []);
+
+            if (error) return <div style={{ padding: '20px', color: 'red', textAlign: 'center', fontFamily: 'sans-serif' }}><h2>{error}</h2></div>;
+            if (!config) return <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif', color: '#666' }}><h2>載入中...</h2></div>;
+
+            return <PreviewViewer config={config} />;
+        }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<DashboardApp />);
+        root.render(<ViewerApp />);
     </script>
 </body>
 
