@@ -622,27 +622,31 @@
             min-height: 150px;
         }
 
-        /* ver. 1.21強制所有積木滿版 */
+        /* ver. 1.21 手機版版頭與版尾排版 (ver. 1.66 修正：恢復左右並排，浮水印乖乖待在右邊) */
         .preview-wrapper.mobile .news-header {
-            flex-direction: column;
-            align-items: flex-start;
+            flex-direction: row; /* 🌟 強制水平排列 */
+            align-items: center; /* 垂直置中 */
+            justify-content: space-between;
             gap: 10px;
         }
 
-        /* ver. 1.21標題與浮水印改為上下排列 */
         .preview-wrapper.mobile .news-watermark {
-            margin-left: 0 !important;
-            align-self: flex-start;
+            margin-left: auto !important; /* ver. 1.66 把浮水印推到最右邊 */
+            align-self: center;
+            max-width: 80px; /* 限制手機版浮水印最大寬度，避免擠壓標題 */
         }
 
         .preview-wrapper.mobile .news-footer {
-            flex-direction: column;
-            align-items: flex-start;
+            flex-direction: row; /* ver. 1.66 頁腳也維持水平排列 */
+            align-items: flex-end;
+            justify-content: space-between;
             gap: 10px;
         }
 
         .preview-wrapper.mobile .news-title {
-            font-size: 1.5rem !important;
+            font-size: 1.4rem !important;
+            word-break: break-word; /* ver. 1.66 確保長標題會自動往下斷行，不會把浮水印擠爆 */
+            line-height: 1.3;
         }
 
         /* ver. 1.22 修正手機版溢出問題 (Box Model 與佈局安全調整) */
@@ -674,38 +678,66 @@
         }
 
         /* ver. 1.31 新增：時間軸 (Timeline) 樣式 */
+        /* ver. 1.61 全新時間軸排版 (左日期、中軸線、右內容) */
         .timeline-container {
-            padding-left: 25px;
-            border-left: 2px solid var(--primary);
-            margin: 15px 0 15px 10px;
+            margin: 10px 0;
             display: flex;
             flex-direction: column;
-            gap: 20px;
             overflow-y: auto;
-            height: calc(100% - 40px);
+            height: 100%;
+            width: 100%;
+            padding: 5px 10px;
         }
 
         .timeline-item {
+            display: flex;
             position: relative;
         }
 
-        .timeline-dot {
-            position: absolute;
-            left: -32px;
-            top: 4px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: var(--primary);
-            border: 3px solid #fff;
-            box-shadow: 0 0 0 2px var(--primary);
+        /* 左側：日期區塊 */
+        .timeline-left {
+            width: var(--time-width, 20%);
+            /* ver. 1.63 升級：改吃百分比變數，完美適應 RWD */
+            flex-shrink: 0;
+            text-align: right;
+            padding-right: var(--timeline-gap, 15px);
+            /* ver. 1.63 升級：吃間距變數 */
+            font-weight: bold;
+            color: var(--time-color, var(--primary));
+            font-size: 0.95rem;
+            padding-top: 2px;
         }
 
-        .timeline-date {
-            font-weight: bold;
-            color: var(--primary);
-            font-size: 0.9rem;
-            margin-bottom: 5px;
+        /* 右側：內容區塊與軸線 */
+        .timeline-right {
+            flex: 1;
+            padding-left: var(--timeline-gap, 20px);
+            /* ver. 1.63 升級：吃間距變數 */
+            padding-bottom: 25px;
+            border-left: 2px solid var(--line-color, var(--primary));
+            position: relative;
+        }
+
+        /* 讓最後一個事件不要有往下延伸的尾巴線 */
+        .timeline-item:last-child .timeline-right {
+            border-left-color: transparent !important;
+        }
+
+        /* 完美的圓形節點 */
+        .timeline-dot {
+            position: absolute;
+            left: -8px;
+            top: 5px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--node-color, var(--primary));
+            /* ver. 1.62 改用變數控制節點顏色 */
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px var(--node-color, var(--primary));
+            /* ver. 1.62 陰影也跟著節點顏色變 */
+            box-sizing: border-box;
+            z-index: 2;
         }
 
         .timeline-title {
@@ -713,6 +745,7 @@
             font-size: 1.1rem;
             margin: 0 0 5px 0;
             color: #333;
+            line-height: 1.4;
         }
 
         .timeline-desc {
@@ -806,15 +839,29 @@
                         setLoading(false); return;
                     }
                     try {
-                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&tq&gid=${config.dataSource.gid}`;
+                        // ver. 1.66 修正 1：網址加入 headers=1
+                        const url = `https://docs.google.com/spreadsheets/d/${config.dataSource.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${config.dataSource.gid}`;
                         const res = await fetch(url);
                         const text = await res.text();
                         const json = JSON.parse(text.substring(47, text.length - 2));
 
-                        const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
-                        const parsedData = json.table.rows.map(row => {
+                        let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+                        let rowsData = json.table.rows;
+
+                        // ver. 1.66 雙重保險：如果沒抓到表頭，抽第一行當表頭，並把那行從資料中剃除
+                        if (cols.length === 0 && rowsData.length > 0) {
+                            cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                            rowsData = rowsData.slice(1);
+                        }
+
+                        // ver. 1.61 優先讀取 Google Sheet 的「格式化文字 (cell.f)」
+                        const parsedData = rowsData.map(row => {
                             let obj = {};
-                            row.c.forEach((cell, i) => { if (cols[i]) obj[cols[i]] = cell ? (cell.v !== null ? String(cell.v) : '') : ''; });
+                            row.c.forEach((cell, i) => {
+                                if (cols[i]) {
+                                    obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
+                                }
+                            });
                             return obj;
                         });
                         setData(parsedData);
@@ -1300,9 +1347,16 @@
                         </div>
                     )}
 
-                    {/* 6. 新聞時間軸 */}
+                    {/* ver. 1.61 新聞時間軸更新符合新CSS樣式 */}
                     {comp.type === 'timeline' && (
-                        <div className="timeline-container" style={{ '--primary': comp.themeColor || '#086788', marginTop: '10px', width: '100%' }}>
+                        <div className="timeline-container" style={{
+                            /* 🌟 改吃百分比與間距變數 */
+                            '--time-width': `${comp.timeWidthPercent || 20}%`,
+                            '--timeline-gap': `${comp.timelineGap || 20}px`,
+                            '--time-color': comp.timeColor || '#086788',
+                            '--line-color': comp.lineColor || '#086788',
+                            '--node-color': comp.nodeColor || '#086788'
+                        }}>
                             {(!comp.categoryColumn || !comp.valueColumn) ? (
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題」欄位</p>
                             ) : (
@@ -1310,12 +1364,46 @@
                                     if (!row[comp.valueColumn]) return null;
                                     return (
                                         <div key={idx} className="timeline-item">
-                                            <div className="timeline-dot"></div>
-                                            {row[comp.categoryColumn] && <div className="timeline-date">{row[comp.categoryColumn]}</div>}
-                                            <h4 className="timeline-title">{row[comp.valueColumn]}</h4>
-                                            {comp.compareValueColumn && row[comp.compareValueColumn] && (
-                                                <p className="timeline-desc">{row[comp.compareValueColumn]}</p>
-                                            )}
+                                            <div className="timeline-left">
+                                                {row[comp.categoryColumn] || ''}
+                                            </div>
+                                            <div className="timeline-right">
+                                                <div className="timeline-dot"></div>
+                                                {/* ver. 1.65 升級標題：如果設定了連結欄位，而且該筆資料有網址，就變成超連結！ */}
+                                                {comp.linkColumn && row[comp.linkColumn] ? (
+                                                    <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                                                        <h4 className="timeline-title" style={{
+                                                            color: comp.themeColor || '#086788', /* 有連結的話強制吃主題色，比較像按鈕 */
+                                                            fontSize: comp.titleSize || '1.1rem',
+                                                            fontWeight: comp.titleWeight || '900',
+                                                            textDecoration: 'underline' /* 加個底線提示它是可以點擊的 */
+                                                        }}>
+                                                            {row[comp.valueColumn]} ↗
+                                                        </h4>
+                                                    </a>
+                                                ) : (
+                                                    /* ver. 1.65 沒有連結的話，維持原本的一般文字標題 */
+                                                    <h4 className="timeline-title" style={{
+                                                        color: comp.titleColor || '#333333',
+                                                        fontSize: comp.titleSize || '1.1rem',
+                                                        fontWeight: comp.titleWeight || '900'
+                                                    }}>
+                                                        {row[comp.valueColumn]}
+                                                    </h4>
+                                                )}
+                                                {comp.compareValueColumn && row[comp.compareValueColumn] && (
+                                                    <p className="timeline-desc" style={{
+                                                        whiteSpace: 'pre-wrap',
+                                                        wordBreak: 'break-word',
+                                                        /* 🌟 套用內文專屬樣式 */
+                                                        color: comp.descColor || '#666666',
+                                                        fontSize: comp.descSize || '0.95rem',
+                                                        fontWeight: comp.descWeight || 'normal'
+                                                    }}>
+                                                        {row[comp.compareValueColumn]}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                     )
                                 })
@@ -1384,13 +1472,26 @@
                 if (!sheetId) return alert("請輸入試算表 ID");
                 setIsFetching(true);
                 try {
-                    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&tq=limit%201&gid=${sheetGid}`;
+                    // ver. 1.66 修正 1：網址加入 headers=1，強制 Google 把第一行視為表頭
+                    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&headers=1&tq=limit%202&gid=${sheetGid}`;
                     const res = await fetch(url);
                     const text = await res.text();
                     const json = JSON.parse(text.substring(47, text.length - 2));
-                    const cols = json.table.cols.map(c => c.label).filter(l => l !== '');
-                    setAvailableColumns(cols);
-                    alert("✅ 成功讀取表頭欄位！");
+
+                    // ver. 1.66 嘗試抓取官方解析出來的表頭
+                    let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+
+                    // ver. 1.66 雙重保險：如果 Google 還是沒抓到，我們強制拿「第一筆資料」當作表頭！
+                    if (cols.length === 0 && json.table.rows.length > 0) {
+                        cols = json.table.rows[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                    }
+
+                    if (cols.length === 0) {
+                        alert("⚠️ 讀取成功，但找不到任何欄位！請確認試算表第一行是否有文字。");
+                    } else {
+                        setAvailableColumns(cols);
+                        alert(`✅ 成功讀取 ${cols.length} 個欄位！`);
+                    }
                 } catch (error) {
                     alert("❌ 讀取失敗，請確認試算表權限。");
                 }
@@ -1433,7 +1534,7 @@
 
             const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
 
-            // 匯出最終的 JSON 藍圖
+            // ver. 1.63 匯出最終的 JSON 藍圖
             const finalJSON = {
                 meta: globalMeta,
                 dataSource: { type: "googleSheet", sheetId: sheetId, gid: sheetGid },
@@ -1443,18 +1544,30 @@
                     title: b.title,
                     showTitle: b.showTitle !== false,
                     buttonUrl: b.buttonUrl || null,
-                    prefix: b.prefix || '', // ver. 1.51 新增：存下前綴符號
-                    suffix: b.suffix || '', // ver. 1.51 新增：存下後綴符號
-                    buttonUrl: b.buttonUrl || null, // ver 1.31 新增這一行確保網址有存進去！
                     categoryColumn: b.categoryCol || null,
                     valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null,
                     stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null,
                     isPercentageStacked: b.isPercentageStacked || false,
                     compareValueColumn: b.compareValueCol || null,
+                    linkColumn: b.linkCol || null, // ver. 1.65 新增這行：儲存時間軸專屬的「網址欄位」對應
                     aggregation: b.aggregation,
                     chartOrientation: b.chartOrientation || 'vertical',
                     themeColor: b.themeColor,
-                    // Ver. 1.52 補上這四行：存下前後綴、格式與換算乘數
+
+                    // 時間軸專屬設定
+                    timeWidthPercent: b.timeWidthPercent || 20,
+                    timelineGap: b.timelineGap || 20,
+                    timeColor: b.timeColor || '',
+                    lineColor: b.lineColor || '',
+                    nodeColor: b.nodeColor || '',
+                    titleColor: b.titleColor || '',
+                    titleSize: b.titleSize || '',
+                    titleWeight: b.titleWeight || '',
+                    descColor: b.descColor || '',
+                    descSize: b.descSize || '',
+                    descWeight: b.descWeight || '',
+
+                    // 數字與文字卡片專屬設定
                     prefix: b.prefix || '',
                     suffix: b.suffix || '',
                     numberFormat: b.numberFormat || 'comma',
@@ -1463,6 +1576,7 @@
                     fontFamily: b.fontFamily || null,
                     fontWeight: b.fontWeight || null,
                     textAlign: b.textAlign || null,
+
                     layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
                 }))
             };
@@ -1706,6 +1820,18 @@
                                                                         </div>
                                                                     )}
 
+                                                                    {/* ver. 1.65 這是我們要新增的區塊：綁定超連結欄位 */}
+                                                                    {currentSelectedBlock.type === 'timeline' && (
+                                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
+                                                                            <label>🔗 事件連結網址欄位 (選填)</label>
+                                                                            <select value={currentSelectedBlock.linkCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'linkCol', e.target.value)} style={{ marginTop: '5px' }}>
+                                                                                <option value="">無 (不加連結)</option>
+                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                            </select>
+                                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>若綁定，事件標題將會變成可點擊的超連結。</div>
+                                                                        </div>
+                                                                    )}
+
                                                                     {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && (
                                                                         <div className="form-group">
                                                                             <label>資料計算方式</label>
@@ -1742,15 +1868,19 @@
                                                 </div>
                                             )}
 
-                                            {/* ver. 1.41 頁籤 3：外觀樣式 */}
+                                            {/* ver. 1.63 頁籤 3：外觀樣式 */}
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
-                                                    <div className="form-group">
-                                                        <label>積木主題顏色 (適用於數字、按鈕、時間軸)</label>
-                                                        <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
-                                                    </div>
 
-                                                    {/* ver. 1.51 卡片專屬：文字與排版設定 */}
+                                                    {/* 如果是時間軸，就隱藏這個會讓人混淆的主題顏色 */}
+                                                    {currentSelectedBlock.type !== 'timeline' && (
+                                                        <div className="form-group">
+                                                            <label>積木主題顏色 (適用於數字、按鈕)</label>
+                                                            <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                        </div>
+                                                    )}
+
+                                                    {/* 卡片專屬：文字與排版設定 */}
                                                     {(currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'textCard') && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字與排版</h4>
@@ -1786,7 +1916,7 @@
                                                         </>
                                                     )}
 
-                                                    {/* ver. 1.51 數字卡片專屬：前後綴符號 */}
+                                                    {/* 數字卡片專屬：前後綴符號 */}
                                                     {currentSelectedBlock.type === 'metricCard' && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數字前後綴</h4>
@@ -1798,6 +1928,87 @@
                                                                 <div className="form-group" style={{ flex: 1 }}>
                                                                     <label>後綴 (如：人, %)</label>
                                                                     <input type="text" value={currentSelectedBlock.suffix || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'suffix', e.target.value)} placeholder="無" />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* 時間軸專屬樣式設定 */}
+                                                    {currentSelectedBlock.type === 'timeline' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📏 佈局與間距</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>左側寬度 (%) 💡支援 RWD</label>
+                                                                    <input type="number" min="10" max="80" value={currentSelectedBlock.timeWidthPercent || 20} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeWidthPercent', parseInt(e.target.value) || 20)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>中軸與文字間距 (px)</label>
+                                                                    <input type="number" min="5" max="100" value={currentSelectedBlock.timelineGap || 20} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timelineGap', parseInt(e.target.value) || 20)} />
+                                                                </div>
+                                                            </div>
+
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 軸線與節點顏色</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>時間</label>
+                                                                    <input type="color" value={currentSelectedBlock.timeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>軸線</label>
+                                                                    <input type="color" value={currentSelectedBlock.lineColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'lineColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>節點</label>
+                                                                    <input type="color" value={currentSelectedBlock.nodeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'nodeColor', e.target.value)} />
+                                                                </div>
+                                                            </div>
+
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 事件文字樣式</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>標題顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.titleColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>內文顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.descColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descColor', e.target.value)} />
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>標題大小</label>
+                                                                    <select value={currentSelectedBlock.titleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleSize', e.target.value)}>
+                                                                        <option value="1rem">小 (1rem)</option>
+                                                                        <option value="1.1rem">預設 (1.1rem)</option>
+                                                                        <option value="1.3rem">大 (1.3rem)</option>
+                                                                        <option value="1.5rem">特大 (1.5rem)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>標題粗細</label>
+                                                                    <select value={currentSelectedBlock.titleWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="bold">粗體</option>
+                                                                        <option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>內文大小</label>
+                                                                    <select value={currentSelectedBlock.descSize || '0.95rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descSize', e.target.value)}>
+                                                                        <option value="0.85rem">小 (0.85rem)</option>
+                                                                        <option value="0.95rem">預設 (0.95rem)</option>
+                                                                        <option value="1.1rem">大 (1.1rem)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>內文粗細</label>
+                                                                    <select value={currentSelectedBlock.descWeight || 'normal'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="bold">粗體</option>
+                                                                    </select>
                                                                 </div>
                                                             </div>
                                                         </>
