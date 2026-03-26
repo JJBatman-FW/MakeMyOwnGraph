@@ -19,7 +19,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        // ver. 1.81 新增 doc, getDoc, setDoc 函數
+        import { getFirestore, collection, addDoc, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
@@ -35,14 +36,43 @@
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        // 全域函數：發布到 Firebase
+        //ver. 1.81 1. 建立新專案
         window.publishToFirebase = async (dashboardJSON) => {
             try {
                 const docRef = await addDoc(collection(db, "dashboards"), dashboardJSON);
-                console.log("✅ 儲存成功！文件 ID: ", docRef.id);
+                console.log("✅ 建立成功！文件 ID: ", docRef.id);
                 return docRef.id;
             } catch (e) {
-                console.error("❌ 儲存失敗: ", e);
+                console.error("❌ 建立失敗: ", e);
+                throw e;
+            }
+        };
+
+        // ver. 1.81 2. 覆蓋更新舊專案
+        window.updateToFirebase = async (id, dashboardJSON) => {
+            try {
+                const docRef = doc(db, "dashboards", id);
+                await setDoc(docRef, dashboardJSON); // setDoc 會完全覆蓋舊資料
+                console.log("✅ 更新成功！文件 ID: ", id);
+                return id;
+            } catch (e) {
+                console.error("❌ 更新失敗: ", e);
+                throw e;
+            }
+        };
+
+        // ver. 1.81 3. 讀取雲端專案進度
+        window.loadFromFirebase = async (id) => {
+            try {
+                const docRef = doc(db, "dashboards", id);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    return docSnap.data();
+                } else {
+                    return null;
+                }
+            } catch (e) {
+                console.error("❌ 讀取失敗: ", e);
                 throw e;
             }
         };
@@ -1557,22 +1587,95 @@
         }
 
         function DashboardApp() {
+            // 🌟 1. 核心升級：新增「目前畫面」狀態 (home = 大廳, editor = 編輯器)
+            const params = new URLSearchParams(window.location.search);
+            const urlId = params.get('id');
+            const [currentScreen, setCurrentScreen] = useState(urlId ? 'editor' : 'home');
+
+            // 🌟 2. 新增：本機專案記憶功能
+            const [recentProjects, setRecentProjects] = useState([]);
+            useEffect(() => {
+                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
+                setRecentProjects(saved);
+            }, []);
+
+            const saveToRecent = (id, title) => {
+                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
+                // 把新的專案加到最前面，並過濾掉重複的 ID，最多保留 20 筆紀錄
+                const updated = [{ id, title: title || '未命名專案', date: new Date().toLocaleString('zh-TW') }, ...saved.filter(p => p.id !== id)].slice(0, 20);
+                localStorage.setItem('recentDashboards', JSON.stringify(updated));
+                setRecentProjects(updated);
+            };
+
             const [viewMode, setViewMode] = useState('builder');
             const [previewDevice, setPreviewDevice] = useState('desktop');
             const [activeTab, setActiveTab] = useState('basic');
 
+            const [isInitialLoading, setIsInitialLoading] = useState(urlId ? true : false);
+
             const [globalMeta, setGlobalMeta] = useState({
-                title: "請輸入主標題", titleColor: "#222222", titleFontSize: "1.8rem", titleFontWeight: "900", titleFontFamily: "", titleAlign: "left",
+                title: "未命名儀表板", titleColor: "#222222", titleFontSize: "1.8rem", titleFontWeight: "900", titleFontFamily: "", titleAlign: "left",
                 lastUpdated: "", dataSources: [{ name: "新增資料來源", url: "" }], watermarkUrl: "", watermarkName: "", watermarkSize: 40, watermarkPosition: "top-right"
             });
 
-            // 🌟 魔王升級：儲存無限多組的 Google Sheets
             const [sheetSources, setSheetSources] = useState([
                 { id: 'ds_' + Date.now(), name: '預設資料表', sheetId: "1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs", gid: "612819456" }
             ]);
-            // 🌟 儲存所有表單解析出來的表頭
             const [columnsMap, setColumnsMap] = useState({});
             const [isFetching, setIsFetching] = useState(false);
+
+            const [isPublishing, setIsPublishing] = useState(false);
+            const [showPublishModal, setShowPublishModal] = useState(false);
+            const [publishedId, setPublishedId] = useState('');
+
+            const [blocks, setBlocks] = useState([
+                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', dataSourceId: sheetSources[0].id, categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900', textAlign: 'center' }
+            ]);
+            const [selectedBlockId, setSelectedBlockId] = useState(null);
+
+            useEffect(() => {
+                const loadProject = async () => {
+                    if (urlId) {
+                        try {
+                            if (window.loadFromFirebase) {
+                                const data = await window.loadFromFirebase(urlId);
+                                if (data) {
+                                    setGlobalMeta(data.meta || globalMeta);
+                                    if (data.sheetSources) setSheetSources(data.sheetSources);
+                                    else if (data.dataSource) setSheetSources([{ id: 'ds_legacy', name: '舊版資料庫', sheetId: data.dataSource.sheetId, gid: data.dataSource.gid }]);
+
+                                    if (data.components) {
+                                        const loadedBlocks = data.components.map(c => ({
+                                            i: c.id, type: c.type, title: c.title, showTitle: c.showTitle !== false,
+                                            dataSourceId: c.dataSourceId || (data.sheetSources ? data.sheetSources[0]?.id : 'ds_legacy'),
+                                            categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [],
+                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '', aggregation: c.aggregation || 'sum',
+                                            compareValueCol: c.compareValueColumn || '', chartOrientation: c.chartOrientation || 'vertical', themeColor: c.themeColor || '',
+                                            timeWidthPercent: c.timeWidthPercent || 20, timelineGap: c.timelineGap || 20, timeColor: c.timeColor || '', lineColor: c.lineColor || '', nodeColor: c.nodeColor || '',
+                                            titleColor: c.titleColor || '', titleSize: c.titleSize || '', titleWeight: c.titleWeight || '', descColor: c.descColor || '', descSize: c.descSize || '', descWeight: c.descWeight || '',
+                                            prefix: c.prefix || '', suffix: c.suffix || '', numberFormat: c.numberFormat || 'comma', multiplier: c.multiplier !== undefined ? c.multiplier : 1,
+                                            fontSize: c.fontSize || '', fontFamily: c.fontFamily || '', fontWeight: c.fontWeight || '', textAlign: c.textAlign || '',
+                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity
+                                        }));
+                                        setBlocks(loadedBlocks);
+                                    }
+                                    setPublishedId(urlId);
+                                    // 讀檔成功，順便更新本機紀錄的名稱跟時間
+                                    saveToRecent(urlId, data.meta?.title);
+                                } else {
+                                    alert("❌ 找不到此專案紀錄，返回大廳！");
+                                    window.location.href = '?';
+                                }
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            alert("❌ 專案讀取失敗！");
+                        }
+                    }
+                    setIsInitialLoading(false);
+                };
+                if (urlId) setTimeout(loadProject, 500);
+            }, [urlId]);
 
             const handleImageUpload = (e) => {
                 const file = e.target.files[0];
@@ -1583,21 +1686,10 @@
                 }
             };
 
-            const [isPublishing, setIsPublishing] = useState(false);
-            const [showPublishModal, setShowPublishModal] = useState(false);
-            const [publishedId, setPublishedId] = useState('');
-
-            const [blocks, setBlocks] = useState([
-                // 給預設積木綁上預設的資料來源
-                { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', dataSourceId: sheetSources[0].id, categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900', textAlign: 'center' }
-            ]);
-            const [selectedBlockId, setSelectedBlockId] = useState(null);
-
             const fetchSheetColumns = async () => {
                 setIsFetching(true);
                 let newColsMap = {};
                 try {
-                    // 🌟 同時去抓取所有掛載的表單
                     await Promise.all(sheetSources.map(async (source) => {
                         if (!source.sheetId) return;
                         const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq=limit%202&gid=${source.gid || '0'}`;
@@ -1612,9 +1704,7 @@
                     }));
                     setColumnsMap(newColsMap);
                     alert("✅ 成功讀取所有資料庫的表頭欄位！");
-                } catch (error) {
-                    alert("❌ 讀取失敗，請確認試算表已開放「知道連結的人均可查看」權限。");
-                }
+                } catch (error) { alert("❌ 讀取失敗，請確認試算表已開放權限。"); }
                 setIsFetching(false);
             };
 
@@ -1628,7 +1718,6 @@
 
             const addBlock = (type, title, defaultW, defaultH) => {
                 const newId = 'comp_' + Date.now();
-                // 🌟 新積木會自動綁定第一張資料表
                 setBlocks(prev => [...prev, { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' }]);
                 setSelectedBlockId(newId);
             };
@@ -1648,62 +1737,29 @@
                 setBlocks(prev => prev.map(block => block.i === id ? { ...block, [key]: numValue } : block));
             };
 
-            const updateGlobalMeta = (key, value) => {
-                setGlobalMeta(prev => ({ ...prev, [key]: value }));
-            }
-
+            const updateGlobalMeta = (key, value) => { setGlobalMeta(prev => ({ ...prev, [key]: value })); }
             const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
 
-            // 匯出最終的 JSON 藍圖
             const finalJSON = {
                 meta: globalMeta,
-                sheetSources: sheetSources, // 🌟 把所有的資料庫設定都存起來
+                sheetSources: sheetSources,
                 components: blocks.map(b => ({
-                    id: b.i,
-                    type: b.type,
-                    title: b.title,
-                    dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''), // 記錄它是吃哪張表
-                    showTitle: b.showTitle !== false,
-                    buttonUrl: b.buttonUrl || null,
-                    categoryColumn: b.categoryCol || null,
-                    valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null,
-                    stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null,
-                    imageColumn: b.imageCol || null,
-                    linkColumn: b.linkCol || null,
-                    isPercentageStacked: b.isPercentageStacked || false,
-                    compareValueColumn: b.compareValueCol || null,
-                    aggregation: b.aggregation,
-                    chartOrientation: b.chartOrientation || 'vertical',
-                    themeColor: b.themeColor,
-                    timeWidthPercent: b.timeWidthPercent || 20,
-                    timelineGap: b.timelineGap || 20,
-                    timeColor: b.timeColor || '',
-                    lineColor: b.lineColor || '',
-                    nodeColor: b.nodeColor || '',
-                    titleColor: b.titleColor || '',
-                    titleSize: b.titleSize || '',
-                    titleWeight: b.titleWeight || '',
-                    descColor: b.descColor || '',
-                    descSize: b.descSize || '',
-                    descWeight: b.descWeight || '',
-                    prefix: b.prefix || '',
-                    suffix: b.suffix || '',
-                    numberFormat: b.numberFormat || 'comma',
-                    multiplier: b.multiplier !== undefined ? b.multiplier : 1,
-                    fontSize: b.fontSize || null,
-                    fontFamily: b.fontFamily || null,
-                    fontWeight: b.fontWeight || null,
-                    textAlign: b.textAlign || null,
-                    layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
+                    id: b.i, type: b.type, title: b.title, dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''), showTitle: b.showTitle !== false, buttonUrl: b.buttonUrl || null, categoryColumn: b.categoryCol || null, valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null, stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null, imageColumn: b.imageCol || null, linkColumn: b.linkCol || null, isPercentageStacked: b.isPercentageStacked || false, compareValueColumn: b.compareValueCol || null, aggregation: b.aggregation, chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor, timeWidthPercent: b.timeWidthPercent || 20, timelineGap: b.timelineGap || 20, timeColor: b.timeColor || '', lineColor: b.lineColor || '', nodeColor: b.nodeColor || '', titleColor: b.titleColor || '', titleSize: b.titleSize || '', titleWeight: b.titleWeight || '', descColor: b.descColor || '', descSize: b.descSize || '', descWeight: b.descWeight || '', prefix: b.prefix || '', suffix: b.suffix || '', numberFormat: b.numberFormat || 'comma', multiplier: b.multiplier !== undefined ? b.multiplier : 1, fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || null, textAlign: b.textAlign || null, layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
                 }))
             };
 
             const handlePublish = async () => {
                 setIsPublishing(true);
                 try {
-                    if (window.publishToFirebase) {
+                    if (publishedId && window.updateToFirebase) {
+                        await window.updateToFirebase(publishedId, finalJSON);
+                        saveToRecent(publishedId, globalMeta.title); // 🌟 存入本機紀錄
+                        setShowPublishModal(true);
+                    } else if (window.publishToFirebase) {
                         const newId = await window.publishToFirebase(finalJSON);
                         setPublishedId(newId);
+                        saveToRecent(newId, globalMeta.title); // 🌟 存入本機紀錄
+                        window.history.replaceState(null, '', `?id=${newId}`);
                         setShowPublishModal(true);
                     } else {
                         alert("⚠️ Firebase 尚未載入完成，請稍候重試！");
@@ -1721,30 +1777,88 @@
                 alert("✅ 嵌入代碼已複製到剪貼簿！");
             };
 
-            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
+            // 🌟 3. 畫出超美的「專案大廳 (Home Screen)」
+            if (currentScreen === 'home') {
+                return (
+                    <div style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto', fontFamily: '"Noto Sans TC", sans-serif' }}>
+                        <h1 style={{ color: '#086788', textAlign: 'center', fontSize: '2.5rem', margin: '0 0 10px 0' }}>📊 儀表板生成器</h1>
+                        <p style={{ textAlign: 'center', color: '#666', fontSize: '1.1rem', marginBottom: '40px' }}>請選擇建立新專案，或接續編輯先前的專案。</p>
 
-            // 🌟 取得當前積木所對應的表頭選項
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
+                            <div onClick={() => setCurrentScreen('editor')} style={{ background: '#fff', border: '2px dashed #086788', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>✨</div>
+                                <h2 style={{ color: '#086788', margin: '0 0 10px 0' }}>建立新專案</h2>
+                                <p style={{ color: '#666', margin: 0 }}>從一張空白畫布開始設計</p>
+                            </div>
+
+                            <div onClick={() => {
+                                const id = prompt("請輸入專案 ID：");
+                                if (id && id.trim() !== "") window.location.href = `?id=${id.trim()}`;
+                            }} style={{ background: '#fff', border: '2px solid #ccc', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📁</div>
+                                <h2 style={{ color: '#555', margin: '0 0 10px 0' }}>輸入專案 ID</h2>
+                                <p style={{ color: '#666', margin: 0 }}>手動輸入 ID 來讀取雲端專案</p>
+                            </div>
+                        </div>
+
+                        <div style={{ background: '#fff', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#333' }}>🕒 最近編輯紀錄 (本機存檔)</h3>
+                            {recentProjects.length === 0 ? (
+                                <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0 }}>尚無編輯紀錄，趕快建立一個吧！</p>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
+                                    {recentProjects.map(p => (
+                                        <div key={p.id} onClick={() => window.location.href = `?id=${p.id}`} style={{ background: '#f9f9f9', padding: '15px 20px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#f0f8fa'} onMouseOut={(e) => e.currentTarget.style.background = '#f9f9f9'}>
+                                            <div>
+                                                <div style={{ fontSize: '1.2rem', color: '#086788', fontWeight: 'bold', marginBottom: '5px' }}>{p.title}</div>
+                                                <div style={{ color: '#888', fontSize: '0.85rem' }}>ID: {p.id}</div>
+                                            </div>
+                                            <div style={{ color: '#999', fontSize: '0.9rem', textAlign: 'right' }}>
+                                                <span style={{ display: 'block', marginBottom: '3px' }}>上次更新</span>
+                                                {p.date}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (isInitialLoading) {
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f5f5f5', color: '#086788' }}>
+                        <h2>⏳ 專案環境載入中...</h2>
+                        <p style={{ color: '#666' }}>正為您佈署編輯器</p>
+                    </div>
+                );
+            }
+
+            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
             const currentDataSourceId = currentSelectedBlock ? (currentSelectedBlock.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : '')) : '';
             const availableColumns = columnsMap[currentDataSourceId] || [];
 
             return (
                 <div>
                     <div className="top-nav">
-                        <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
-                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                            {viewMode === 'preview' && (
-                                <div className="device-toggle">
-                                    <button className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>💻 電腦版</button>
-                                    <button className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>📱 手機版</button>
-                                </div>
-                            )}
-                            <div className="mode-toggle">
-                                <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
-                                <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
-                            </div>
-                            <button className="publish-btn" onClick={handlePublish} disabled={isPublishing}>
-                                {isPublishing ? '發布存檔中...' : '🚀 發布儀表板'}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            {/* 🌟 升級防呆版：帶有警告提示的返回大廳按鈕 */}
+                            <button onClick={() => {
+                                if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) {
+                                    window.location.href = '?';
+                                }
+                            }} style={{
+                                background: '#f5f5f5', border: '1px solid #ccc', color: '#333',
+                                fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px',
+                                borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px',
+                                fontWeight: 'bold', transition: '0.2s'
+                            }}
+                                onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'}
+                                onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
+                                🏠 回大廳
                             </button>
+                            <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
                         </div>
                     </div>
 
