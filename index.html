@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/react-grid-layout.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
@@ -19,7 +20,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        // ver. 1.81 新增 doc, getDoc, setDoc 函數
         import { getFirestore, collection, addDoc, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -36,44 +36,33 @@
         const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        //ver. 1.81 1. 建立新專案
         window.publishToFirebase = async (dashboardJSON) => {
             try {
                 const docRef = await addDoc(collection(db, "dashboards"), dashboardJSON);
-                console.log("✅ 建立成功！文件 ID: ", docRef.id);
                 return docRef.id;
             } catch (e) {
-                console.error("❌ 建立失敗: ", e);
-                throw e;
+                console.error("❌ 建立失敗: ", e); throw e;
             }
         };
 
-        // ver. 1.81 2. 覆蓋更新舊專案
         window.updateToFirebase = async (id, dashboardJSON) => {
             try {
                 const docRef = doc(db, "dashboards", id);
-                await setDoc(docRef, dashboardJSON); // setDoc 會完全覆蓋舊資料
-                console.log("✅ 更新成功！文件 ID: ", id);
+                await setDoc(docRef, dashboardJSON);
                 return id;
             } catch (e) {
-                console.error("❌ 更新失敗: ", e);
-                throw e;
+                console.error("❌ 更新失敗: ", e); throw e;
             }
         };
 
-        // ver. 1.81 3. 讀取雲端專案進度
         window.loadFromFirebase = async (id) => {
             try {
                 const docRef = doc(db, "dashboards", id);
                 const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    return docSnap.data();
-                } else {
-                    return null;
-                }
+                if (docSnap.exists()) return docSnap.data();
+                else return null;
             } catch (e) {
-                console.error("❌ 讀取失敗: ", e);
-                throw e;
+                console.error("❌ 讀取失敗: ", e); throw e;
             }
         };
     </script>
@@ -136,7 +125,6 @@
             border-radius: 0 8px 8px 0;
         }
 
-        /* 發布按鈕樣式 */
         .publish-btn {
             padding: 10px 25px;
             font-size: 1rem;
@@ -199,7 +187,6 @@
             opacity: 0.9;
         }
 
-        /* ver. 1.01替換：移除 overflow-x: hidden，避免邊緣被裁切 */
         .canvas-area {
             flex: 1;
             background: #fff;
@@ -209,7 +196,6 @@
             overflow-y: auto;
         }
 
-        /* ver. 1.01新增：右側面板專用的刪除按鈕 */
         .delete-panel-btn {
             width: 100%;
             background: #E74C3C;
@@ -227,7 +213,6 @@
             background: #c0392b;
         }
 
-        /* ver. 1.02 替換：移除混淆的網格線條，改為乾淨微凸起的畫布背景 */
         .grid-bg {
             background: #fdfdfd;
             min-height: 500px;
@@ -298,7 +283,6 @@
             margin-top: 5px;
         }
 
-        /* 顯示格數的小標籤 */
         .size-badge {
             position: absolute;
             bottom: 5px;
@@ -389,7 +373,6 @@
             margin-top: 5px;
         }
 
-        /* 新聞預覽版面專用樣式 */
         .preview-container {
             background: #fff;
             padding: 30px;
@@ -401,7 +384,6 @@
             margin: 0 auto;
         }
 
-        /* ver. 1.11 重新設計版頭與版尾 */
         .news-header {
             display: flex;
             justify-content: space-between;
@@ -423,7 +405,6 @@
             font-size: 0.9rem;
         }
 
-        /* ver. 1.11 讓頁腳變成左右彈性排版 */
         .news-footer {
             margin-top: 30px;
             padding-top: 15px;
@@ -456,14 +437,11 @@
             object-fit: contain;
         }
 
-        /* ver 1.22 讓預覽區的網格長寬與編輯器 100% 吻合 */
         .preview-grid {
             display: grid;
             grid-template-columns: repeat(12, 1fr);
             grid-auto-rows: 30px;
-            /* 基礎高度 30px */
             gap: 15px;
-            /* 積木間距 15px */
         }
 
         .preview-card {
@@ -521,7 +499,6 @@
             padding: 20px;
         }
 
-        /* 發布彈出視窗 Modal */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -587,7 +564,6 @@
             color: #333;
         }
 
-        /* ver. 1.21 RWD 切換按鈕樣式 */
         .device-toggle {
             display: flex;
             background: #eee;
@@ -612,7 +588,7 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        /* ver. 1.21 手機模擬器外框 */
+        /* 手機模擬器外框 */
         .preview-wrapper {
             transition: all 0.3s ease;
             margin: 0 auto;
@@ -625,7 +601,6 @@
 
         .preview-wrapper.mobile {
             width: 375px;
-            /* 標準手機寬度 */
             border: 12px solid #333;
             border-radius: 36px;
             padding: 10px 0;
@@ -634,7 +609,6 @@
             overflow: hidden;
         }
 
-        /* ver. 1.21 當處於手機預覽模式時的強制覆寫 (RWD 魔法) */
         .preview-wrapper.mobile .preview-container {
             padding: 15px;
             box-shadow: none;
@@ -644,35 +618,26 @@
             width: 100% !important;
             max-width: 100%;
             grid-column: 1 / -1 !important;
-            /* ver 1.22 寬度強制滿版 */
             grid-row: auto !important;
-            /* ver 1.22 關鍵：手機版解除上下坐標與高度限制 */
             height: auto !important;
-            /* ver 1.22 關鍵：手機版自動撐高 */
             min-height: 150px;
         }
 
-        /* ver. 1.21 手機版版頭與版尾排版 (ver. 1.66 修正：恢復左右並排，浮水印乖乖待在右邊) */
         .preview-wrapper.mobile .news-header {
             flex-direction: row;
-            /* 🌟 強制水平排列 */
             align-items: center;
-            /* 垂直置中 */
             justify-content: space-between;
             gap: 10px;
         }
 
         .preview-wrapper.mobile .news-watermark {
             margin-left: auto !important;
-            /* ver. 1.66 把浮水印推到最右邊 */
             align-self: center;
             max-width: 80px;
-            /* 限制手機版浮水印最大寬度，避免擠壓標題 */
         }
 
         .preview-wrapper.mobile .news-footer {
             flex-direction: row;
-            /* ver. 1.66 頁腳也維持水平排列 */
             align-items: flex-end;
             justify-content: space-between;
             gap: 10px;
@@ -681,40 +646,44 @@
         .preview-wrapper.mobile .news-title {
             font-size: 1.4rem !important;
             word-break: break-word;
-            /* ver. 1.66 確保長標題會自動往下斷行，不會把浮水印擠爆 */
             line-height: 1.3;
         }
 
-        /* ver. 1.22 修正手機版溢出問題 (Box Model 與佈局安全調整) */
         .preview-container,
         .preview-card {
             box-sizing: border-box;
-            /* 魔法指令：確保 padding 不會把外框撐破 */
         }
 
         .preview-wrapper.mobile .preview-grid {
             display: flex;
-            /* 在手機版放棄 12 格網格系統，改成彈性盒子 */
             flex-direction: column;
-            /* 強制所有積木由上往下垂直排列 */
             gap: 15px;
         }
 
-        .preview-wrapper.mobile .preview-card {
-            width: 100% !important;
-            /* 卡片強制佔滿 100% 寬度 */
-            max-width: 100%;
-            /* 雙重保險，絕對不允許超出邊界 */
-        }
-
-        /* 讓清除篩選的按鈕在手機版也不會超出邊界 */
         .preview-wrapper.mobile .reset-filter-btn {
             width: 100%;
             text-align: center;
         }
 
-        /* ver. 1.31 新增：時間軸 (Timeline) 樣式 */
-        /* ver. 1.61 全新時間軸排版 (左日期、中軸線、右內容) */
+        /* 🌟 圖表容器 RWD 處理：電腦版預設捲軸，手機版橫向長條圖解除捲軸撐高 */
+        .chart-scroll-area {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+        }
+
+        @media (max-width: 768px) {
+            .chart-scroll-area.is-horizontal {
+                overflow-y: visible !important;
+                height: auto !important;
+            }
+        }
+
+        .preview-wrapper.mobile .chart-scroll-area.is-horizontal {
+            overflow-y: visible !important;
+            height: auto !important;
+        }
+
         .timeline-container {
             margin: 10px 0;
             display: flex;
@@ -730,36 +699,29 @@
             position: relative;
         }
 
-        /* 左側：日期區塊 */
         .timeline-left {
             width: var(--time-width, 20%);
-            /* ver. 1.63 升級：改吃百分比變數，完美適應 RWD */
             flex-shrink: 0;
             text-align: right;
             padding-right: var(--timeline-gap, 15px);
-            /* ver. 1.63 升級：吃間距變數 */
             font-weight: bold;
             color: var(--time-color, var(--primary));
             font-size: 0.95rem;
             padding-top: 2px;
         }
 
-        /* 右側：內容區塊與軸線 */
         .timeline-right {
             flex: 1;
             padding-left: var(--timeline-gap, 20px);
-            /* ver. 1.63 升級：吃間距變數 */
             padding-bottom: 25px;
             border-left: 2px solid var(--line-color, var(--primary));
             position: relative;
         }
 
-        /* 讓最後一個事件不要有往下延伸的尾巴線 */
         .timeline-item:last-child .timeline-right {
             border-left-color: transparent !important;
         }
 
-        /* 完美的圓形節點 */
         .timeline-dot {
             position: absolute;
             left: -8px;
@@ -768,10 +730,8 @@
             height: 14px;
             border-radius: 50%;
             background: var(--node-color, var(--primary));
-            /* ver. 1.62 改用變數控制節點顏色 */
             border: 2px solid #fff;
             box-shadow: 0 0 0 2px var(--node-color, var(--primary));
-            /* ver. 1.62 陰影也跟著節點顏色變 */
             box-sizing: border-box;
             z-index: 2;
         }
@@ -791,7 +751,6 @@
             line-height: 1.6;
         }
 
-        /* ver. 1.31 新增：動作按鈕 (Button) 樣式 */
         .custom-btn-wrapper {
             display: flex;
             width: 100%;
@@ -826,12 +785,10 @@
             padding: 5px 12px;
             font-size: 0.85rem;
             color: var(--time-color, var(--primary));
-            /* 跟著時間軸主題色走 */
             background: #fff;
             border: 1px solid var(--time-color, var(--primary));
             border-radius: 4px;
             text-decoration: none !important;
-            /* 強制移除底線 */
             font-weight: bold;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -843,7 +800,6 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        /* ver. 1.71 輪播卡片 (Carousel) 專用樣式 */
         .carousel-container {
             position: relative;
             width: 100%;
@@ -861,7 +817,6 @@
             justify-content: center;
             text-align: center;
             padding: 10px 30px;
-            /* 左右留空間給箭頭 */
             box-sizing: border-box;
             animation: fadeIn 0.4s ease-in-out;
             overflow-y: auto;
@@ -883,7 +838,6 @@
             width: 100%;
             transform: translateY(-50%);
             pointer-events: none;
-            /* 讓中間區域可以點擊 */
         }
 
         .carousel-arrow {
@@ -940,7 +894,6 @@
             }
         }
 
-        /* ver. 1.41 右側面板頁籤樣式 */
         .panel-tabs {
             display: flex;
             border-bottom: 2px solid #eee;
@@ -982,7 +935,6 @@
         Chart.register(ChartDataLabels);
 
         function PreviewViewer({ config }) {
-            // 🌟 魔王升級：從原本的單一 data 變成儲存多張表的 dataMap
             const [dataMap, setDataMap] = useState({});
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
@@ -996,7 +948,6 @@
                     }
                     try {
                         const newDataMap = {};
-                        // 🌟 同時抓取所有表單的資料
                         await Promise.all(config.sheetSources.map(async (source) => {
                             if (!source.sheetId) return;
                             const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
@@ -1049,15 +1000,12 @@
                 else dropdownState[col] = !filters[dropdownComps[i - 1].categoryColumn];
             }
 
-            // 🌟 魔王升級：跨表過濾器 (Cross-Filtering Engine)
             const filteredDataMap = {};
             if (config.sheetSources) {
                 config.sheetSources.forEach(source => {
                     const sourceData = dataMap[source.id] || [];
                     filteredDataMap[source.id] = sourceData.filter(row => {
                         for (let key in filters) {
-                            // 💡 魔法在此：只有當這張表「擁有」這個欄位，且值不相符時，才過濾掉！
-                            // 如果 row[key] 是 undefined (代表這張表根本沒這欄位)，就無條件放行！
                             if (filters[key] && row[key] !== undefined && row[key] !== filters[key]) {
                                 return false;
                             }
@@ -1115,7 +1063,7 @@
             };
 
             const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
-                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean).sort();
+                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean);
                 let datasetsMap = {};
                 categories.forEach((cat, catIndex) => {
                     const rows = rawData.filter(r => r[categoryCol] === cat);
@@ -1177,7 +1125,6 @@
                         {sortedComponents.map(comp => (
                             <ChartComponent
                                 key={comp.id} comp={comp}
-                                /* 🌟 核心傳遞：根據該積木綁定的資料庫 ID，餵給它對應的資料 */
                                 rawData={dataMap[comp.dataSourceId] || []}
                                 filteredData={filteredDataMap[comp.dataSourceId] || []}
                                 aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
@@ -1215,85 +1162,193 @@
             );
         }
 
+        // 🌟 核心畫布元件 (排版完全體)
         function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
             const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
 
-            // 輪播卡片專屬的狀態
+            const [labelCount, setLabelCount] = useState(0);
             const [currentSlide, setCurrentSlide] = useState(0);
-            useEffect(() => { setCurrentSlide(0); }, [filteredData]);
+            const [hiddenSlices, setHiddenSlices] = useState({});
 
             useEffect(() => {
+                setCurrentSlide(0);
+                setHiddenSlices({});
+            }, [filteredData, comp.categoryColumn]);
+
+            const toggleSlice = (index) => {
+                if (!chartInstance.current || comp.type !== 'pieChart') return;
+                chartInstance.current.toggleDataVisibility(index);
+                chartInstance.current.update();
+                setHiddenSlices(prev => ({ ...prev, [index]: !prev[index] }));
+            };
+
+            // 📈 核心畫圖引擎
+            useEffect(() => {
                 if (isChartType && isChartVisible) {
-                    if (!comp.categoryColumn || (!comp.valueColumn && !comp.stackValueColumns)) return;
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
+                        if (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0) return;
+                    } else {
+                        if (!comp.categoryColumn || !comp.valueColumn) return;
+                    }
+
+                    if (!canvasRef.current) return;
+
                     const ctx = canvasRef.current.getContext('2d');
                     if (chartInstance.current) chartInstance.current.destroy();
+
                     let chartType = 'bar';
-                    let options = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, title: { display: false }, datalabels: { display: false } } };
+                    const isHorizontal = comp.chartOrientation === 'horizontal';
+
+                    const computedFont = window.getComputedStyle(canvasRef.current).fontFamily;
+                    const defaultFontFamily = comp.fontFamily || computedFont || 'sans-serif';
+
+                    const baseFontSize = parseInt(comp.axisLabelSize) || 12;
+                    const tickFont = { size: baseFontSize, family: defaultFontFamily };
+                    const gridColor = comp.axisGridColor || '#e0e0e0';
+
+                    let options = {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: comp.type === 'pieChart' ? baseFontSize + 25 : 0 },
+                        indexAxis: isHorizontal ? 'y' : 'x',
+                        plugins: {
+                            legend: {
+                                display: comp.type === 'pieChart' ? false : (comp.legendPosition !== 'none'),
+                                position: comp.legendPosition !== 'none' ? (comp.legendPosition || 'top') : 'top',
+                                labels: { color: comp.axisLabelColor || '#666', font: tickFont }
+                            },
+                            title: { display: false },
+                            datalabels: { display: false } // 預設關閉，由各圖表自行開啟
+                        },
+                        scales: {}
+                    };
+
+                    const valueAxis = isHorizontal ? 'x' : 'y';
+                    const categoryAxis = isHorizontal ? 'y' : 'x';
+
+                    options.scales[categoryAxis] = {
+                        // 強制畫出每一個標籤，不准隱藏
+                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont, autoSkip: false },
+                        grid: { color: gridColor },
+                        border: { display: true, color: gridColor },
+                        title: { display: false },
+                        stacked: comp.type === 'stackedBarChart'
+                    };
+
+                    options.scales[valueAxis] = {
+                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont },
+                        grid: { color: gridColor },
+                        border: { display: true, color: gridColor },
+                        title: { display: false },
+                        stacked: comp.type === 'stackedBarChart'
+                    };
+
+                    if (comp.stepSize) options.scales[valueAxis].ticks.stepSize = Number(comp.stepSize);
+                    if (comp.yAxisMin !== undefined && comp.yAxisMin !== '') options.scales[valueAxis].min = Number(comp.yAxisMin);
+
                     const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
-                    const mainColor = comp.themeColor || '#086788';
                     let labels = [];
                     let datasets = [];
 
-                    if (comp.type === 'stackedBarChart') {
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
                         chartType = 'bar';
-                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, comp.stackValueColumns || [], comp.aggregation);
+                        const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn, comp.compareValueColumn].filter(Boolean);
+                        const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, cols, comp.aggregation);
                         labels = stackedData.categories;
-                        datasets = stackedData.datasets;
-                        const isHorizontal = comp.chartOrientation === 'horizontal';
-                        if (isHorizontal) {
-                            options.indexAxis = 'y';
-                            options.scales = { x: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined }, y: { stacked: true } };
-                        } else {
-                            options.scales = { x: { stacked: true }, y: { stacked: true, max: comp.isPercentageStacked ? 100 : undefined } };
-                        }
-                        datasets.forEach((ds, idx) => { ds.backgroundColor = pieColors[idx % pieColors.length]; });
-                        if (comp.isPercentageStacked) {
-                            const numCategories = labels.length;
-                            const numDatasets = datasets.length;
+                        const customColors = Array.isArray(comp.customColors) ? comp.customColors : [];
+                        datasets = stackedData.datasets.map((ds, idx) => ({
+                            ...ds,
+                            backgroundColor: customColors[idx] || pieColors[idx % pieColors.length],
+                            maxBarThickness: 60
+                        }));
+
+                        if (comp.type === 'stackedBarChart' && comp.isPercentageStacked) {
+                            const numCategories = labels.length; const numDatasets = datasets.length;
                             for (let j = 0; j < numCategories; j++) {
-                                let total = 0;
-                                for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
-                                if (total > 0) {
-                                    for (let i = 0; i < numDatasets; i++) {
-                                        datasets[i].data[j] = (datasets[i].data[j] / total) * 100;
-                                    }
-                                }
+                                let total = 0; for (let i = 0; i < numDatasets; i++) total += datasets[i].data[j];
+                                if (total > 0) { for (let i = 0; i < numDatasets; i++) datasets[i].data[j] = (datasets[i].data[j] / total) * 100; }
                             }
-                            options.plugins.datalabels = {
-                                display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
-                                color: 'white', anchor: 'center', align: 'center', font: { weight: 'bold' }
-                            };
+                            options.scales[valueAxis].max = 100;
+                            options.plugins.datalabels = { display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '', color: 'white', font: { weight: 'bold' } };
                         }
                     } else {
+                        const mainColor = comp.themeColor || '#086788';
                         const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
-                        labels = Object.keys(aggData1);
-                        const data1 = Object.values(aggData1);
-                        datasets = [{
-                            label: comp.compareValueColumn ? comp.valueColumn : comp.title,
-                            data: data1, backgroundColor: comp.type === 'pieChart' ? pieColors : mainColor,
-                            borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true
-                        }];
+                        labels = Object.keys(aggData1); const data1 = Object.values(aggData1);
+
+                        let pieCurrentColors = pieColors;
+                        if (comp.type === 'pieChart' && Array.isArray(comp.pieCustomColors) && comp.pieCustomColors.length > 0) {
+                            pieCurrentColors = comp.pieCustomColors;
+                        }
+
+                        const bgColors = comp.type === 'pieChart' ? labels.map((_, i) => pieCurrentColors[i % pieCurrentColors.length]) : mainColor;
+                        datasets = [{ label: comp.compareValueColumn ? comp.valueColumn : comp.title, data: data1, backgroundColor: bgColors, borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 }];
+
                         if (comp.compareValueColumn && comp.type !== 'pieChart') {
                             const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
                             const data2 = labels.map(label => aggData2[label] || 0);
-                            datasets.push({
-                                label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7',
-                                borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true
-                            });
+                            datasets.push({ label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 });
                         }
-                        if (comp.type === 'pieChart') chartType = 'doughnut';
+
+                        if (comp.type === 'pieChart') {
+                            chartType = comp.pieStyle === 'pie' ? 'pie' : 'doughnut';
+                            delete options.scales;
+                            options.rotation = comp.pieRotation || 0;
+
+                            // 🌟 修復：加回圓餅圖的 DataLabels 設定，讓標籤重新出現！
+                            if (comp.showDataLabels) {
+                                options.plugins.datalabels = {
+                                    display: true,
+                                    color: comp.dataLabelColor === '#ffffff' ? '#333333' : (comp.dataLabelColor || '#666666'),
+                                    font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                    anchor: 'end', align: 'end', offset: 5,
+                                    formatter: (value, context) => {
+                                        const dataset = context.chart.data.datasets[context.datasetIndex];
+                                        const tSum = dataset.data.reduce((acc, curr) => acc + curr, 0);
+                                        if (tSum === 0) return '';
+                                        const percentage = (value / tSum) * 100;
+                                        if (percentage < 1.5) return '';
+                                        if (comp.dataLabelType === 'value') return Number(value).toLocaleString('zh-TW');
+                                        else return Math.round(percentage) + '%';
+                                    }
+                                };
+                            }
+                        }
                         if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
-                        if (comp.type === 'barChart' && comp.chartOrientation === 'horizontal') { options.indexAxis = 'y'; }
                     }
 
-                    chartInstance.current = new Chart(ctx, {
-                        type: chartType, data: { labels: labels, datasets: datasets }, options: options
-                    });
+                    const sortMode = comp.sortBy || 'sheet';
+                    if (sortMode === 'value_desc' || sortMode === 'value_asc') {
+                        const combined = labels.map((label, idx) => {
+                            let total = 0;
+                            datasets.forEach(ds => { total += (Number(ds.data[idx]) || 0); });
+                            return { label, idx, total };
+                        });
+                        combined.sort((a, b) => sortMode === 'value_desc' ? b.total - a.total : a.total - b.total);
+                        labels = combined.map(item => item.label);
+                        datasets = datasets.map(ds => ({ ...ds, data: combined.map(item => ds.data[item.idx]) }));
+                    } else if (sortMode === 'category_asc') {
+                        const combined = labels.map((label, idx) => ({ label, idx }));
+                        combined.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+                        labels = combined.map(item => item.label);
+                        datasets = datasets.map(ds => ({ ...ds, data: combined.map(item => ds.data[item.idx]) }));
+                    }
+
+                    if (labels.length !== labelCount) setLabelCount(labels.length);
+
+                    chartInstance.current = new Chart(ctx, { type: chartType, data: { labels, datasets }, options });
                 }
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); }
-            }, [comp, filteredData, isChartVisible]);
+            }, [comp, filteredData, isChartVisible, labelCount]);
+
+            // 📐 網格定位計算
+            const finalH = comp.layout?.h || comp.h || 6;
+            const isHorizontalChart = isChartType && comp.chartOrientation === 'horizontal';
+
+            // 🌟 極限防擠壓空間
+            const neededHeight = (isHorizontalChart && labelCount > 0) ? (labelCount * 40 + 80) : 0;
+            const neededWidth = (!isHorizontalChart && labelCount > 0) ? (labelCount * 50 + 80) : 0;
 
             const colWidth = comp.layout?.desktopCols || comp.layout?.w || comp.w || 6;
             const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
@@ -1301,137 +1356,105 @@
 
             const gridStyle = {
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
-                gridRow: rowY !== 'auto' ? `${rowY} / span ${comp.layout?.h || comp.h || 6}` : 'auto',
-                overflow: 'hidden',
-                boxSizing: 'border-box',
+                gridRow: rowY !== 'auto' ? `${rowY} / span ${finalH}` : `span ${finalH}`,
+                overflow: 'hidden', boxSizing: 'border-box',
                 padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
-                display: 'flex',
-                flexDirection: 'column',
+                display: 'flex', flexDirection: 'column',
                 justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
-                alignItems: 'stretch',
-                minWidth: 0,
-                width: '100%'
+                alignItems: 'stretch', minWidth: 0, width: '100%',
+                height: '100%'
             };
 
             if (comp.type !== 'dropdown' && !isChartVisible) {
                 return (
                     <div className="preview-card" style={gridStyle}>
-                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
-                            <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
-                                {comp.title}
-                            </h3>
-                        )}
-                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表
-                        </div>
+                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>{comp.title}</h3>}
+                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表</div>
                     </div>
                 );
             }
 
             const processAndFormatNumber = (rawValue) => {
                 const multiplier = comp.multiplier !== undefined ? comp.multiplier : 1;
-                let num = rawValue * multiplier;
-                num = Math.round(num * 100000) / 100000;
-
+                let num = rawValue * multiplier; num = Math.round(num * 100000) / 100000;
                 const format = comp.numberFormat || 'comma';
                 if (format === 'plain') return num.toString();
                 if (format === 'comma') return num.toLocaleString('zh-TW');
-
                 if (num === 0) return '0';
-                const isNegative = num < 0;
-                let str = Math.abs(num).toString();
-                let [intPart, decPart] = str.split('.');
-                let result = '';
-                const units = ['', '萬', '億', '兆', '京'];
-                let chunks = [];
-
-                while (intPart.length > 0) {
-                    chunks.push(intPart.slice(-4));
-                    intPart = intPart.slice(0, -4);
-                }
-
+                const isNegative = num < 0; let str = Math.abs(num).toString(); let [intPart, decPart] = str.split('.'); let result = ''; const units = ['', '萬', '億', '兆', '京']; let chunks = [];
+                while (intPart.length > 0) { chunks.push(intPart.slice(-4)); intPart = intPart.slice(0, -4); }
                 for (let i = chunks.length - 1; i >= 0; i--) {
                     let chunkNum = parseInt(chunks[i], 10);
                     if (chunkNum > 0) {
                         let chunkStr = chunkNum.toString();
                         if (format === 'zh-scale-qian' && i === 0 && chunkStr.length === 4) {
-                            let qian = chunkStr[0];
-                            let restNum = parseInt(chunkStr.slice(1), 10);
-                            chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
+                            let qian = chunkStr[0]; let restNum = parseInt(chunkStr.slice(1), 10); chunkStr = restNum === 0 ? `${qian}千` : `${qian}千${restNum}`;
                         }
                         result += chunkStr + units[i];
                     }
                 }
-
-                if (isNegative) result = '-' + result;
-                if (decPart) result += '.' + decPart;
+                if (isNegative) result = '-' + result; if (decPart) result += '.' + decPart;
                 return result || '0';
             };
 
             const renderMetricOrText = () => {
                 if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
-
                 if (comp.type === 'metricCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定數值欄位</p>;
-                    let value = comp.aggregation === 'count'
-                        ? filteredData.length
-                        : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
-
-                    const formattedValue = processAndFormatNumber(value);
-                    const finalDisplayValue = `${comp.prefix || ''}${formattedValue}${comp.suffix || ''}`;
+                    let value = comp.aggregation === 'count' ? filteredData.length : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+                    const finalDisplayValue = `${comp.prefix || ''}${processAndFormatNumber(value)}${comp.suffix || ''}`;
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
-
                     return (
                         <div className="metric-content" style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}>
-                            <div className="metric-value" style={{
-                                color: comp.themeColor || '#086788',
-                                fontSize: comp.fontSize || '3.5rem',
-                                fontWeight: comp.fontWeight || '900',
-                                lineHeight: 1
-                            }}>
-                                {finalDisplayValue}
-                            </div>
+                            <div className="metric-value" style={{ color: comp.themeColor || '#086788', fontSize: comp.fontSize || '3.5rem', fontWeight: comp.fontWeight || '900', lineHeight: 1 }}>{finalDisplayValue}</div>
                         </div>
                     );
                 }
-
                 if (comp.type === 'textCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定文字欄位</p>;
-                    const latestRow = filteredData[filteredData.length - 1];
-                    const textContent = latestRow[comp.valueColumn] || ' (無文字內容) ';
+                    const textContent = filteredData[filteredData.length - 1][comp.valueColumn] || ' (無文字內容) ';
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
-
                     return (
                         <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}>
-                            <p className="text-card-content" style={{
-                                fontSize: comp.fontSize || '1.2rem',
-                                fontWeight: comp.fontWeight || 'normal',
-                                textAlign: comp.textAlign || 'left',
-                                color: comp.themeColor || '#333333',
-                                lineHeight: '1.6',
-                                margin: 0,
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-word'
-                            }}>
-                                {textContent}
-                            </p>
+                            <p className="text-card-content" style={{ fontSize: comp.fontSize || '1.2rem', fontWeight: comp.fontWeight || 'normal', textAlign: comp.textAlign || 'left', color: comp.themeColor || '#333333', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{textContent}</p>
                         </div>
                     );
                 }
                 return null;
             };
 
-            const renderMetricCompare = () => {
-                if (comp.type !== 'metricCard' || !comp.compareValueColumn) return null;
-                const compareValue = filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.compareValueColumn]).replace(/,/g, '')) || 0), 0);
-
-                const formattedCompareValue = processAndFormatNumber(compareValue);
-                const finalCompareValue = `${comp.prefix || ''}${formattedCompareValue}${comp.suffix || ''}`;
-                const align = comp.textAlign === 'left' ? 'left' : (comp.textAlign === 'right' ? 'right' : 'center');
+            const renderHtmlLegend = (labels, datasets) => {
+                if (comp.type !== 'pieChart' || comp.legendPosition === 'none' || labels.length === 0) return null;
+                const isVertical = comp.legendPosition === 'right' || comp.legendPosition === 'left';
 
                 return (
-                    <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textAlign: align, width: '100%' }}>
-                        相比 {comp.compareValueColumn}：{finalCompareValue}
+                    <div className="custom-html-legend" style={{
+                        display: 'flex', flexWrap: 'wrap', gap: '12px',
+                        justifyContent: isVertical ? 'flex-start' : 'center',
+                        alignItems: isVertical ? 'flex-start' : 'center',
+                        padding: isVertical ? '0 10px' : '10px 0',
+                        maxHeight: isVertical ? '100%' : '100px',
+                        overflowY: 'auto', overflowX: 'hidden',
+                        flexDirection: isVertical ? 'column' : 'row',
+                        minWidth: isVertical ? '120px' : 'auto'
+                    }}>
+                        {labels.map((label, idx) => {
+                            const bgColor = datasets.length > 0 ? datasets[0].backgroundColor[idx] : '#ccc';
+                            return (
+                                <div key={idx} onClick={() => toggleSlice(idx)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                                        opacity: hiddenSlices[idx] ? 0.4 : 1,
+                                        fontSize: `${parseInt(comp.axisLabelSize) || 12}px`,
+                                        color: comp.axisLabelColor || '#666',
+                                        transition: 'opacity 0.2s',
+                                        textDecoration: hiddenSlices[idx] ? 'line-through' : 'none'
+                                    }}>
+                                    <div style={{ width: '14px', height: '14px', backgroundColor: bgColor, borderRadius: '3px', flexShrink: 0 }}></div>
+                                    <span style={{ whiteSpace: isVertical ? 'normal' : 'nowrap', wordBreak: 'break-word' }}>{label}</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             };
@@ -1439,39 +1462,86 @@
             return (
                 <div className="preview-card" style={gridStyle}>
                     {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
-                        <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>
-                            {comp.title}
-                        </h3>
+                        <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem', flexShrink: 0 }}>{comp.title}</h3>
                     )}
 
                     {(comp.type === 'metricCard' || comp.type === 'textCard') && (
                         <div style={{ width: '100%', flex: '1 1 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '80px' }}>
                             {renderMetricOrText()}
-                            {renderMetricCompare()}
+                            {comp.type === 'metricCard' && comp.compareValueColumn && (
+                                <div className="metric-compare" style={{ color: '#999', fontSize: '0.85rem', marginTop: '10px', textAlign: comp.textAlign === 'left' ? 'left' : (comp.textAlign === 'right' ? 'right' : 'center'), width: '100%' }}>
+                                    相比 {comp.compareValueColumn}：{`${comp.prefix || ''}${processAndFormatNumber(filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.compareValueColumn]).replace(/,/g, '')) || 0), 0))}${comp.suffix || ''}`}
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {isChartType && (
-                        <div style={{ position: 'relative', flex: '1 1 auto', width: '100%', minHeight: '200px' }}>
-                            {(comp.type === 'stackedBarChart' && (!comp.categoryColumn || !comp.stackValueColumns || comp.stackValueColumns.length === 0)) || (comp.type !== 'stackedBarChart' && (!comp.categoryColumn || !comp.valueColumn)) ? <p style={{ color: '#999', textAlign: 'center', marginTop: '30%' }}>請在編輯模式綁定資料欄位</p> : <canvas ref={canvasRef}></canvas>}
-                        </div>
-                    )}
+                    {/* 🌟 長條/折線圖 渲染區 */}
+                    {isChartType && comp.type !== 'pieChart' && (() => {
+                        const topUnitText = !isHorizontalChart ? comp.yAxisUnit : comp.xAxisUnit;
+                        const bottomUnitText = !isHorizontalChart ? comp.xAxisUnit : comp.yAxisUnit;
 
+                        return (
+                            <div className="chart-outer-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', minHeight: 0 }}>
+                                {comp.showAxisUnit && topUnitText && (
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: comp.axisLabelColor || '#666', textAlign: 'left', paddingLeft: '5px', paddingBottom: '5px', flexShrink: 0 }}>{topUnitText}</div>
+                                )}
+
+                                <div className={`chart-scroll-area ${isHorizontalChart ? 'is-horizontal' : 'is-vertical'}`} style={{
+                                    overflowX: !isHorizontalChart ? 'auto' : 'hidden',
+                                    overflowY: isHorizontalChart ? 'auto' : 'hidden',
+                                    position: 'relative'
+                                }}>
+                                    {/* 🌟 真正的排版魔法：永遠 100% 填滿，用 minWidth/minHeight 設定捲軸底線！ */}
+                                    <div style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        minWidth: !isHorizontalChart && neededWidth > 0 ? `${neededWidth}px` : undefined,
+                                        minHeight: isHorizontalChart && neededHeight > 0 ? `${neededHeight}px` : undefined,
+                                        position: 'relative'
+                                    }}>
+                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart') && (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0)) || ((comp.type === 'lineChart') && (!comp.categoryColumn || !comp.valueColumn))
+                                            ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
+                                            : <canvas ref={canvasRef}></canvas>
+                                        }
+                                    </div>
+                                </div>
+
+                                {comp.showAxisUnit && bottomUnitText && (
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: comp.axisLabelColor || '#666', textAlign: 'right', paddingRight: '5px', paddingTop: '5px', flexShrink: 0 }}>{bottomUnitText}</div>
+                                )}
+                            </div>
+                        );
+                    })()}
+
+                    {/* 🌟 圓餅圖 渲染區 */}
+                    {isChartType && comp.type === 'pieChart' && (() => {
+                        let chartFlexDirection = 'column';
+                        if (comp.legendPosition === 'right') chartFlexDirection = 'row';
+                        else if (comp.legendPosition === 'left') chartFlexDirection = 'row-reverse';
+                        else if (comp.legendPosition === 'top') chartFlexDirection = 'column-reverse';
+
+                        return (
+                            <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: chartFlexDirection, overflow: 'hidden', minHeight: 0, gap: '10px' }}>
+                                <div style={{ flex: 1, position: 'relative', minHeight: '200px' }}>
+                                    {(!comp.categoryColumn || !comp.valueColumn)
+                                        ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
+                                        : <canvas ref={canvasRef}></canvas>
+                                    }
+                                </div>
+                                {renderHtmlLegend(chartInstance.current?.data?.labels || [], chartInstance.current?.data?.datasets || [])}
+                            </div>
+                        );
+                    })()}
+
+                    {/* 下略... 保留原生檔案下半部下拉選單與按鈕 */}
                     {comp.type === 'dropdown' && (() => {
                         if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
-                        if (isDropdownDisabled) {
-                            return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
-                        }
+                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
                         const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
                         const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
-                        const optionsData = rawData.filter(row => {
-                            for (let upstreamCol of upstreamCols) {
-                                if (filters[upstreamCol] && row[upstreamCol] !== filters[upstreamCol]) return false;
-                            }
-                            return true;
-                        });
+                        const optionsData = rawData.filter(row => { for (let uCol of upstreamCols) { if (filters[uCol] && row[uCol] !== filters[uCol]) return false; } return true; });
                         const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
-
                         return (
                             <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
                                 <option value="">請選擇 {comp.categoryColumn}...</option>
@@ -1482,9 +1552,7 @@
 
                     {comp.type === 'button' && (
                         <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>
-                                {comp.title || '點擊連結'}
-                            </a>
+                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a>
                         </div>
                     )}
 
@@ -1498,47 +1566,29 @@
                         }}>
                             {(!comp.categoryColumn || (!comp.valueColumn && !comp.compareValueColumn)) ? (
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
-                            ) : (
-                                filteredData.map((row, idx) => {
-                                    if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
-                                    return (
-                                        <div key={idx} className="timeline-item">
-                                            <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
-                                            <div className="timeline-right">
-                                                <div className="timeline-dot"></div>
-                                                {row[comp.valueColumn] && (
-                                                    <h4 className="timeline-title" style={{
-                                                        color: comp.titleColor || '#333333',
-                                                        fontSize: comp.titleSize || '1.1rem',
-                                                        fontWeight: comp.titleWeight || '900',
-                                                        textDecoration: 'none'
-                                                    }}>
-                                                        {row[comp.valueColumn]}
-                                                    </h4>
-                                                )}
-                                                {comp.compareValueColumn && row[comp.compareValueColumn] && (
-                                                    <p className="timeline-desc" style={{
-                                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                                        color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem',
-                                                        fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px'
-                                                    }}>
-                                                        {row[comp.compareValueColumn]}
-                                                    </p>
-                                                )}
-                                                {comp.linkColumn && row[comp.linkColumn] && (
-                                                    <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">
-                                                        看相關新聞 ↗
-                                                    </a>
-                                                )}
-                                            </div>
+                            ) : filteredData.map((row, idx) => {
+                                if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
+                                return (
+                                    <div key={idx} className="timeline-item">
+                                        <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
+                                        <div className="timeline-right">
+                                            <div className="timeline-dot"></div>
+                                            {row[comp.valueColumn] && (
+                                                <h4 className="timeline-title" style={{ color: comp.titleColor || '#333333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
+                                            )}
+                                            {comp.compareValueColumn && row[comp.compareValueColumn] && (
+                                                <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>
+                                            )}
+                                            {comp.linkColumn && row[comp.linkColumn] && (
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                                            )}
                                         </div>
-                                    )
-                                })
-                            )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* 🎠 內容輪播卡片 (Carousel) */}
                     {comp.type === 'carousel' && (
                         <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
@@ -1548,23 +1598,12 @@
                                     <div className="carousel-slide">
                                         {filteredData[currentSlide] && (
                                             <>
-                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (
-                                                    <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />
-                                                )}
-                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
-                                                    <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>
-                                                        {filteredData[currentSlide][comp.categoryColumn]}
-                                                    </h3>
-                                                )}
-                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
-                                                    <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>
-                                                        {filteredData[currentSlide][comp.valueColumn]}
-                                                    </p>
-                                                )}
+                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
+                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
+                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
                                             </>
                                         )}
                                     </div>
-
                                     {filteredData.length > 1 && (
                                         <>
                                             <div className="carousel-nav">
@@ -1572,9 +1611,7 @@
                                                 <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev < filteredData.length - 1 ? prev + 1 : 0); }}>&gt;</button>
                                             </div>
                                             <div className="carousel-dots">
-                                                {filteredData.map((_, i) => (
-                                                    <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>
-                                                ))}
+                                                {filteredData.map((_, i) => <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>)}
                                             </div>
                                         </>
                                     )}
@@ -1587,12 +1624,10 @@
         }
 
         function DashboardApp() {
-            // 🌟 1. 核心升級：新增「目前畫面」狀態 (home = 大廳, editor = 編輯器)
             const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
             const [currentScreen, setCurrentScreen] = useState(urlId ? 'editor' : 'home');
 
-            // 🌟 2. 新增：本機專案記憶功能
             const [recentProjects, setRecentProjects] = useState([]);
             useEffect(() => {
                 const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
@@ -1601,7 +1636,6 @@
 
             const saveToRecent = (id, title) => {
                 const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
-                // 把新的專案加到最前面，並過濾掉重複的 ID，最多保留 20 筆紀錄
                 const updated = [{ id, title: title || '未命名專案', date: new Date().toLocaleString('zh-TW') }, ...saved.filter(p => p.id !== id)].slice(0, 20);
                 localStorage.setItem('recentDashboards', JSON.stringify(updated));
                 setRecentProjects(updated);
@@ -1610,7 +1644,6 @@
             const [viewMode, setViewMode] = useState('builder');
             const [previewDevice, setPreviewDevice] = useState('desktop');
             const [activeTab, setActiveTab] = useState('basic');
-
             const [isInitialLoading, setIsInitialLoading] = useState(urlId ? true : false);
 
             const [globalMeta, setGlobalMeta] = useState({
@@ -1623,7 +1656,6 @@
             ]);
             const [columnsMap, setColumnsMap] = useState({});
             const [isFetching, setIsFetching] = useState(false);
-
             const [isPublishing, setIsPublishing] = useState(false);
             const [showPublishModal, setShowPublishModal] = useState(false);
             const [publishedId, setPublishedId] = useState('');
@@ -1655,12 +1687,17 @@
                                             titleColor: c.titleColor || '', titleSize: c.titleSize || '', titleWeight: c.titleWeight || '', descColor: c.descColor || '', descSize: c.descSize || '', descWeight: c.descWeight || '',
                                             prefix: c.prefix || '', suffix: c.suffix || '', numberFormat: c.numberFormat || 'comma', multiplier: c.multiplier !== undefined ? c.multiplier : 1,
                                             fontSize: c.fontSize || '', fontFamily: c.fontFamily || '', fontWeight: c.fontWeight || '', textAlign: c.textAlign || '',
-                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity
+                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity,
+                                            legendPosition: c.legendPosition || 'top',
+                                            pieRotation: c.pieRotation || 0,
+                                            showDataLabels: c.showDataLabels || false,
+                                            dataLabelType: c.dataLabelType || 'percentage',
+                                            dataLabelColor: c.dataLabelColor || '#ffffff',
+                                            pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
                                     setPublishedId(urlId);
-                                    // 讀檔成功，順便更新本機紀錄的名稱跟時間
                                     saveToRecent(urlId, data.meta?.title);
                                 } else {
                                     alert("❌ 找不到此專案紀錄，返回大廳！");
@@ -1744,7 +1781,65 @@
                 meta: globalMeta,
                 sheetSources: sheetSources,
                 components: blocks.map(b => ({
-                    id: b.i, type: b.type, title: b.title, dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''), showTitle: b.showTitle !== false, buttonUrl: b.buttonUrl || null, categoryColumn: b.categoryCol || null, valueColumn: b.type !== 'stackedBarChart' ? (b.valueCol || null) : null, stackValueColumns: b.type === 'stackedBarChart' ? (b.stackValueCols || []) : null, imageColumn: b.imageCol || null, linkColumn: b.linkCol || null, isPercentageStacked: b.isPercentageStacked || false, compareValueColumn: b.compareValueCol || null, aggregation: b.aggregation, chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor, timeWidthPercent: b.timeWidthPercent || 20, timelineGap: b.timelineGap || 20, timeColor: b.timeColor || '', lineColor: b.lineColor || '', nodeColor: b.nodeColor || '', titleColor: b.titleColor || '', titleSize: b.titleSize || '', titleWeight: b.titleWeight || '', descColor: b.descColor || '', descSize: b.descSize || '', descWeight: b.descWeight || '', prefix: b.prefix || '', suffix: b.suffix || '', numberFormat: b.numberFormat || 'comma', multiplier: b.multiplier !== undefined ? b.multiplier : 1, fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || null, textAlign: b.textAlign || null, layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y }
+                    id: b.i,
+                    type: b.type,
+                    title: b.title,
+                    dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''),
+                    showTitle: b.showTitle !== false,
+                    legendPosition: b.legendPosition || 'top',
+
+                    categoryColumn: b.categoryCol || null,
+                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
+                    valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart') ? (b.valueCol || null) : null,
+                    compareValueColumn: b.compareValueCol || null,
+                    imageColumn: b.imageCol || null,
+                    linkColumn: b.linkCol || null,
+                    buttonUrl: b.buttonUrl || null,
+
+                    aggregation: b.aggregation || 'sum',
+                    sortBy: b.sortBy || 'sheet',
+
+                    chartOrientation: b.chartOrientation || 'vertical',
+                    themeColor: b.themeColor || '',
+                    isPercentageStacked: b.isPercentageStacked || false,
+                    yAxisMin: b.yAxisMin,
+                    stepSize: b.stepSize,
+                    showAxisUnit: b.showAxisUnit || false,
+                    xAxisUnit: b.xAxisUnit || '',
+                    yAxisUnit: b.yAxisUnit || '',
+                    customColors: Array.isArray(b.customColors) ? b.customColors : [],
+                    axisLabelColor: b.axisLabelColor || '#666666',
+                    axisGridColor: b.axisGridColor || '#e0e0e0',
+                    axisLabelSize: b.axisLabelSize || '12',
+
+                    timeWidthPercent: b.timeWidthPercent || 20,
+                    timelineGap: b.timelineGap || 20,
+                    timeColor: b.timeColor || '',
+                    lineColor: b.lineColor || '',
+                    nodeColor: b.nodeColor || '',
+                    titleColor: b.titleColor || '',
+                    titleSize: b.titleSize || '',
+                    titleWeight: b.titleWeight || '',
+                    descColor: b.descColor || '',
+                    descSize: b.descSize || '',
+                    descWeight: b.descWeight || '',
+
+                    prefix: b.prefix || '',
+                    suffix: b.suffix || '',
+                    numberFormat: b.numberFormat || 'comma',
+                    multiplier: b.multiplier !== undefined ? b.multiplier : 1,
+                    fontSize: b.fontSize || null,
+                    fontFamily: b.fontFamily || null,
+                    fontWeight: b.fontWeight || null,
+                    textAlign: b.textAlign || null,
+
+                    layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y },
+                    pieStyle: b.pieStyle || 'doughnut',
+                    pieRotation: b.pieRotation || 0,
+                    showDataLabels: b.showDataLabels || false,
+                    dataLabelType: b.dataLabelType || 'percentage',
+                    dataLabelColor: b.dataLabelColor || '#ffffff',
+                    pieCustomColors: Array.isArray(b.pieCustomColors) ? b.pieCustomColors : [],
                 }))
             };
 
@@ -1753,12 +1848,12 @@
                 try {
                     if (publishedId && window.updateToFirebase) {
                         await window.updateToFirebase(publishedId, finalJSON);
-                        saveToRecent(publishedId, globalMeta.title); // 🌟 存入本機紀錄
+                        saveToRecent(publishedId, globalMeta.title);
                         setShowPublishModal(true);
                     } else if (window.publishToFirebase) {
                         const newId = await window.publishToFirebase(finalJSON);
                         setPublishedId(newId);
-                        saveToRecent(newId, globalMeta.title); // 🌟 存入本機紀錄
+                        saveToRecent(newId, globalMeta.title);
                         window.history.replaceState(null, '', `?id=${newId}`);
                         setShowPublishModal(true);
                     } else {
@@ -1777,7 +1872,6 @@
                 alert("✅ 嵌入代碼已複製到剪貼簿！");
             };
 
-            // 🌟 3. 畫出超美的「專案大廳 (Home Screen)」
             if (currentScreen === 'home') {
                 return (
                     <div style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto', fontFamily: '"Noto Sans TC", sans-serif' }}>
@@ -1843,7 +1937,6 @@
                 <div>
                     <div className="top-nav">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            {/* 🌟 升級防呆版：帶有警告提示的返回大廳按鈕 */}
                             <button onClick={() => {
                                 if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) {
                                     window.location.href = '?';
@@ -1861,7 +1954,6 @@
                             <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
                         </div>
 
-                        {/* 🌟 救回來的右側按鈕區塊 */}
                         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                             {viewMode === 'preview' && (
                                 <div className="device-toggle">
@@ -1970,7 +2062,7 @@
                                             {activeTab === 'data' && (
                                                 <div className="panel-content">
 
-                                                    {/* 🌟 魔王升級：在這個積木的資料面板，選擇它要聽哪一張表的話 */}
+                                                    {/* 🗄️ 選擇資料來源 */}
                                                     {currentSelectedBlock.type !== 'button' && sheetSources.length > 0 && (
                                                         <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px' }}>
                                                             <label>🗄️ 選擇此積木的資料來源</label>
@@ -1981,6 +2073,7 @@
                                                         </div>
                                                     )}
 
+                                                    {/* 🔘 動作按鈕 */}
                                                     {currentSelectedBlock.type === 'button' && (
                                                         <div className="form-group">
                                                             <label>按鈕點擊連結 (URL)</label>
@@ -1988,10 +2081,12 @@
                                                         </div>
                                                     )}
 
+                                                    {/* 🔗 資料欄位綁定區 */}
                                                     {currentSelectedBlock.type !== 'button' && availableColumns.length === 0 ? (
                                                         <div className="notice-box">請先點擊背景進入「全局設定」，讀取表單資料後才能綁定欄位。</div>
                                                     ) : currentSelectedBlock.type !== 'button' && (
                                                         <>
+                                                            {/* 分類/日期 X軸 */}
                                                             {(isChartType || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel') && (
                                                                 <div className="form-group">
                                                                     <label>{currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '日期/大標題欄位' : '分類欄位 (X軸)'}</label>
@@ -2002,6 +2097,7 @@
                                                                 </div>
                                                             )}
 
+                                                            {/* 下拉選單專屬 */}
                                                             {currentSelectedBlock.type === 'dropdown' && (
                                                                 <div className="form-group">
                                                                     <label>過濾目標欄位</label>
@@ -2012,6 +2108,7 @@
                                                                 </div>
                                                             )}
 
+                                                            {/* 輪播圖片專屬 */}
                                                             {currentSelectedBlock.type === 'carousel' && (
                                                                 <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
                                                                     <label>🖼️ 圖片網址欄位 (選填)</label>
@@ -2024,31 +2121,33 @@
 
                                                             {currentSelectedBlock.type !== 'dropdown' && (
                                                                 <>
-                                                                    {currentSelectedBlock.type === 'stackedBarChart' ? (
+                                                                    {/* 📊 長條圖/堆疊圖 多欄位選擇 */}
+                                                                    {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') ? (
                                                                         <div className="form-group">
-                                                                            <label>堆疊數值欄位</label>
-                                                                            {(currentSelectedBlock.stackValueCols || []).map((col, index) => (
+                                                                            <label>長條圖數值欄位 (可多選)</label>
+                                                                            {((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [currentSelectedBlock.valueCol, currentSelectedBlock.compareValueCol].filter(Boolean)).map((col, index) => (
                                                                                 <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                                                                                     <select value={col} onChange={(e) => {
-                                                                                        const newCols = [...currentSelectedBlock.stackValueCols];
+                                                                                        const newCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [])];
                                                                                         newCols[index] = e.target.value;
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                                        updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
                                                                                     }}>
                                                                                         <option value="">請選擇...</option>
                                                                                         {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
                                                                                     </select>
                                                                                     <button onClick={() => {
-                                                                                        const newCols = currentSelectedBlock.stackValueCols.filter((_, i) => i !== index);
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', newCols);
+                                                                                        const newCols = ((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []).filter((_, i) => i !== index);
+                                                                                        updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
                                                                                     }} style={{ padding: '5px' }}>✕</button>
                                                                                 </div>
                                                                             ))}
                                                                             <button className="reset-filter-btn" onClick={() => {
-                                                                                const updatedCols = [...(currentSelectedBlock.stackValueCols || []), ''];
-                                                                                updateBlockProperty(currentSelectedBlock.i, 'stackValueCols', updatedCols);
-                                                                            }}>+ 添加堆疊欄位</button>
+                                                                                const updatedCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []), ''];
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', updatedCols);
+                                                                            }}>+ 添加數值欄位</button>
                                                                         </div>
                                                                     ) : (
+                                                                        /* 其他積木的單一 Y 軸 / 內文欄位 */
                                                                         <div className="form-group">
                                                                             <label>
                                                                                 {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
@@ -2061,7 +2160,8 @@
                                                                         </div>
                                                                     )}
 
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'carousel' && (
+                                                                    {/* 比較與附屬說明欄位 (折線、時間軸、數據卡) */}
+                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'barChart' && currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'carousel' && (
                                                                         <div className="form-group">
                                                                             <label>{currentSelectedBlock.type === 'timeline' ? '事件附屬說明 (選填)' : '比較數值欄位 (選填)'}</label>
                                                                             <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
@@ -2071,6 +2171,7 @@
                                                                         </div>
                                                                     )}
 
+                                                                    {/* 🔗 時間軸專屬：超連結 */}
                                                                     {currentSelectedBlock.type === 'timeline' && (
                                                                         <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
                                                                             <label>🔗 事件連結網址欄位 (選填)</label>
@@ -2082,6 +2183,20 @@
                                                                         </div>
                                                                     )}
 
+                                                                    {/* 排序方式 */}
+                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && currentSelectedBlock.type !== 'dropdown' && (
+                                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px', marginTop: '15px' }}>
+                                                                            <label>📊 圖表排序方式</label>
+                                                                            <select value={currentSelectedBlock.sortBy || 'sheet'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'sortBy', e.target.value)} style={{ marginTop: '5px' }}>
+                                                                                <option value="sheet">依 Google Sheet 原始順序</option>
+                                                                                <option value="value_desc">依數值總和 (由大到小) 💡推薦</option>
+                                                                                <option value="value_asc">依數值總和 (由小到大)</option>
+                                                                                <option value="category_asc">依名稱筆畫/字母排序</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* 計算方式 */}
                                                                     {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && (
                                                                         <div className="form-group">
                                                                             <label>資料計算方式</label>
@@ -2092,6 +2207,7 @@
                                                                         </div>
                                                                     )}
 
+                                                                    {/* 數據卡格式 */}
                                                                     {currentSelectedBlock.type === 'metricCard' && (
                                                                         <>
                                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數值換算與格式</h4>
@@ -2119,45 +2235,187 @@
 
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
-                                                    {currentSelectedBlock.type !== 'timeline' && (
-                                                        <div className="form-group">
-                                                            <label>積木主題顏色 (適用於數字、按鈕)</label>
-                                                            <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                    {/* 🌟 共通圖表基本設定 (含雙引擎圖例切換) */}
+                                                    {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart' || currentSelectedBlock.type === 'pieChart') && (
+                                                        <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📈 圖表基本排版</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                                                {currentSelectedBlock.type !== 'pieChart' && (
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>圖表方向</label>
+                                                                        <select value={currentSelectedBlock.chartOrientation || 'vertical'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'chartOrientation', e.target.value)}>
+                                                                            <option value="vertical">直向 (預設)</option>
+                                                                            <option value="horizontal">橫向</option>
+                                                                        </select>
+                                                                    </div>
+                                                                )}
+                                                                {currentSelectedBlock.type === 'pieChart' && (
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>圓餅圖樣式</label>
+                                                                        <select value={currentSelectedBlock.pieStyle || 'doughnut'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'pieStyle', e.target.value)}>
+                                                                            <option value="doughnut">甜甜圈環形圖</option>
+                                                                            <option value="pie">實心圓餅圖</option>
+                                                                        </select>
+                                                                    </div>
+                                                                )}
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                    <label>文字字體大小</label>
+                                                                    <input type="number" value={currentSelectedBlock.axisLabelSize || 12} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'axisLabelSize', e.target.value)} placeholder="12" />
+                                                                </div>
+                                                            </div>
+
+                                                            {/* 🌟 圖例顯示位置控制器 */}
+                                                            <div className="form-group" style={{ marginBottom: 0, marginTop: '10px' }}>
+                                                                <label>圖例顯示位置</label>
+                                                                <select value={currentSelectedBlock.legendPosition || 'top'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'legendPosition', e.target.value)}>
+                                                                    <option value="top">上方 (Top)</option>
+                                                                    <option value="bottom">下方 (Bottom)</option>
+                                                                    <option value="right">右側 (Right)</option>
+                                                                    <option value="left">左側 (Left)</option>
+                                                                    <option value="none">隱藏圖例</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
                                                     )}
 
-                                                    {(currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'textCard') && (
+                                                    {/* 🌟 長條圖/折線圖專屬軸線設定 */}
+                                                    {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart') && (
                                                         <>
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字與排版</h4>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📈 軸線進階設定</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>起始數值 (可填負數)</label>
+                                                                    <input type="number" value={currentSelectedBlock.yAxisMin !== undefined ? currentSelectedBlock.yAxisMin : ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'yAxisMin', e.target.value)} placeholder="預設從 0 開始" />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>間距單位 (Step)</label>
+                                                                    <input type="number" value={currentSelectedBlock.stepSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'stepSize', e.target.value)} placeholder="自動計算" />
+                                                                </div>
+                                                            </div>
+
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🏷️ 標籤單位與顏色</h4>
+                                                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                                <input type="checkbox" id="toggleAxisUnit" checked={currentSelectedBlock.showAxisUnit || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showAxisUnit', e.target.checked)} />
+                                                                <label htmlFor="toggleAxisUnit" style={{ margin: 0, cursor: 'pointer' }}>顯示軸線末端單位文字</label>
+                                                            </div>
+                                                            {currentSelectedBlock.showAxisUnit && (
+                                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                    <div className="form-group" style={{ flex: 1 }}>
+                                                                        <label>X軸最右側文字</label>
+                                                                        <input type="text" value={currentSelectedBlock.xAxisUnit || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'xAxisUnit', e.target.value)} placeholder="例如：(年)" />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ flex: 1 }}>
+                                                                        <label>Y軸最上方文字</label>
+                                                                        <input type="text" value={currentSelectedBlock.yAxisUnit || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'yAxisUnit', e.target.value)} placeholder="例如：(萬元)" />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>對齊方式</label>
-                                                                    <select value={currentSelectedBlock.textAlign || (currentSelectedBlock.type === 'textCard' ? 'left' : 'center')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textAlign', e.target.value)}>
-                                                                        <option value="left">靠左</option>
-                                                                        <option value="center">置中</option>
-                                                                        <option value="right">靠右</option>
-                                                                    </select>
+                                                                    <label>座標軸文字與圖例顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.axisLabelColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'axisLabelColor', e.target.value)} />
                                                                 </div>
                                                                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>字體粗細</label>
-                                                                    <select value={currentSelectedBlock.fontWeight || (currentSelectedBlock.type === 'textCard' ? 'normal' : '900')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
-                                                                        <option value="normal">正常</option>
-                                                                        <option value="bold">粗體</option>
-                                                                        <option value="900">特粗</option>
-                                                                    </select>
+                                                                    <label>座標軸背景格線顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.axisGridColor || '#e0e0e0'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'axisGridColor', e.target.value)} />
                                                                 </div>
                                                             </div>
+
+                                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') && (
+                                                                <>
+                                                                    <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 資料群組顏色設定</h4>
+                                                                    <div className="form-group" style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec' }}>
+                                                                        {(() => {
+                                                                            const cols = currentSelectedBlock.multiValueCols || [];
+                                                                            if (cols.length === 0) return <div style={{ fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>請先至「資料」面板綁定數值欄位</div>;
+
+                                                                            const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
+
+                                                                            return cols.map((col, idx) => {
+                                                                                if (!col) return null;
+                                                                                return (
+                                                                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                                                                        <input type="color"
+                                                                                            value={(currentSelectedBlock.customColors && currentSelectedBlock.customColors[idx]) || pieColors[idx % 8]}
+                                                                                            onChange={(e) => {
+                                                                                                const newColors = [...(currentSelectedBlock.customColors || [])];
+                                                                                                newColors[idx] = e.target.value;
+                                                                                                updateBlockProperty(currentSelectedBlock.i, 'customColors', newColors);
+                                                                                            }}
+                                                                                            style={{ width: '45px', height: '35px', padding: '2px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer' }}
+                                                                                        />
+                                                                                        <label style={{ flex: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', color: '#333' }}>
+                                                                                            {col}
+                                                                                        </label>
+                                                                                    </div>
+                                                                                );
+                                                                            });
+                                                                        })()}
+                                                                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '10px', lineHeight: '1.4' }}>💡 點擊左側色塊即可直接挑選顏色。字體若設太大導致圖例消失，請微調縮小字體尺寸。</div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #eee', margin: '20px 0' }} />
+                                                        </>
+                                                    )}
+
+                                                    {/* 🌟 圓餅圖專屬設定 */}
+                                                    {currentSelectedBlock.type === 'pieChart' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🍩 圓餅圖專屬設定</h4>
                                                             <div className="form-group">
-                                                                <label>字體大小</label>
-                                                                <select value={currentSelectedBlock.fontSize || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
-                                                                    <option value="">預設大小</option>
-                                                                    <option value="0.9rem">小</option>
-                                                                    <option value="1.2rem">中 (適合內文)</option>
-                                                                    <option value="1.8rem">大</option>
-                                                                    <option value="2.5rem">特大</option>
-                                                                    <option value="3.5rem">巨大 (適合數字)</option>
-                                                                </select>
+                                                                <label>旋轉角度 (微調標籤位置避開碰撞)</label>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                    <input type="range" min="0" max="360" value={currentSelectedBlock.pieRotation || 0} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'pieRotation', parseInt(e.target.value))} style={{ flex: 1 }} />
+                                                                    <span style={{ width: '40px', fontSize: '0.85rem', fontWeight: 'bold' }}>{currentSelectedBlock.pieRotation || 0}°</span>
+                                                                </div>
                                                             </div>
+
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🏷️ 數據標籤 (Data Labels)</h4>
+                                                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                                <input type="checkbox" id="showDataLabels" checked={currentSelectedBlock.showDataLabels || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showDataLabels', e.target.checked)} />
+                                                                <label htmlFor="showDataLabels" style={{ margin: 0, cursor: 'pointer' }}>直接顯示數據 (外部懸浮標籤)</label>
+                                                            </div>
+
+                                                            {currentSelectedBlock.showDataLabels && (
+                                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', background: '#f0f8fa', padding: '10px', borderRadius: '6px' }}>
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>標籤顯示內容</label>
+                                                                        <select value={currentSelectedBlock.dataLabelType || 'percentage'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataLabelType', e.target.value)}>
+                                                                            <option value="percentage">顯示百分比 (%)</option>
+                                                                            <option value="value">顯示實際數值</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>標籤文字顏色</label>
+                                                                        <input type="color" value={currentSelectedBlock.dataLabelColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataLabelColor', e.target.value)} />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="form-group" style={{ marginTop: '15px' }}>
+                                                                <label>🎨 圓餅圖自訂色盤</label>
+                                                                {(currentSelectedBlock.pieCustomColors || []).map((color, index) => (
+                                                                    <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                                                                        <input type="color" value={color} onChange={(e) => {
+                                                                            const newColors = [...(currentSelectedBlock.pieCustomColors || [])];
+                                                                            newColors[index] = e.target.value;
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'pieCustomColors', newColors);
+                                                                        }} style={{ width: '40px', height: '30px', padding: 0 }} />
+                                                                        <button onClick={() => {
+                                                                            const newColors = (currentSelectedBlock.pieCustomColors || []).filter((_, i) => i !== index);
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'pieCustomColors', newColors);
+                                                                        }} style={{ padding: '5px' }}>✕</button>
+                                                                    </div>
+                                                                ))}
+                                                                <button className="reset-filter-btn" onClick={() => {
+                                                                    const updatedColors = [...(currentSelectedBlock.pieCustomColors || []), '#cccccc'];
+                                                                    updateBlockProperty(currentSelectedBlock.i, 'pieCustomColors', updatedColors);
+                                                                }}>+ 添加色塊顏色</button>
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>因圓餅圖類別數量不固定，系統將從你輸入的色盤序列中循環套用。</div>
+                                                            </div>
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #eee', margin: '20px 0' }} />
                                                         </>
                                                     )}
 
