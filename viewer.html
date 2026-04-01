@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>儀表板預覽</title>
+    <title>儀表板</title>
 
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -261,7 +261,24 @@
         
         .carousel-container { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
         .carousel-slide { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px 30px; box-sizing: border-box; animation: fadeIn 0.4s ease-in-out; overflow-y: auto; }
-        .carousel-img { max-width: 100%; max-height: 160px; object-fit: contain; margin-bottom: 15px; border-radius: 8px; }
+        
+        /* 🌟 解除圖卡固定天花板，讓動態 RWD 生效 */
+        .carousel-img { max-width: 100%; object-fit: contain; margin-bottom: 15px; border-radius: 8px; }
+        .carousel-img-dynamic {
+            height: var(--img-height-desktop);
+            width: var(--img-width-desktop);
+        }
+        @media (max-width: 768px) {
+            .carousel-img-dynamic {
+                height: var(--img-height-mobile) !important;
+                width: var(--img-width-mobile) !important;
+            }
+        }
+        .preview-wrapper.mobile .carousel-img-dynamic {
+            height: var(--img-height-mobile) !important;
+            width: var(--img-width-mobile) !important;
+        }
+
         .carousel-nav { display: flex; justify-content: space-between; position: absolute; top: 50%; width: 100%; transform: translateY(-50%); pointer-events: none; }
         .carousel-arrow { pointer-events: auto; background: rgba(0, 0, 0, 0.15); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin: 0 5px; font-weight: bold; transition: 0.2s; }
         .carousel-arrow:hover { background: var(--primary); }
@@ -380,15 +397,24 @@
                 const upstreamDropdowns = sortedComponents.filter(c =>
                     c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
                 );
-                return upstreamDropdowns.filter(uComp => !filters[uComp.categoryColumn]).map(c => c.categoryColumn);
+                // 🌟 只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
+                return upstreamDropdowns.filter(uComp => {
+                    const isRequired = uComp.defaultBehavior !== 'all';
+                    return isRequired && !filters[uComp.categoryColumn];
+                }).map(c => c.categoryColumn);
             };
 
             const checkDropdownDisabled = (comp) => {
                 if (comp.type !== 'dropdown') return false;
-                const myListenCols = comp.listenAll !== false
-                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id).map(c => c.categoryColumn)
-                    : (comp.customListenCols || []);
-                return myListenCols.some(colName => colName && !filters[colName]);
+                const upstreamDropdowns = comp.listenAll !== false
+                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id)
+                    : sortedComponents.filter(c => c.type === 'dropdown' && (comp.customListenCols || []).includes(c.categoryColumn));
+                
+                // 🌟 上層如果設定為「全部」，就不該讓下層選單被反灰禁用
+                return upstreamDropdowns.some(uComp => {
+                    const isRequired = uComp.defaultBehavior !== 'all';
+                    return isRequired && !filters[uComp.categoryColumn];
+                });
             };
 
             const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
@@ -761,6 +787,7 @@
                 height: '100%'
             };
 
+            // 🌟 條件判斷：若是圖表類且無資料/阻擋，顯示「請先選擇」
             if (comp.type !== 'dropdown' && missingDropdowns && missingDropdowns.length > 0) {
                 return (
                     <div className="preview-card" style={gridStyle}>
@@ -928,16 +955,59 @@
                         );
                     })()}
 
-                    {/* 🔽 智慧下拉選單區塊 */}
+                    {/* 🔽 下拉/按鈕選單區塊 */}
                     {comp.type === 'dropdown' && (() => {
                         if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
-                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
+                        if (isDropdownDisabled) return <div style={{ padding: '10px', fontSize: '0.9rem', color: '#999', background: '#f0f0f0', border: '1px dashed #ccc', textAlign: 'center', borderRadius: '6px' }}>請先選擇上一層條件</div>;
 
                         const options = [...new Set(filteredData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+                        const currentVal = filters[comp.categoryColumn] || '';
+                        const activeColor = comp.themeColor || '#086788';
+                        const emptyText = comp.defaultBehavior === 'all' ? '全部' : '請選擇...';
+
+                        if (comp.dropdownStyle === 'tabs') {
+                            return (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', width: '100%', maxHeight: '100%', overflowY: 'auto', padding: '2px' }}>
+                                    <button 
+                                        onClick={() => onFilterChange(comp.categoryColumn, '')}
+                                        style={{ 
+                                            padding: '8px 16px', borderRadius: '20px', transition: 'all 0.2s', cursor: 'pointer',
+                                            border: currentVal === '' ? `1px solid ${activeColor}` : '1px solid #ccc', 
+                                            background: currentVal === '' ? activeColor : '#fff', 
+                                            color: currentVal === '' ? '#fff' : '#666',
+                                            fontSize: comp.fontSize || '1rem',
+                                            fontWeight: comp.fontWeight || 'bold'
+                                        }}>
+                                        {emptyText}
+                                    </button>
+                                    {options.map(opt => {
+                                        const isActive = currentVal === opt;
+                                        return (
+                                            <button key={opt} 
+                                                onClick={() => onFilterChange(comp.categoryColumn, isActive ? '' : opt)}
+                                                style={{ 
+                                                    padding: '8px 16px', borderRadius: '20px', transition: 'all 0.2s', cursor: 'pointer',
+                                                    border: isActive ? `1px solid ${activeColor}` : '1px solid #ccc', 
+                                                    background: isActive ? activeColor : '#fff', 
+                                                    color: isActive ? '#fff' : '#666',
+                                                    fontSize: comp.fontSize || '1rem',
+                                                    fontWeight: comp.fontWeight || 'bold'
+                                                }}>
+                                                {opt}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        }
 
                         return (
-                            <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
-                                <option value="">請選擇 {comp.categoryColumn}...</option>
+                            <select style={{ 
+                                padding: '10px', width: '100%',
+                                fontSize: comp.fontSize || '1rem',
+                                fontWeight: comp.fontWeight || 'normal'
+                            }} value={currentVal} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
+                                <option value="">{emptyText}</option>
                                 {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         );
@@ -981,7 +1051,6 @@
                             })}
                         </div>
                     )}
-
                     {comp.type === 'table' && (
                         <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', height: '100%', width: '100%' }}>
                             {(!comp.multiValueCols || comp.multiValueCols.length === 0) ? (
@@ -1014,7 +1083,7 @@
                                                             background: comp.tableHeaderBg || comp.themeColor || '#086788',
                                                             color: comp.tableHeaderColor || '#ffffff', fontSize: `${comp.tableHeaderSize || 14}px`,
                                                             textAlign: comp.tableHeaderAlign || 'left', fontWeight: comp.tableHeaderWeight || 'bold',
-                                                            border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 1
+                                                            border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 2
                                                         }}>{col}</th>
                                                     );
                                                 })}
@@ -1045,7 +1114,6 @@
                             })()}
                         </div>
                     )}
-
                     {comp.type === 'carousel' && (
                         <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
@@ -1053,13 +1121,59 @@
                             ) : (
                                 <>
                                     <div className="carousel-slide">
-                                        {filteredData[currentSlide] && (
-                                            <>
-                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
-                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
-                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
-                                            </>
-                                        )}
+                                        {filteredData[currentSlide] && (() => {
+                                            const imgHeightDesktop = comp.imageHeight || 160;
+                                            const imgHeightMobile = comp.imageHeightMobile || comp.imageHeight || 160;
+                                            const imgWidthDesktop = comp.imageShape === 'circle' ? `${imgHeightDesktop}px` : '100%';
+                                            const imgWidthMobile = comp.imageShape === 'circle' ? `${imgHeightMobile}px` : '100%';
+
+                                            return (
+                                                <>
+                                                    {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (
+                                                        <img 
+                                                            src={filteredData[currentSlide][comp.imageColumn]} 
+                                                            alt="slide" 
+                                                            className="carousel-img carousel-img-dynamic"
+                                                            style={{ 
+                                                                '--img-height-desktop': `${imgHeightDesktop}px`,
+                                                                '--img-height-mobile': `${imgHeightMobile}px`,
+                                                                '--img-width-desktop': imgWidthDesktop,
+                                                                '--img-width-mobile': imgWidthMobile,
+                                                                objectFit: comp.imageFit || 'contain',
+                                                                objectPosition: comp.imagePosition || 'center',
+                                                                borderRadius: comp.imageShape === 'circle' ? '50%' : '8px',
+                                                                boxShadow: comp.imageShape === 'circle' ? '0 4px 10px rgba(0,0,0,0.1)' : 'none',
+                                                                flexShrink: 0
+                                                            }} 
+                                                        />
+                                                    )}
+                                                    {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
+                                                        <h3 style={{ 
+                                                            color: comp.titleColor || comp.themeColor || '#333', 
+                                                            fontSize: comp.titleSize || comp.fontSize || '1.3rem', 
+                                                            fontWeight: comp.titleWeight || comp.fontWeight || 'bold',
+                                                            textAlign: comp.titleAlign || comp.textAlign || 'center',
+                                                            fontFamily: comp.titleFontFamily || 'inherit',
+                                                            margin: '0 0 10px 0', width: '100%'
+                                                        }}>
+                                                            {filteredData[currentSlide][comp.categoryColumn]}
+                                                        </h3>
+                                                    )}
+                                                    {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
+                                                        <p style={{ 
+                                                            color: comp.descColor || '#666', 
+                                                            fontSize: comp.descSize || '1rem', 
+                                                            fontWeight: comp.descWeight || 'normal',
+                                                            textAlign: comp.descAlign || comp.textAlign || 'center',
+                                                            fontFamily: comp.descFontFamily || 'inherit',
+                                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6', width: '100%'
+                                                        }}>
+                                                            {filteredData[currentSlide][comp.valueColumn]}
+                                                        </p>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                     {filteredData.length > 1 && (
                                         <>
@@ -1082,7 +1196,7 @@
 
         // 🌟 核心預覽載入與介面渲染
         function ViewerApp() {
-            const params = new URLSearchParams(window.location.search);
+            const params = newSearchParams(window.location.search);
             const urlId = params.get('id');
             const [config, setConfig] = useState(null);
             const [error, setError] = useState(null);
