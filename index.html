@@ -834,10 +834,27 @@
 
         .carousel-img {
             max-width: 100%;
-            max-height: 160px;
             object-fit: contain;
             margin-bottom: 15px;
             border-radius: 8px;
+        }
+
+        /* 🌟 圖卡動態響應式高度魔法 */
+        .carousel-img-dynamic {
+            height: var(--img-height-desktop);
+            width: var(--img-width-desktop);
+        }
+
+        @media (max-width: 768px) {
+            .carousel-img-dynamic {
+                height: var(--img-height-mobile) !important;
+                width: var(--img-width-mobile) !important;
+            }
+        }
+
+        .preview-wrapper.mobile .carousel-img-dynamic {
+            height: var(--img-height-mobile) !important;
+            width: var(--img-width-mobile) !important;
         }
 
         .carousel-nav {
@@ -1783,9 +1800,59 @@
                                     <div className="carousel-slide">
                                         {filteredData[currentSlide] && (
                                             <>
-                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
-                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
-                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
+                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (() => {
+                                                    // 🌟 計算雙裝置的長寬 (如果是圓形，寬度要等於高度)
+                                                    const imgHeightDesktop = comp.imageHeight || 160;
+                                                    const imgHeightMobile = comp.imageHeightMobile || comp.imageHeight || 160;
+                                                    const imgWidthDesktop = comp.imageShape === 'circle' ? `${imgHeightDesktop}px` : '100%';
+                                                    const imgWidthMobile = comp.imageShape === 'circle' ? `${imgHeightMobile}px` : '100%';
+
+                                                    return (
+                                                        <img
+                                                            src={filteredData[currentSlide][comp.imageColumn]}
+                                                            alt="slide"
+                                                            className="carousel-img carousel-img-dynamic"
+                                                            style={{
+                                                                '--img-height-desktop': `${imgHeightDesktop}px`,
+                                                                '--img-height-mobile': `${imgHeightMobile}px`,
+                                                                '--img-width-desktop': imgWidthDesktop,
+                                                                '--img-width-mobile': imgWidthMobile,
+                                                                objectFit: comp.imageFit || 'contain',
+                                                                objectPosition: comp.imagePosition || 'center',
+                                                                borderRadius: comp.imageShape === 'circle' ? '50%' : '8px',
+                                                                marginBottom: '15px',
+                                                                boxShadow: comp.imageShape === 'circle' ? '0 4px 10px rgba(0,0,0,0.1)' : 'none',
+                                                                flexShrink: 0
+                                                            }}
+                                                        />
+                                                    );
+                                                })()}
+                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
+                                                    <h3 style={{
+                                                        color: comp.titleColor || comp.themeColor || '#333',
+                                                        fontSize: comp.titleSize || comp.fontSize || '1.3rem',
+                                                        fontWeight: comp.titleWeight || comp.fontWeight || 'bold',
+                                                        textAlign: comp.titleAlign || comp.textAlign || 'center',
+                                                        fontFamily: comp.titleFontFamily || 'inherit',
+                                                        margin: '0 0 10px 0',
+                                                        width: '100%'
+                                                    }}>
+                                                        {filteredData[currentSlide][comp.categoryColumn]}
+                                                    </h3>
+                                                )}
+                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
+                                                    <p style={{
+                                                        color: comp.descColor || '#666',
+                                                        fontSize: comp.descSize || '1rem',
+                                                        fontWeight: comp.descWeight || 'normal',
+                                                        textAlign: comp.descAlign || comp.textAlign || 'center',
+                                                        fontFamily: comp.descFontFamily || 'inherit',
+                                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6',
+                                                        width: '100%'
+                                                    }}>
+                                                        {filteredData[currentSlide][comp.valueColumn]}
+                                                    </p>
+                                                )}
                                             </>
                                         )}
                                     </div>
@@ -1884,6 +1951,7 @@
                                             tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
+                                            imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -1984,6 +2052,7 @@
                     fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || null, textAlign: b.textAlign || null,
                     layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y },
                     pieStyle: b.pieStyle || 'doughnut', pieRotation: b.pieRotation || 0, showDataLabels: b.showDataLabels || false, dataLabelType: b.dataLabelType || 'percentage', dataLabelColor: b.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(b.pieCustomColors) ? b.pieCustomColors : [],
+                    imageHeight: b.imageHeight, imageHeightMobile: b.imageHeightMobile, imageFit: b.imageFit || 'contain', imagePosition: b.imagePosition || 'center', imageShape: b.imageShape || 'rect', titleAlign: b.titleAlign || 'center', descAlign: b.descAlign || 'center', titleFontFamily: b.titleFontFamily || '', descFontFamily: b.descFontFamily || '',
                     conditionalColors: b.conditionalColors || [], lineWidth: b.lineWidth, pointSize: b.pointSize, sortByCol: b.sortByCol || null,
                     listenMode: b.listenMode || null, listenAll: b.listenAll !== false, customListenCols: b.customListenCols || [],
                     tableBodySize: b.tableBodySize || 14, tableBodyColor: b.tableBodyColor || '#444444', tableBodyWeight: b.tableBodyWeight || 'normal', tableBodyAlign: b.tableBodyAlign || 'left',
@@ -2847,6 +2916,75 @@
                                                             </div>
                                                         </>
                                                     )}
+                                                    {/* 🌟 內容輪播 (圖卡) 專屬設定 */}
+                                                    {currentSelectedBlock.type === 'carousel' && (
+                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+
+                                                            {/* 圖片設定區 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🖼️ 圖片尺寸與裁切</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>圖片外框形狀</label>
+                                                                    <select value={currentSelectedBlock.imageShape || 'rect'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imageShape', e.target.value)}>
+                                                                        <option value="rect">圓角矩形 (預設)</option>
+                                                                        <option value="circle">圓形 (人物大頭照)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>圖片高度 (電腦 / 手機)</label>
+                                                                    <div style={{ display: 'flex', gap: '5px' }}>
+                                                                        <input type="number" min="50" max="600" title="電腦版高度" placeholder="電腦" value={currentSelectedBlock.imageHeight || 160} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imageHeight', e.target.value)} style={{ width: '50%' }} />
+                                                                        <input type="number" min="50" max="600" title="手機版高度" placeholder="手機" value={currentSelectedBlock.imageHeightMobile || currentSelectedBlock.imageHeight || 160} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imageHeightMobile', e.target.value)} style={{ width: '50%' }} />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>填滿方式 (裁切)</label>
+                                                                    <select value={currentSelectedBlock.imageFit || 'contain'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imageFit', e.target.value)}>
+                                                                        <option value="contain">縮放以顯示全圖 (留白)</option>
+                                                                        <option value="cover">裁切以填滿外框 (無白邊)</option>
+                                                                        <option value="fill">強制變形拉伸 (不建議)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>對齊焦點</label>
+                                                                    <select value={currentSelectedBlock.imagePosition || 'center'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'imagePosition', e.target.value)}>
+                                                                        <option value="center">置中對齊</option>
+                                                                        <option value="top">靠上對齊 (適合人像)</option>
+                                                                        <option value="bottom">靠下對齊</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '-5px', marginBottom: '15px', lineHeight: '1.4' }}>
+                                                                💡 若要做人物大頭照，建議選擇「圓形」+「裁切以填滿外框」+「靠上/置中對齊」。
+                                                            </div>
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            {/* 標題與內文排版 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📝 文字獨立排版</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>標題對齊</label>
+                                                                    <select value={currentSelectedBlock.titleAlign || 'center'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>標題字型</label>
+                                                                    <select value={currentSelectedBlock.titleFontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleFontFamily', e.target.value)}>
+                                                                        <option value="">預設</option><option value="Arial, sans-serif">黑體</option><option value="'Times New Roman', serif">明體</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>內文對齊</label>
+                                                                    <select value={currentSelectedBlock.descAlign || 'center'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>內文字型</label>
+                                                                    <select value={currentSelectedBlock.descFontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descFontFamily', e.target.value)}>
+                                                                        <option value="">預設</option><option value="Arial, sans-serif">黑體</option><option value="'Times New Roman', serif">明體</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {/* 🌟 時間軸/文字專屬設定 */}
                                                     {currentSelectedBlock.type === 'timeline' && (
@@ -2872,7 +3010,7 @@
                                                     )}
 
                                                     {/* 🌟 文字相關共用排版 */}
-                                                    {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard') && (
+                                                    {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'carousel') && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字樣式設定</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
