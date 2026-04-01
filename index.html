@@ -588,7 +588,6 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
 
-        /* 手機模擬器外框 */
         .preview-wrapper {
             transition: all 0.3s ease;
             margin: 0 auto;
@@ -665,7 +664,6 @@
             text-align: center;
         }
 
-        /* 🌟 圖表容器 RWD 處理：電腦版預設捲軸，手機版橫向長條圖解除捲軸撐高 */
         .chart-scroll-area {
             flex: 1;
             width: 100%;
@@ -677,11 +675,23 @@
                 overflow-y: visible !important;
                 height: auto !important;
             }
+
+            .chart-scroll-area.is-line-chart,
+            .chart-scroll-area.is-bar-chart.is-vertical {
+                aspect-ratio: 1 / 1;
+                min-height: 300px;
+            }
         }
 
         .preview-wrapper.mobile .chart-scroll-area.is-horizontal {
             overflow-y: visible !important;
             height: auto !important;
+        }
+
+        .preview-wrapper.mobile .chart-scroll-area.is-line-chart,
+        .preview-wrapper.mobile .chart-scroll-area.is-bar-chart.is-vertical {
+            aspect-ratio: 1 / 1;
+            min-height: 300px;
         }
 
         .timeline-container {
@@ -882,18 +892,6 @@
             transform: scale(1.2);
         }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateX(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-
         .panel-tabs {
             display: flex;
             border-bottom: 2px solid #eee;
@@ -919,6 +917,38 @@
         .panel-tab.active {
             color: var(--primary);
             border-bottom-color: var(--primary);
+        }
+
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .custom-table th {
+            position: sticky;
+            top: 0;
+            color: #fff;
+            padding: 12px 15px;
+            font-weight: bold;
+            z-index: 1;
+            white-space: nowrap;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .custom-table td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            color: #444;
+            white-space: nowrap;
+        }
+
+        .custom-table tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        .custom-table tbody tr:hover {
+            background-color: #f0f8fa;
         }
     </style>
 </head>
@@ -988,47 +1018,53 @@
                 return a.layout.y - b.layout.y;
             });
 
-            const dropdownComps = sortedComponents.filter(c => c.type === 'dropdown');
-            const orderedDropdownCols = dropdownComps.map(c => c.categoryColumn);
-            const firstDropdownCol = dropdownComps.length > 0 ? dropdownComps[0].categoryColumn : null;
-            const isChartVisible = firstDropdownCol ? !!filters[firstDropdownCol] : true;
-
-            const dropdownState = {};
-            for (let i = 0; i < dropdownComps.length; i++) {
-                const col = dropdownComps[i].categoryColumn;
-                if (i === 0) dropdownState[col] = false;
-                else dropdownState[col] = !filters[dropdownComps[i - 1].categoryColumn];
-            }
-
-            const filteredDataMap = {};
-            if (config.sheetSources) {
-                config.sheetSources.forEach(source => {
-                    const sourceData = dataMap[source.id] || [];
-                    filteredDataMap[source.id] = sourceData.filter(row => {
-                        for (let key in filters) {
-                            if (filters[key] && row[key] !== undefined && row[key] !== filters[key]) {
-                                return false;
-                            }
+            const getFilteredDataForComp = (comp) => {
+                const sourceData = dataMap[comp.dataSourceId] || [];
+                return sourceData.filter(row => {
+                    for (let key in filters) {
+                        if (!filters[key]) continue;
+                        if (comp.type === 'dropdown' && key === comp.categoryColumn) continue;
+                        const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
+                        if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
+                            return false;
                         }
-                        return true;
-                    });
+                    }
+                    return true;
                 });
-            }
+            };
 
             const handleFilterChange = (column, value) => {
                 setFilters(prev => {
                     const newFilters = { ...prev, [column]: value };
-                    const changedIdx = dropdownComps.findIndex(c => c.categoryColumn === column);
-                    if (changedIdx !== -1) {
-                        for (let i = changedIdx + 1; i < dropdownComps.length; i++) {
-                            newFilters[dropdownComps[i].categoryColumn] = '';
+                    sortedComponents.forEach((dComp) => {
+                        if (dComp.type === 'dropdown' && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                            const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
+                            if (listensToThisCol) {
+                                if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
+                            }
                         }
-                    }
+                    });
                     return newFilters;
                 });
             };
 
             const clearFilters = () => setFilters({});
+
+            const getMissingDropdowns = (comp) => {
+                if (comp.type === 'dropdown') return [];
+                const upstreamDropdowns = sortedComponents.filter(c =>
+                    c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
+                );
+                return upstreamDropdowns.filter(uComp => !filters[uComp.categoryColumn]).map(c => c.categoryColumn);
+            };
+
+            const checkDropdownDisabled = (comp) => {
+                if (comp.type !== 'dropdown') return false;
+                const myListenCols = comp.listenAll !== false
+                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id).map(c => c.categoryColumn)
+                    : (comp.customListenCols || []);
+                return myListenCols.some(colName => colName && !filters[colName]);
+            };
 
             const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
                 if (!valueCol) return {};
@@ -1126,10 +1162,10 @@
                             <ChartComponent
                                 key={comp.id} comp={comp}
                                 rawData={dataMap[comp.dataSourceId] || []}
-                                filteredData={filteredDataMap[comp.dataSourceId] || []}
+                                filteredData={getFilteredDataForComp(comp)}
                                 aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
-                                isChartVisible={isChartVisible} isDropdownDisabled={dropdownState[comp.categoryColumn]}
-                                firstDropdownCol={firstDropdownCol} orderedDropdownCols={orderedDropdownCols}
+                                missingDropdowns={getMissingDropdowns(comp)}
+                                isDropdownDisabled={checkDropdownDisabled(comp)}
                                 aggregateStackedData={aggregateStackedData}
                             />
                         ))}
@@ -1162,8 +1198,9 @@
             );
         }
 
-        // 🌟 核心畫布元件 (排版完全體)
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
+        // 🌟 核心畫布元件
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData }) {
+            const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
             const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
@@ -1184,11 +1221,11 @@
                 setHiddenSlices(prev => ({ ...prev, [index]: !prev[index] }));
             };
 
-            // 📈 核心畫圖引擎
             useEffect(() => {
                 if (isChartType && isChartVisible) {
-                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
-                        if (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0) return;
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
+                        const hasData = (comp.multiValueCols && comp.multiValueCols.length > 0) || comp.valueColumn;
+                        if (!comp.categoryColumn || !hasData) return;
                     } else {
                         if (!comp.categoryColumn || !comp.valueColumn) return;
                     }
@@ -1219,7 +1256,7 @@
                                 labels: { color: comp.axisLabelColor || '#666', font: tickFont }
                             },
                             title: { display: false },
-                            datalabels: { display: false } // 預設關閉，由各圖表自行開啟
+                            datalabels: { display: false }
                         },
                         scales: {}
                     };
@@ -1228,8 +1265,7 @@
                     const categoryAxis = isHorizontal ? 'y' : 'x';
 
                     options.scales[categoryAxis] = {
-                        // 強制畫出每一個標籤，不准隱藏
-                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont, autoSkip: false },
+                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont, autoSkip: comp.type === 'lineChart' ? true : false },
                         grid: { color: gridColor },
                         border: { display: true, color: gridColor },
                         title: { display: false },
@@ -1251,17 +1287,55 @@
                     let labels = [];
                     let datasets = [];
 
-                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
-                        chartType = 'bar';
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
+                        chartType = comp.type === 'lineChart' ? 'line' : 'bar';
                         const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn, comp.compareValueColumn].filter(Boolean);
                         const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, cols, comp.aggregation);
                         labels = stackedData.categories;
                         const customColors = Array.isArray(comp.customColors) ? comp.customColors : [];
-                        datasets = stackedData.datasets.map((ds, idx) => ({
-                            ...ds,
-                            backgroundColor: customColors[idx] || pieColors[idx % pieColors.length],
-                            maxBarThickness: 60
-                        }));
+
+                        datasets = stackedData.datasets.map((ds, idx) => {
+                            const baseColor = customColors[idx] || pieColors[idx % pieColors.length];
+                            let dsConfig = { ...ds, backgroundColor: baseColor, borderColor: baseColor, maxBarThickness: 60 };
+
+                            if (comp.type === 'lineChart') {
+                                const customLineWidth = comp.lineWidth !== undefined ? comp.lineWidth : 3;
+                                const customPointSize = comp.pointSize !== undefined ? comp.pointSize : 5;
+
+                                dsConfig.fill = false;
+                                dsConfig.tension = 0.3;
+                                dsConfig.borderWidth = customLineWidth;
+                                dsConfig.pointRadius = customPointSize;
+                                dsConfig.pointHoverRadius = customPointSize + 2;
+
+                                if (comp.conditionalColors && comp.conditionalColors.length > 0) {
+                                    dsConfig.pointBackgroundColor = (context) => {
+                                        const val = context.raw;
+                                        if (val === undefined || val === null) return baseColor;
+                                        for (let rule of comp.conditionalColors) {
+                                            if (rule.operator === '>=' && val >= rule.value) return rule.color;
+                                            if (rule.operator === '<=' && val <= rule.value) return rule.color;
+                                        }
+                                        return baseColor;
+                                    };
+                                    dsConfig.pointBorderColor = '#fff';
+                                    dsConfig.pointBorderWidth = 2;
+                                    dsConfig.pointRadius = customPointSize + 3;
+                                    dsConfig.pointHoverRadius = customPointSize + 5;
+                                }
+
+                                if (comp.showDataLabels) {
+                                    options.layout.padding = { top: baseFontSize + 20, right: 20, left: 10, bottom: 10 };
+                                    options.plugins.datalabels = {
+                                        display: true, align: 'bottom', anchor: 'end', offset: 8,
+                                        color: comp.axisLabelColor || '#666',
+                                        font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                        formatter: (value) => Number(value).toLocaleString('zh-TW')
+                                    };
+                                }
+                            }
+                            return dsConfig;
+                        });
 
                         if (comp.type === 'stackedBarChart' && comp.isPercentageStacked) {
                             const numCategories = labels.length; const numDatasets = datasets.length;
@@ -1270,52 +1344,51 @@
                                 if (total > 0) { for (let i = 0; i < numDatasets; i++) datasets[i].data[j] = (datasets[i].data[j] / total) * 100; }
                             }
                             options.scales[valueAxis].max = 100;
-                            options.plugins.datalabels = { display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '', color: 'white', font: { weight: 'bold' } };
+                            options.plugins.datalabels = {
+                                display: true,
+                                formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
+                                color: comp.dataLabelColor || '#ffffff',
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily }
+                            };
+                        } else if ((comp.type === 'barChart' || comp.type === 'stackedBarChart') && comp.showDataLabels) {
+                            options.plugins.datalabels = {
+                                display: true,
+                                color: comp.dataLabelColor || '#ffffff',
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                formatter: (value) => value > 0 ? Number(value).toLocaleString('zh-TW') : ''
+                            };
                         }
-                    } else {
-                        const mainColor = comp.themeColor || '#086788';
+                    } else if (comp.type === 'pieChart') {
                         const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
                         labels = Object.keys(aggData1); const data1 = Object.values(aggData1);
 
                         let pieCurrentColors = pieColors;
-                        if (comp.type === 'pieChart' && Array.isArray(comp.pieCustomColors) && comp.pieCustomColors.length > 0) {
-                            pieCurrentColors = comp.pieCustomColors;
+                        if (Array.isArray(comp.pieCustomColors) && comp.pieCustomColors.length > 0) pieCurrentColors = comp.pieCustomColors;
+
+                        const bgColors = labels.map((_, i) => pieCurrentColors[i % pieCurrentColors.length]);
+                        datasets = [{ label: comp.title, data: data1, backgroundColor: bgColors, fill: true }];
+
+                        chartType = comp.pieStyle === 'pie' ? 'pie' : 'doughnut';
+                        delete options.scales;
+                        options.rotation = comp.pieRotation || 0;
+
+                        if (comp.showDataLabels) {
+                            options.plugins.datalabels = {
+                                display: true,
+                                color: comp.dataLabelColor === '#ffffff' ? '#333333' : (comp.dataLabelColor || '#666666'),
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                anchor: 'end', align: 'end', offset: 5,
+                                formatter: (value, context) => {
+                                    const dataset = context.chart.data.datasets[context.datasetIndex];
+                                    const tSum = dataset.data.reduce((acc, curr) => acc + curr, 0);
+                                    if (tSum === 0) return '';
+                                    const percentage = (value / tSum) * 100;
+                                    if (percentage < 1.5) return '';
+                                    if (comp.dataLabelType === 'value') return Number(value).toLocaleString('zh-TW');
+                                    else return Math.round(percentage) + '%';
+                                }
+                            };
                         }
-
-                        const bgColors = comp.type === 'pieChart' ? labels.map((_, i) => pieCurrentColors[i % pieCurrentColors.length]) : mainColor;
-                        datasets = [{ label: comp.compareValueColumn ? comp.valueColumn : comp.title, data: data1, backgroundColor: bgColors, borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 }];
-
-                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
-                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
-                            const data2 = labels.map(label => aggData2[label] || 0);
-                            datasets.push({ label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 });
-                        }
-
-                        if (comp.type === 'pieChart') {
-                            chartType = comp.pieStyle === 'pie' ? 'pie' : 'doughnut';
-                            delete options.scales;
-                            options.rotation = comp.pieRotation || 0;
-
-                            // 🌟 修復：加回圓餅圖的 DataLabels 設定，讓標籤重新出現！
-                            if (comp.showDataLabels) {
-                                options.plugins.datalabels = {
-                                    display: true,
-                                    color: comp.dataLabelColor === '#ffffff' ? '#333333' : (comp.dataLabelColor || '#666666'),
-                                    font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
-                                    anchor: 'end', align: 'end', offset: 5,
-                                    formatter: (value, context) => {
-                                        const dataset = context.chart.data.datasets[context.datasetIndex];
-                                        const tSum = dataset.data.reduce((acc, curr) => acc + curr, 0);
-                                        if (tSum === 0) return '';
-                                        const percentage = (value / tSum) * 100;
-                                        if (percentage < 1.5) return '';
-                                        if (comp.dataLabelType === 'value') return Number(value).toLocaleString('zh-TW');
-                                        else return Math.round(percentage) + '%';
-                                    }
-                                };
-                            }
-                        }
-                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
                     }
 
                     const sortMode = comp.sortBy || 'sheet';
@@ -1342,11 +1415,9 @@
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); }
             }, [comp, filteredData, isChartVisible, labelCount]);
 
-            // 📐 網格定位計算
             const finalH = comp.layout?.h || comp.h || 6;
             const isHorizontalChart = isChartType && comp.chartOrientation === 'horizontal';
 
-            // 🌟 極限防擠壓空間
             const neededHeight = (isHorizontalChart && labelCount > 0) ? (labelCount * 40 + 80) : 0;
             const neededWidth = (!isHorizontalChart && labelCount > 0) ? (labelCount * 50 + 80) : 0;
 
@@ -1365,11 +1436,11 @@
                 height: '100%'
             };
 
-            if (comp.type !== 'dropdown' && !isChartVisible) {
+            if (comp.type !== 'dropdown' && missingDropdowns && missingDropdowns.length > 0) {
                 return (
                     <div className="preview-card" style={gridStyle}>
                         {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>{comp.title}</h3>}
-                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於上方選擇「{firstDropdownCol}」<br />以載入分析圖表</div>
+                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於選單選擇「{missingDropdowns[0]}」<br />以載入資料</div>
                     </div>
                 );
             }
@@ -1487,20 +1558,18 @@
                                     <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: comp.axisLabelColor || '#666', textAlign: 'left', paddingLeft: '5px', paddingBottom: '5px', flexShrink: 0 }}>{topUnitText}</div>
                                 )}
 
-                                <div className={`chart-scroll-area ${isHorizontalChart ? 'is-horizontal' : 'is-vertical'}`} style={{
+                                <div className={`chart-scroll-area ${isHorizontalChart ? 'is-horizontal' : 'is-vertical'} ${comp.type === 'lineChart' ? 'is-line-chart' : ''} ${(comp.type === 'barChart' || comp.type === 'stackedBarChart') ? 'is-bar-chart' : ''}`} style={{
                                     overflowX: !isHorizontalChart ? 'auto' : 'hidden',
                                     overflowY: isHorizontalChart ? 'auto' : 'hidden',
                                     position: 'relative'
                                 }}>
-                                    {/* 🌟 真正的排版魔法：永遠 100% 填滿，用 minWidth/minHeight 設定捲軸底線！ */}
                                     <div style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        minWidth: !isHorizontalChart && neededWidth > 0 ? `${neededWidth}px` : undefined,
+                                        width: '100%', height: '100%',
+                                        minWidth: (!isHorizontalChart && comp.type !== 'lineChart' && neededWidth > 0) ? `${neededWidth}px` : undefined,
                                         minHeight: isHorizontalChart && neededHeight > 0 ? `${neededHeight}px` : undefined,
                                         position: 'relative'
                                     }}>
-                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart') && (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0)) || ((comp.type === 'lineChart') && (!comp.categoryColumn || !comp.valueColumn))
+                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') && (!comp.categoryColumn || (!(comp.multiValueCols && comp.multiValueCols.length > 0) && !comp.valueColumn)))
                                             ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
                                             : <canvas ref={canvasRef}></canvas>
                                         }
@@ -1534,14 +1603,12 @@
                         );
                     })()}
 
-                    {/* 下略... 保留原生檔案下半部下拉選單與按鈕 */}
                     {comp.type === 'dropdown' && (() => {
                         if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
                         if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
-                        const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
-                        const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
-                        const optionsData = rawData.filter(row => { for (let uCol of upstreamCols) { if (filters[uCol] && row[uCol] !== filters[uCol]) return false; } return true; });
-                        const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+
+                        const options = [...new Set(filteredData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+
                         return (
                             <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
                                 <option value="">請選擇 {comp.categoryColumn}...</option>
@@ -1588,7 +1655,69 @@
                             })}
                         </div>
                     )}
+                    {comp.type === 'table' && (
+                        <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', height: '100%', width: '100%' }}>
+                            {(!comp.multiValueCols || comp.multiValueCols.length === 0) ? (
+                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定表格顯示欄位</p></div>
+                            ) : (() => {
+                                let displayData = [...filteredData];
+                                const sortCol = comp.sortByCol;
+                                const sortOrder = comp.sortBy;
 
+                                if (sortCol && (sortOrder === 'value_desc' || sortOrder === 'value_asc')) {
+                                    displayData.sort((a, b) => {
+                                        let valA = a[sortCol]; let valB = b[sortCol];
+                                        const numA = parseFloat(String(valA).replace(/,/g, ''));
+                                        const numB = parseFloat(String(valB).replace(/,/g, ''));
+
+                                        if (!isNaN(numA) && !isNaN(numB)) return sortOrder === 'value_desc' ? numB - numA : numA - numB;
+                                        return sortOrder === 'value_desc' ? String(valB).localeCompare(String(valA), 'zh-Hant') : String(valA).localeCompare(String(valB), 'zh-Hant');
+                                    });
+                                }
+                                const borderStyle = comp.tableBorderEnable ? `${comp.tableBorderWidth || 1}px solid ${comp.tableBorderColor || '#dddddd'}` : 'none';
+
+                                return (
+                                    <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle }}>
+                                        <thead style={{ display: comp.tableHeaderEnable ? 'table-header-group' : 'none' }}>
+                                            <tr>
+                                                {comp.multiValueCols.filter(Boolean).map((col, idx) => {
+                                                    const isTopLeft = idx === 0 && comp.tableColEnable;
+                                                    return (
+                                                        <th key={idx} style={{
+                                                            background: comp.tableHeaderBg || comp.themeColor || '#086788',
+                                                            color: comp.tableHeaderColor || '#ffffff', fontSize: `${comp.tableHeaderSize || 14}px`,
+                                                            textAlign: comp.tableHeaderAlign || 'left', fontWeight: comp.tableHeaderWeight || 'bold',
+                                                            border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 1
+                                                        }}>{col}</th>
+                                                    );
+                                                })}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {displayData.map((row, rIdx) => (
+                                                <tr key={rIdx}>
+                                                    {comp.multiValueCols.filter(Boolean).map((col, cIdx) => {
+                                                        const isFirstCol = cIdx === 0 && comp.tableColEnable;
+                                                        const cellStyle = isFirstCol ? {
+                                                            fontSize: `${comp.tableColSize || 14}px`, color: comp.tableColColor || '#444444',
+                                                            fontWeight: comp.tableColWeight || 'bold', textAlign: comp.tableColAlign || 'left',
+                                                            backgroundColor: (comp.tableColBg && comp.tableColBg !== 'transparent') ? comp.tableColBg : '#ffffff',
+                                                            border: borderStyle, position: 'sticky', left: 0, zIndex: 1
+                                                        } : {
+                                                            fontSize: `${comp.tableBodySize || 14}px`, color: comp.tableBodyColor || '#444444',
+                                                            fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left',
+                                                            border: borderStyle
+                                                        };
+                                                        return <td key={cIdx} style={cellStyle}>{row[col] !== undefined && row[col] !== null ? String(row[col]) : ''}</td>;
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                );
+                            })()}
+                        </div>
+                    )}
                     {comp.type === 'carousel' && (
                         <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
@@ -1680,7 +1809,7 @@
                                         const loadedBlocks = data.components.map(c => ({
                                             i: c.id, type: c.type, title: c.title, showTitle: c.showTitle !== false,
                                             dataSourceId: c.dataSourceId || (data.sheetSources ? data.sheetSources[0]?.id : 'ds_legacy'),
-                                            categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [],
+                                            categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [], multiValueCols: c.multiValueCols || [],
                                             imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '', aggregation: c.aggregation || 'sum',
                                             compareValueCol: c.compareValueColumn || '', chartOrientation: c.chartOrientation || 'vertical', themeColor: c.themeColor || '',
                                             timeWidthPercent: c.timeWidthPercent || 20, timelineGap: c.timelineGap || 20, timeColor: c.timeColor || '', lineColor: c.lineColor || '', nodeColor: c.nodeColor || '',
@@ -1690,10 +1819,15 @@
                                             w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity,
                                             legendPosition: c.legendPosition || 'top',
                                             pieRotation: c.pieRotation || 0,
-                                            showDataLabels: c.showDataLabels || false,
-                                            dataLabelType: c.dataLabelType || 'percentage',
-                                            dataLabelColor: c.dataLabelColor || '#ffffff',
-                                            pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
+                                            conditionalColors: c.conditionalColors || [],
+                                            lineWidth: c.lineWidth, pointSize: c.pointSize,
+                                            sortByCol: c.sortByCol || null,
+                                            listenMode: c.listenMode || null, listenAll: c.listenAll !== false, customListenCols: c.customListenCols || [],
+                                            tableBodySize: c.tableBodySize || 14, tableBodyColor: c.tableBodyColor || '#444444', tableBodyWeight: c.tableBodyWeight || 'normal', tableBodyAlign: c.tableBodyAlign || 'left',
+                                            tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left',
+                                            tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent',
+                                            tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
+                                            showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -1705,8 +1839,7 @@
                                 }
                             }
                         } catch (err) {
-                            console.error(err);
-                            alert("❌ 專案讀取失敗！");
+                            console.error(err); alert("❌ 專案讀取失敗！");
                         }
                     }
                     setIsInitialLoading(false);
@@ -1778,68 +1911,29 @@
             const currentSelectedBlock = blocks.find(b => b.i === selectedBlockId);
 
             const finalJSON = {
-                meta: globalMeta,
-                sheetSources: sheetSources,
+                meta: globalMeta, sheetSources: sheetSources,
                 components: blocks.map(b => ({
-                    id: b.i,
-                    type: b.type,
-                    title: b.title,
-                    dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''),
-                    showTitle: b.showTitle !== false,
-                    legendPosition: b.legendPosition || 'top',
-
+                    id: b.i, type: b.type, title: b.title, dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''),
+                    showTitle: b.showTitle !== false, legendPosition: b.legendPosition || 'top',
                     categoryColumn: b.categoryCol || null,
-                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
-                    valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart') ? (b.valueCol || null) : null,
-                    compareValueColumn: b.compareValueCol || null,
-                    imageColumn: b.imageCol || null,
-                    linkColumn: b.linkCol || null,
-                    buttonUrl: b.buttonUrl || null,
-
-                    aggregation: b.aggregation || 'sum',
-                    sortBy: b.sortBy || 'sheet',
-
-                    chartOrientation: b.chartOrientation || 'vertical',
-                    themeColor: b.themeColor || '',
-                    isPercentageStacked: b.isPercentageStacked || false,
-                    yAxisMin: b.yAxisMin,
-                    stepSize: b.stepSize,
-                    showAxisUnit: b.showAxisUnit || false,
-                    xAxisUnit: b.xAxisUnit || '',
-                    yAxisUnit: b.yAxisUnit || '',
-                    customColors: Array.isArray(b.customColors) ? b.customColors : [],
-                    axisLabelColor: b.axisLabelColor || '#666666',
-                    axisGridColor: b.axisGridColor || '#e0e0e0',
-                    axisLabelSize: b.axisLabelSize || '12',
-
-                    timeWidthPercent: b.timeWidthPercent || 20,
-                    timelineGap: b.timelineGap || 20,
-                    timeColor: b.timeColor || '',
-                    lineColor: b.lineColor || '',
-                    nodeColor: b.nodeColor || '',
-                    titleColor: b.titleColor || '',
-                    titleSize: b.titleSize || '',
-                    titleWeight: b.titleWeight || '',
-                    descColor: b.descColor || '',
-                    descSize: b.descSize || '',
-                    descWeight: b.descWeight || '',
-
-                    prefix: b.prefix || '',
-                    suffix: b.suffix || '',
-                    numberFormat: b.numberFormat || 'comma',
-                    multiplier: b.multiplier !== undefined ? b.multiplier : 1,
-                    fontSize: b.fontSize || null,
-                    fontFamily: b.fontFamily || null,
-                    fontWeight: b.fontWeight || null,
-                    textAlign: b.textAlign || null,
-
+                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
+                    valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart' && b.type !== 'lineChart') ? (b.valueCol || null) : null,
+                    compareValueColumn: b.compareValueCol || null, imageColumn: b.imageCol || null, linkColumn: b.linkCol || null, buttonUrl: b.buttonUrl || null,
+                    aggregation: b.aggregation || 'sum', sortBy: b.sortBy || 'sheet', chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor || '',
+                    isPercentageStacked: b.isPercentageStacked || false, yAxisMin: b.yAxisMin, stepSize: b.stepSize, showAxisUnit: b.showAxisUnit || false, xAxisUnit: b.xAxisUnit || '', yAxisUnit: b.yAxisUnit || '',
+                    customColors: Array.isArray(b.customColors) ? b.customColors : [], axisLabelColor: b.axisLabelColor || '#666666', axisGridColor: b.axisGridColor || '#e0e0e0', axisLabelSize: b.axisLabelSize || '12',
+                    timeWidthPercent: b.timeWidthPercent || 20, timelineGap: b.timelineGap || 20, timeColor: b.timeColor || '', lineColor: b.lineColor || '', nodeColor: b.nodeColor || '',
+                    titleColor: b.titleColor || '', titleSize: b.titleSize || '', titleWeight: b.titleWeight || '', descColor: b.descColor || '', descSize: b.descSize || '', descWeight: b.descWeight || '',
+                    prefix: b.prefix || '', suffix: b.suffix || '', numberFormat: b.numberFormat || 'comma', multiplier: b.multiplier !== undefined ? b.multiplier : 1,
+                    fontSize: b.fontSize || null, fontFamily: b.fontFamily || null, fontWeight: b.fontWeight || null, textAlign: b.textAlign || null,
                     layout: { desktopCols: b.w, h: b.h, x: b.x, y: b.y },
-                    pieStyle: b.pieStyle || 'doughnut',
-                    pieRotation: b.pieRotation || 0,
-                    showDataLabels: b.showDataLabels || false,
-                    dataLabelType: b.dataLabelType || 'percentage',
-                    dataLabelColor: b.dataLabelColor || '#ffffff',
-                    pieCustomColors: Array.isArray(b.pieCustomColors) ? b.pieCustomColors : [],
+                    pieStyle: b.pieStyle || 'doughnut', pieRotation: b.pieRotation || 0, showDataLabels: b.showDataLabels || false, dataLabelType: b.dataLabelType || 'percentage', dataLabelColor: b.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(b.pieCustomColors) ? b.pieCustomColors : [],
+                    conditionalColors: b.conditionalColors || [], lineWidth: b.lineWidth, pointSize: b.pointSize, sortByCol: b.sortByCol || null,
+                    listenMode: b.listenMode || null, listenAll: b.listenAll !== false, customListenCols: b.customListenCols || [],
+                    tableBodySize: b.tableBodySize || 14, tableBodyColor: b.tableBodyColor || '#444444', tableBodyWeight: b.tableBodyWeight || 'normal', tableBodyAlign: b.tableBodyAlign || 'left',
+                    tableHeaderEnable: b.tableHeaderEnable || false, tableHeaderSize: b.tableHeaderSize || 14, tableHeaderColor: b.tableHeaderColor || '#ffffff', tableHeaderBg: b.tableHeaderBg || '#086788', tableHeaderWeight: b.tableHeaderWeight || 'bold', tableHeaderAlign: b.tableHeaderAlign || 'left',
+                    tableColEnable: b.tableColEnable || false, tableColSize: b.tableColSize || 14, tableColColor: b.tableColColor || '#444444', tableColWeight: b.tableColWeight || 'bold', tableColAlign: b.tableColAlign || 'left', tableColBg: b.tableColBg || 'transparent',
+                    tableBorderEnable: b.tableBorderEnable || false, tableBorderColor: b.tableBorderColor || '#dddddd', tableBorderWidth: b.tableBorderWidth || 1,
                 }))
             };
 
@@ -1856,14 +1950,8 @@
                         saveToRecent(newId, globalMeta.title);
                         window.history.replaceState(null, '', `?id=${newId}`);
                         setShowPublishModal(true);
-                    } else {
-                        alert("⚠️ Firebase 尚未載入完成，請稍候重試！");
-                    }
-                } catch (error) {
-                    alert("❌ 發布失敗！詳細錯誤：" + error.message);
-                } finally {
-                    setIsPublishing(false);
-                }
+                    } else { alert("⚠️ Firebase 尚未載入完成，請稍候重試！"); }
+                } catch (error) { alert("❌ 發布失敗！詳細錯誤：" + error.message); } finally { setIsPublishing(false); }
             };
 
             const handleCopy = () => {
@@ -1938,17 +2026,8 @@
                     <div className="top-nav">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                             <button onClick={() => {
-                                if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) {
-                                    window.location.href = '?';
-                                }
-                            }} style={{
-                                background: '#f5f5f5', border: '1px solid #ccc', color: '#333',
-                                fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px',
-                                borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px',
-                                fontWeight: 'bold', transition: '0.2s'
-                            }}
-                                onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'}
-                                onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
+                                if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) window.location.href = '?';
+                            }} style={{ background: '#f5f5f5', border: '1px solid #ccc', color: '#333', fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'} onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
                                 🏠 回大廳
                             </button>
                             <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
@@ -1984,6 +2063,7 @@
                                 <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 文字區塊</button>
                                 <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 4, 3)}>+ 數據卡片</button>
                                 <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 6)} style={{ background: '#3498DB' }}>+ 內容輪播</button>
+                                <button className="add-btn" onClick={() => addBlock('table', '📑 數據明細表', 12, 8)} style={{ background: '#7F8C8D' }}>+ 數據表格</button>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📊 圖表</div>
                                 <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
@@ -2070,6 +2150,58 @@
                                                                 {sheetSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                                             </select>
                                                             <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>切換來源後，請重新綁定下方欄位。</div>
+
+                                                            {/* 🔌 互動連動設定 (全域/自訂) */}
+                                                            <div className="form-group" style={{ background: '#e8f4f8', padding: '12px', borderRadius: '8px', border: '1px solid #bce0ed', marginTop: '15px', marginBottom: 0 }}>
+                                                                <h4 style={{ margin: 0, color: '#086788', marginBottom: '10px' }}>🔌 互動連動設定 (監聽對象)</h4>
+                                                                
+                                                                {(() => {
+                                                                    // 計算當前的 radio 狀態
+                                                                    const listenMode = currentSelectedBlock.listenMode || (currentSelectedBlock.listenAll === false ? (currentSelectedBlock.customListenCols && currentSelectedBlock.customListenCols.length > 0 ? 'custom' : 'none') : 'all');
+                                                                    
+                                                                    return (
+                                                                        <>
+                                                                            <div style={{ display: 'flex', gap: '15px', marginBottom: listenMode === 'custom' ? '10px' : '0' }}>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                                                                    <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'all'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'all'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', true); }} />
+                                                                                    監聽全部
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                                                                                    <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'custom'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'custom'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', false); }} />
+                                                                                    指定選單
+                                                                                </label>
+                                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: '#E74C3C', fontWeight: 'bold' }}>
+                                                                                    <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'none'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'none'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', false); updateBlockProperty(currentSelectedBlock.i, 'customListenCols', []); }} />
+                                                                                    不監聽 (獨立)
+                                                                                </label>
+                                                                            </div>
+                                                                            {listenMode === 'custom' && (
+                                                                                <div style={{ background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                                                                                    <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '8px' }}>請勾選要連動的下拉選單：</div>
+                                                                                    {blocks.filter(b => b.type === 'dropdown' && b.categoryCol && b.i !== currentSelectedBlock.i).length === 0 ? (
+                                                                                        <div style={{ fontSize: '0.85rem', color: '#E74C3C' }}>畫布上目前沒有其他已綁定欄位的下拉選單。</div>
+                                                                                    ) : (
+                                                                                        blocks.filter(b => b.type === 'dropdown' && b.categoryCol && b.i !== currentSelectedBlock.i).map(dComp => {
+                                                                                            const isChecked = (currentSelectedBlock.customListenCols || []).includes(dComp.categoryCol);
+                                                                                            return (
+                                                                                                <label key={dComp.i} style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+                                                                                                    <input type="checkbox" checked={isChecked} onChange={(e) => {
+                                                                                                        const newCols = e.target.checked 
+                                                                                                            ? [...(currentSelectedBlock.customListenCols || []), dComp.categoryCol]
+                                                                                                            : (currentSelectedBlock.customListenCols || []).filter(c => c !== dComp.categoryCol);
+                                                                                                        updateBlockProperty(currentSelectedBlock.i, 'customListenCols', newCols);
+                                                                                                    }} style={{ marginRight: '5px' }} />
+                                                                                                    {dComp.title || '未命名選單'} ({dComp.categoryCol})
+                                                                                                </label>
+                                                                                            );
+                                                                                        })
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+                                                                        </>
+                                                                    );
+                                                                })()}
+                                                            </div>
                                                         </div>
                                                     )}
 
@@ -2119,113 +2251,123 @@
                                                                 </div>
                                                             )}
 
-                                                            {currentSelectedBlock.type !== 'dropdown' && (
-                                                                <>
-                                                                    {/* 📊 長條圖/堆疊圖 多欄位選擇 */}
-                                                                    {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') ? (
-                                                                        <div className="form-group">
-                                                                            <label>長條圖數值欄位 (可多選)</label>
-                                                                            {((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [currentSelectedBlock.valueCol, currentSelectedBlock.compareValueCol].filter(Boolean)).map((col, index) => (
-                                                                                <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                                                                                    <select value={col} onChange={(e) => {
-                                                                                        const newCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [])];
-                                                                                        newCols[index] = e.target.value;
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
-                                                                                    }}>
-                                                                                        <option value="">請選擇...</option>
-                                                                                        {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
-                                                                                    </select>
-                                                                                    <button onClick={() => {
-                                                                                        const newCols = ((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []).filter((_, i) => i !== index);
-                                                                                        updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
-                                                                                    }} style={{ padding: '5px' }}>✕</button>
-                                                                                </div>
-                                                                            ))}
-                                                                            <button className="reset-filter-btn" onClick={() => {
-                                                                                const updatedCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []), ''];
-                                                                                updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', updatedCols);
-                                                                            }}>+ 添加數值欄位</button>
-                                                                        </div>
-                                                                    ) : (
-                                                                        /* 其他積木的單一 Y 軸 / 內文欄位 */
-                                                                        <div className="form-group">
-                                                                            <label>
-                                                                                {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
-                                                                                    currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' : '數值欄位 (Y軸)'}
-                                                                            </label>
-                                                                            <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
+                                                            {/* 📊 長條圖/堆疊圖/表格 多欄位選擇 */}
+                                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart' || currentSelectedBlock.type === 'table') ? (
+                                                                <div className="form-group">
+                                                                    <label>{currentSelectedBlock.type === 'table' ? '表格顯示欄位 (可選多個，依序排列)' : currentSelectedBlock.type === 'lineChart' ? '折線圖數值欄位 (可選多條線)' : '長條圖數值欄位 (可多選)'}</label>
+                                                                    {((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [currentSelectedBlock.valueCol, currentSelectedBlock.compareValueCol].filter(Boolean)).map((col, index) => (
+                                                                        <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                                                                            <select value={col} onChange={(e) => {
+                                                                                const newCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [])];
+                                                                                newCols[index] = e.target.value;
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
+                                                                            }}>
                                                                                 <option value="">請選擇...</option>
+                                                                                {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
+                                                                            </select>
+                                                                            <button onClick={() => {
+                                                                                const newCols = ((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []).filter((_, i) => i !== index);
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
+                                                                            }} style={{ padding: '5px' }}>✕</button>
+                                                                        </div>
+                                                                    ))}
+                                                                    <button className="reset-filter-btn" onClick={() => {
+                                                                        const updatedCols = [...((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || []), ''];
+                                                                        updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', updatedCols);
+                                                                    }}>+ 添加數值欄位</button>
+                                                                </div>
+                                                            ) : (
+                                                                /* 其他積木的單一 Y 軸 / 內文欄位 (排除 dropdown) */
+                                                                currentSelectedBlock.type !== 'dropdown' && (
+                                                                    <div className="form-group">
+                                                                        <label>
+                                                                            {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
+                                                                                currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' : '數值欄位 (Y軸)'}
+                                                                        </label>
+                                                                        <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
+                                                                            <option value="">請選擇...</option>
+                                                                            {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                )
+                                                            )}
+
+                                                            {/* 比較與附屬說明欄位 (排除特定積木) */}
+                                                            {(currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'barChart' && currentSelectedBlock.type !== 'lineChart' && currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'carousel' && currentSelectedBlock.type !== 'table') && (
+                                                                <div className="form-group">
+                                                                    <label>{currentSelectedBlock.type === 'timeline' ? '事件附屬說明 (選填)' : '比較數值欄位 (選填)'}</label>
+                                                                    <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
+                                                                        <option value="">無</option>
+                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                    </select>
+                                                                </div>
+                                                            )}
+
+                                                            {/* 🔗 時間軸專屬：超連結 */}
+                                                            {currentSelectedBlock.type === 'timeline' && (
+                                                                <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
+                                                                    <label>🔗 事件連結網址欄位 (選填)</label>
+                                                                    <select value={currentSelectedBlock.linkCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'linkCol', e.target.value)} style={{ marginTop: '5px' }}>
+                                                                        <option value="">無 (不加連結)</option>
+                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                    </select>
+                                                                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>若綁定，事件底部將出現按鈕。</div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* 📊 排序設定區 */}
+                                                            {(currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && currentSelectedBlock.type !== 'dropdown') && (
+                                                                <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px', marginTop: '15px' }}>
+                                                                    <label>📊 資料排序設定</label>
+                                                                    {currentSelectedBlock.type === 'table' && (
+                                                                        <div className="form-group" style={{ marginTop: '5px' }}>
+                                                                            <label style={{ fontSize: '0.75rem' }}>排序依據欄位</label>
+                                                                            <select value={currentSelectedBlock.sortByCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'sortByCol', e.target.value)}>
+                                                                                <option value="">(預設順序)</option>
                                                                                 {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                             </select>
                                                                         </div>
                                                                     )}
+                                                                    <div className="form-group" style={{ marginTop: '5px' }}>
+                                                                        <label style={{ fontSize: '0.75rem' }}>排序規則</label>
+                                                                        <select value={currentSelectedBlock.sortBy || 'sheet'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'sortBy', e.target.value)}>
+                                                                            <option value="sheet">原始順序</option>
+                                                                            <option value="value_desc">{currentSelectedBlock.type === 'table' ? '由大到小 / 新到舊' : '依數值總和 (大到小)'}</option>
+                                                                            <option value="value_asc">{currentSelectedBlock.type === 'table' ? '由小到大 / 舊到新' : '依數值總和 (小到大)'}</option>
+                                                                            {currentSelectedBlock.type !== 'table' && <option value="category_asc">依名稱排序</option>}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            )}
 
-                                                                    {/* 比較與附屬說明欄位 (折線、時間軸、數據卡) */}
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'pieChart' && currentSelectedBlock.type !== 'stackedBarChart' && currentSelectedBlock.type !== 'barChart' && currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'carousel' && (
-                                                                        <div className="form-group">
-                                                                            <label>{currentSelectedBlock.type === 'timeline' ? '事件附屬說明 (選填)' : '比較數值欄位 (選填)'}</label>
-                                                                            <select value={currentSelectedBlock.compareValueCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'compareValueCol', e.target.value)}>
-                                                                                <option value="">無</option>
-                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
+                                                            {/* 計算方式 */}
+                                                            {(currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && currentSelectedBlock.type !== 'table' && currentSelectedBlock.type !== 'dropdown') && (
+                                                                <div className="form-group">
+                                                                    <label>資料計算方式</label>
+                                                                    <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
+                                                                        <option value="sum">加總金額/數值 (Sum)</option>
+                                                                        <option value="count">計算筆數 (Count)</option>
+                                                                    </select>
+                                                                </div>
+                                                            )}
 
-                                                                    {/* 🔗 時間軸專屬：超連結 */}
-                                                                    {currentSelectedBlock.type === 'timeline' && (
-                                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginTop: '5px' }}>
-                                                                            <label>🔗 事件連結網址欄位 (選填)</label>
-                                                                            <select value={currentSelectedBlock.linkCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'linkCol', e.target.value)} style={{ marginTop: '5px' }}>
-                                                                                <option value="">無 (不加連結)</option>
-                                                                                {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                            </select>
-                                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>若綁定，事件底部將出現按鈕。</div>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* 排序方式 */}
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && currentSelectedBlock.type !== 'dropdown' && (
-                                                                        <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px', marginTop: '15px' }}>
-                                                                            <label>📊 圖表排序方式</label>
-                                                                            <select value={currentSelectedBlock.sortBy || 'sheet'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'sortBy', e.target.value)} style={{ marginTop: '5px' }}>
-                                                                                <option value="sheet">依 Google Sheet 原始順序</option>
-                                                                                <option value="value_desc">依數值總和 (由大到小) 💡推薦</option>
-                                                                                <option value="value_asc">依數值總和 (由小到大)</option>
-                                                                                <option value="category_asc">依名稱筆畫/字母排序</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* 計算方式 */}
-                                                                    {currentSelectedBlock.type !== 'textCard' && currentSelectedBlock.type !== 'timeline' && currentSelectedBlock.type !== 'carousel' && (
-                                                                        <div className="form-group">
-                                                                            <label>資料計算方式</label>
-                                                                            <select value={currentSelectedBlock.aggregation} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'aggregation', e.target.value)}>
-                                                                                <option value="sum">加總金額/數值 (Sum)</option>
-                                                                                <option value="count">計算筆數 (Count)</option>
-                                                                            </select>
-                                                                        </div>
-                                                                    )}
-
-                                                                    {/* 數據卡格式 */}
-                                                                    {currentSelectedBlock.type === 'metricCard' && (
-                                                                        <>
-                                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數值換算與格式</h4>
-                                                                            <div className="form-group">
-                                                                                <label>數值換算 (乘數) 💡單位為千元想轉元，請輸入 1000</label>
-                                                                                <input type="number" step="any" value={currentSelectedBlock.multiplier !== undefined ? currentSelectedBlock.multiplier : 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'multiplier', parseFloat(e.target.value) || 1)} />
-                                                                            </div>
-                                                                            <div className="form-group">
-                                                                                <label>數字顯示格式</label>
-                                                                                <select value={currentSelectedBlock.numberFormat || 'comma'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'numberFormat', e.target.value)}>
-                                                                                    <option value="comma">標準逗號 (1,234,567)</option>
-                                                                                    <option value="plain">純數字 (1234567)</option>
-                                                                                    <option value="zh-scale">中文單位-萬億兆 (123萬4567)</option>
-                                                                                    <option value="zh-scale-qian">中文單位含千 (123萬4千567)</option>
-                                                                                </select>
-                                                                            </div>
-                                                                        </>
-                                                                    )}
+                                                            {/* 數據卡格式 */}
+                                                            {currentSelectedBlock.type === 'metricCard' && (
+                                                                <>
+                                                                    <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數值換算與格式</h4>
+                                                                    <div className="form-group">
+                                                                        <label>數值換算 (乘數) 💡單位為千元想轉元，請輸入 1000</label>
+                                                                        <input type="number" step="any" value={currentSelectedBlock.multiplier !== undefined ? currentSelectedBlock.multiplier : 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'multiplier', parseFloat(e.target.value) || 1)} />
+                                                                    </div>
+                                                                    <div className="form-group">
+                                                                        <label>數字顯示格式</label>
+                                                                        <select value={currentSelectedBlock.numberFormat || 'comma'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'numberFormat', e.target.value)}>
+                                                                            <option value="comma">標準逗號 (1,234,567)</option>
+                                                                            <option value="plain">純數字 (1234567)</option>
+                                                                            <option value="zh-scale">中文單位-萬億兆 (123萬4567)</option>
+                                                                            <option value="zh-scale-qian">中文單位含千 (123萬4千567)</option>
+                                                                        </select>
+                                                                    </div>
                                                                 </>
                                                             )}
                                                         </>
@@ -2235,12 +2377,111 @@
 
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
-                                                    {/* 🌟 共通圖表基本設定 (含雙引擎圖例切換) */}
+
+                                                    {/* 🌟 表格專屬樣式設定 */}
+                                                    {currentSelectedBlock.type === 'table' && (
+                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                            {/* 1. 表格內文樣式 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📄 表格內文樣式</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>文字大小 (px)</label><input type="number" value={currentSelectedBlock.tableBodySize || 14} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBodySize', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.tableBodyColor || '#444444'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBodyColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字粗細</label>
+                                                                    <select value={currentSelectedBlock.tableBodyWeight || 'normal'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBodyWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option><option value="bold">粗體</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>對齊方式</label>
+                                                                    <select value={currentSelectedBlock.tableBodyAlign || 'left'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBodyAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            {/* 2. 表格框線設定 */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                                                <h4 style={{ margin: 0, color: '#086788' }}>🖼️ 表格框線設定</h4>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <input type="checkbox" id="borderEnable" checked={currentSelectedBlock.tableBorderEnable || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBorderEnable', e.target.checked)} />
+                                                                    <label htmlFor="borderEnable" style={{ margin: 0, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>顯示框線</label>
+                                                                </div>
+                                                            </div>
+                                                            {currentSelectedBlock.tableBorderEnable && (
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>框線顏色</label><input type="color" value={currentSelectedBlock.tableBorderColor || '#dddddd'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBorderColor', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>框線粗細 (px)</label><input type="number" min="1" max="10" value={currentSelectedBlock.tableBorderWidth || 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableBorderWidth', e.target.value)} /></div>
+                                                                </div>
+                                                            )}
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            {/* 3. 首列 (標題列) 樣式 */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                                                <h4 style={{ margin: 0, color: '#086788' }}>🔝 首列 (標題列) 樣式</h4>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <input type="checkbox" id="headerEnable" checked={currentSelectedBlock.tableHeaderEnable || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderEnable', e.target.checked)} />
+                                                                    <label htmlFor="headerEnable" style={{ margin: 0, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>獨立設定</label>
+                                                                </div>
+                                                            </div>
+                                                            {currentSelectedBlock.tableHeaderEnable && (
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>背景顏色</label><input type="color" value={currentSelectedBlock.tableHeaderBg || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderBg', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.tableHeaderColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderColor', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>文字大小 (px)</label><input type="number" value={currentSelectedBlock.tableHeaderSize || 14} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderSize', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>文字粗細</label>
+                                                                        <select value={currentSelectedBlock.tableHeaderWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderWeight', e.target.value)}>
+                                                                            <option value="normal">正常</option><option value="bold">粗體</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                                                                        <label>對齊方式</label>
+                                                                        <select value={currentSelectedBlock.tableHeaderAlign || 'left'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableHeaderAlign', e.target.value)}>
+                                                                            <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            {/* 4. 首欄樣式 */}
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                                                <h4 style={{ margin: 0, color: '#086788' }}>⬅️ 首欄樣式</h4>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    <input type="checkbox" id="colEnable" checked={currentSelectedBlock.tableColEnable || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColEnable', e.target.checked)} />
+                                                                    <label htmlFor="colEnable" style={{ margin: 0, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>獨立設定</label>
+                                                                </div>
+                                                            </div>
+                                                            {currentSelectedBlock.tableColEnable && (
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>背景顏色</label><input type="color" value={currentSelectedBlock.tableColBg || '#f9f9f9'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColBg', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.tableColColor || '#444444'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColColor', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}><label>文字大小 (px)</label><input type="number" value={currentSelectedBlock.tableColSize || 14} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColSize', e.target.value)} /></div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>文字粗細</label>
+                                                                        <select value={currentSelectedBlock.tableColWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColWeight', e.target.value)}>
+                                                                            <option value="normal">正常</option><option value="bold">粗體</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0, gridColumn: 'span 2' }}>
+                                                                        <label>對齊方式</label>
+                                                                        <select value={currentSelectedBlock.tableColAlign || 'left'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColAlign', e.target.value)}>
+                                                                            <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* 🌟 共通圖表基本設定 */}
                                                     {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart' || currentSelectedBlock.type === 'pieChart') && (
                                                         <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📈 圖表基本排版</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                                                                {currentSelectedBlock.type !== 'pieChart' && (
+                                                                {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') && (
                                                                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                                                         <label>圖表方向</label>
                                                                         <select value={currentSelectedBlock.chartOrientation || 'vertical'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'chartOrientation', e.target.value)}>
@@ -2264,7 +2505,7 @@
                                                                 </div>
                                                             </div>
 
-                                                            {/* 🌟 圖例顯示位置控制器 */}
+                                                            {/* 🌟 圖例顯示位置 */}
                                                             <div className="form-group" style={{ marginBottom: 0, marginTop: '10px' }}>
                                                                 <label>圖例顯示位置</label>
                                                                 <select value={currentSelectedBlock.legendPosition || 'top'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'legendPosition', e.target.value)}>
@@ -2278,7 +2519,7 @@
                                                         </div>
                                                     )}
 
-                                                    {/* 🌟 長條圖/折線圖專屬軸線設定 */}
+                                                    {/* 🌟 長條/折線軸線與顏色 */}
                                                     {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart') && (
                                                         <>
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📈 軸線進階設定</h4>
@@ -2322,39 +2563,55 @@
                                                                 </div>
                                                             </div>
 
-                                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart') && (
-                                                                <>
-                                                                    <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 資料群組顏色設定</h4>
-                                                                    <div className="form-group" style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec' }}>
-                                                                        {(() => {
-                                                                            const cols = currentSelectedBlock.multiValueCols || [];
-                                                                            if (cols.length === 0) return <div style={{ fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>請先至「資料」面板綁定數值欄位</div>;
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 資料群組顏色設定</h4>
+                                                            <div className="form-group" style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec' }}>
+                                                                {(() => {
+                                                                    const cols = currentSelectedBlock.multiValueCols || [];
+                                                                    if (cols.length === 0) return <div style={{ fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>請先至「資料」面板綁定數值欄位</div>;
+                                                                    const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
+                                                                    return cols.map((col, idx) => {
+                                                                        if (!col) return null;
+                                                                        return (
+                                                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                                                                <input type="color"
+                                                                                    value={(currentSelectedBlock.customColors && currentSelectedBlock.customColors[idx]) || pieColors[idx % 8]}
+                                                                                    onChange={(e) => {
+                                                                                        const newColors = [...(currentSelectedBlock.customColors || [])];
+                                                                                        newColors[idx] = e.target.value;
+                                                                                        updateBlockProperty(currentSelectedBlock.i, 'customColors', newColors);
+                                                                                    }}
+                                                                                    style={{ width: '45px', height: '35px', padding: '2px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer' }}
+                                                                                />
+                                                                                <label style={{ flex: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', color: '#333' }}>{col}</label>
+                                                                            </div>
+                                                                        );
+                                                                    });
+                                                                })()}
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '10px', lineHeight: '1.4' }}>💡 點擊左側色塊即可直接挑選顏色。</div>
+                                                            </div>
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #eee', margin: '20px 0' }} />
+                                                        </>
+                                                    )}
 
-                                                                            const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
-
-                                                                            return cols.map((col, idx) => {
-                                                                                if (!col) return null;
-                                                                                return (
-                                                                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                                                                                        <input type="color"
-                                                                                            value={(currentSelectedBlock.customColors && currentSelectedBlock.customColors[idx]) || pieColors[idx % 8]}
-                                                                                            onChange={(e) => {
-                                                                                                const newColors = [...(currentSelectedBlock.customColors || [])];
-                                                                                                newColors[idx] = e.target.value;
-                                                                                                updateBlockProperty(currentSelectedBlock.i, 'customColors', newColors);
-                                                                                            }}
-                                                                                            style={{ width: '45px', height: '35px', padding: '2px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer' }}
-                                                                                        />
-                                                                                        <label style={{ flex: 1, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'bold', color: '#333' }}>
-                                                                                            {col}
-                                                                                        </label>
-                                                                                    </div>
-                                                                                );
-                                                                            });
-                                                                        })()}
-                                                                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '10px', lineHeight: '1.4' }}>💡 點擊左側色塊即可直接挑選顏色。字體若設太大導致圖例消失，請微調縮小字體尺寸。</div>
-                                                                    </div>
-                                                                </>
+                                                    {/* 🌟 堆疊與標籤專屬設定 */}
+                                                    {(currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'barChart') && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🏷️ 數據標籤與堆疊設定</h4>
+                                                            {currentSelectedBlock.type === 'stackedBarChart' && (
+                                                                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px', background: '#fff3cd', padding: '10px', borderRadius: '6px', border: '1px solid #ffeeba' }}>
+                                                                    <input type="checkbox" id="isPercentageStacked" checked={currentSelectedBlock.isPercentageStacked || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'isPercentageStacked', e.target.checked)} />
+                                                                    <label htmlFor="isPercentageStacked" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>轉換為 100% 百分比堆疊圖</label>
+                                                                </div>
+                                                            )}
+                                                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                                <input type="checkbox" id="showBarDataLabels" checked={currentSelectedBlock.showDataLabels || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showDataLabels', e.target.checked)} />
+                                                                <label htmlFor="showBarDataLabels" style={{ margin: 0, cursor: 'pointer' }}>顯示區塊數據標籤</label>
+                                                            </div>
+                                                            {currentSelectedBlock.showDataLabels && (
+                                                                <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px' }}>
+                                                                    <label>標籤文字顏色 (預設白色)</label>
+                                                                    <input type="color" value={currentSelectedBlock.dataLabelColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataLabelColor', e.target.value)} />
+                                                                </div>
                                                             )}
                                                             <hr style={{ border: 'none', borderTop: '2px dashed #eee', margin: '20px 0' }} />
                                                         </>
@@ -2363,39 +2620,35 @@
                                                     {/* 🌟 圓餅圖專屬設定 */}
                                                     {currentSelectedBlock.type === 'pieChart' && (
                                                         <>
-                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🍩 圓餅圖專屬設定</h4>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🍩 圓餅圖微調與標籤</h4>
                                                             <div className="form-group">
-                                                                <label>旋轉角度 (微調標籤位置避開碰撞)</label>
+                                                                <label>旋轉角度 (避開重疊)</label>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                                     <input type="range" min="0" max="360" value={currentSelectedBlock.pieRotation || 0} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'pieRotation', parseInt(e.target.value))} style={{ flex: 1 }} />
                                                                     <span style={{ width: '40px', fontSize: '0.85rem', fontWeight: 'bold' }}>{currentSelectedBlock.pieRotation || 0}°</span>
                                                                 </div>
                                                             </div>
-
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🏷️ 數據標籤 (Data Labels)</h4>
                                                             <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                                                                 <input type="checkbox" id="showDataLabels" checked={currentSelectedBlock.showDataLabels || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showDataLabels', e.target.checked)} />
-                                                                <label htmlFor="showDataLabels" style={{ margin: 0, cursor: 'pointer' }}>直接顯示數據 (外部懸浮標籤)</label>
+                                                                <label htmlFor="showDataLabels" style={{ margin: 0, cursor: 'pointer' }}>直接顯示數據標籤</label>
                                                             </div>
-
                                                             {currentSelectedBlock.showDataLabels && (
                                                                 <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', background: '#f0f8fa', padding: '10px', borderRadius: '6px' }}>
                                                                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                        <label>標籤顯示內容</label>
+                                                                        <label>標籤內容</label>
                                                                         <select value={currentSelectedBlock.dataLabelType || 'percentage'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataLabelType', e.target.value)}>
-                                                                            <option value="percentage">顯示百分比 (%)</option>
-                                                                            <option value="value">顯示實際數值</option>
+                                                                            <option value="percentage">百分比 (%)</option>
+                                                                            <option value="value">實際數值</option>
                                                                         </select>
                                                                     </div>
                                                                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                        <label>標籤文字顏色</label>
+                                                                        <label>文字顏色</label>
                                                                         <input type="color" value={currentSelectedBlock.dataLabelColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataLabelColor', e.target.value)} />
                                                                     </div>
                                                                 </div>
                                                             )}
-
                                                             <div className="form-group" style={{ marginTop: '15px' }}>
-                                                                <label>🎨 圓餅圖自訂色盤</label>
+                                                                <label>🎨 自訂色盤</label>
                                                                 {(currentSelectedBlock.pieCustomColors || []).map((color, index) => (
                                                                     <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                                                                         <input type="color" value={color} onChange={(e) => {
@@ -2409,16 +2662,73 @@
                                                                         }} style={{ padding: '5px' }}>✕</button>
                                                                     </div>
                                                                 ))}
-                                                                <button className="reset-filter-btn" onClick={() => {
+                                                                <button className="reset-filter-btn" style={{ background: '#fff', margin: 0, width: '100%', textAlign: 'center' }} onClick={() => {
                                                                     const updatedColors = [...(currentSelectedBlock.pieCustomColors || []), '#cccccc'];
                                                                     updateBlockProperty(currentSelectedBlock.i, 'pieCustomColors', updatedColors);
                                                                 }}>+ 添加色塊顏色</button>
-                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>因圓餅圖類別數量不固定，系統將從你輸入的色盤序列中循環套用。</div>
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>系統將從您輸入的色盤序列中循環套用。</div>
                                                             </div>
                                                             <hr style={{ border: 'none', borderTop: '2px dashed #eee', margin: '20px 0' }} />
                                                         </>
                                                     )}
 
+                                                    {/* 🌟 折線圖專屬設定 */}
+                                                    {currentSelectedBlock.type === 'lineChart' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>〰️ 折線與節點樣式</h4>
+                                                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>折線粗細 (px)</label>
+                                                                    <input type="number" min="1" max="10" value={currentSelectedBlock.lineWidth !== undefined ? currentSelectedBlock.lineWidth : 3} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'lineWidth', parseInt(e.target.value))} />
+                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1 }}>
+                                                                    <label>節點大小 (px)</label>
+                                                                    <input type="number" min="0" max="20" value={currentSelectedBlock.pointSize !== undefined ? currentSelectedBlock.pointSize : 5} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'pointSize', parseInt(e.target.value))} />
+                                                                </div>
+                                                            </div>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🚦 節點條件變色 (如景氣燈號)</h4>
+                                                            <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba' }}>
+                                                                {(currentSelectedBlock.conditionalColors || []).map((rule, idx) => (
+                                                                    <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '10px', alignItems: 'center' }}>
+                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>數值</span>
+                                                                        <select value={rule.operator} onChange={(e) => {
+                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                            newRules[idx].operator = e.target.value;
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                        }} style={{ padding: '4px', width: '50px' }}>
+                                                                            <option value=">=">&ge;</option>
+                                                                            <option value="<=">&le;</option>
+                                                                        </select>
+                                                                        <input type="number" value={rule.value} onChange={(e) => {
+                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                            newRules[idx].value = Number(e.target.value);
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                        }} style={{ width: '70px', padding: '4px' }} />
+                                                                        <input type="color" value={rule.color} onChange={(e) => {
+                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                            newRules[idx].color = e.target.value;
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                        }} style={{ width: '35px', height: '30px', padding: '0', cursor: 'pointer' }} />
+                                                                        <button onClick={() => {
+                                                                            const newRules = (currentSelectedBlock.conditionalColors || []).filter((_, i) => i !== idx);
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                        }} style={{ padding: '4px 8px', background: '#E74C3C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✕</button>
+                                                                    </div>
+                                                                ))}
+                                                                <button className="reset-filter-btn" style={{ background: '#fff', margin: 0, width: '100%', textAlign: 'center' }} onClick={() => {
+                                                                    const newRules = [...(currentSelectedBlock.conditionalColors || []), { operator: '>=', value: 0, color: '#E74C3C' }];
+                                                                    updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                }}>+ 添加變色條件</button>
+                                                                <div style={{ fontSize: '0.8rem', color: '#856404', marginTop: '10px' }}>💡 由上往下判斷，符合即變色。</div>
+                                                            </div>
+                                                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                                <input type="checkbox" id="showLineDataLabels" checked={currentSelectedBlock.showDataLabels || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showDataLabels', e.target.checked)} />
+                                                                <label htmlFor="showLineDataLabels" style={{ margin: 0, cursor: 'pointer' }}>直接顯示節點數值</label>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* 🌟 數據卡專屬設定 */}
                                                     {currentSelectedBlock.type === 'metricCard' && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🔢 數字前後綴</h4>
@@ -2435,83 +2745,74 @@
                                                         </>
                                                     )}
 
+                                                    {/* 🌟 時間軸/文字專屬設定 */}
                                                     {currentSelectedBlock.type === 'timeline' && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📏 佈局與間距</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>左側寬度 (%) 💡支援 RWD</label>
+                                                                    <label>左側寬度 (%)</label>
                                                                     <input type="number" min="10" max="80" value={currentSelectedBlock.timeWidthPercent || 20} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeWidthPercent', parseInt(e.target.value) || 20)} />
                                                                 </div>
                                                                 <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>中軸與文字間距 (%)</label>
+                                                                    <label>中軸間距 (%)</label>
                                                                     <input type="number" min="1" max="20" value={currentSelectedBlock.timelineGap || 2} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timelineGap', parseInt(e.target.value) || 2)} />
                                                                 </div>
                                                             </div>
-
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 軸線與節點顏色</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>時間</label>
-                                                                    <input type="color" value={currentSelectedBlock.timeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeColor', e.target.value)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>軸線</label>
-                                                                    <input type="color" value={currentSelectedBlock.lineColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'lineColor', e.target.value)} />
-                                                                </div>
-                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                                                                    <label>節點</label>
-                                                                    <input type="color" value={currentSelectedBlock.nodeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'nodeColor', e.target.value)} />
-                                                                </div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}><label>時間</label><input type="color" value={currentSelectedBlock.timeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}><label>軸線</label><input type="color" value={currentSelectedBlock.lineColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'lineColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}><label>節點</label><input type="color" value={currentSelectedBlock.nodeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'nodeColor', e.target.value)} /></div>
                                                             </div>
+                                                        </>
+                                                    )}
 
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 事件文字樣式</h4>
+                                                    {/* 🌟 文字相關共用排版 */}
+                                                    {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard') && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字樣式設定</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題顏色</label>
-                                                                    <input type="color" value={currentSelectedBlock.titleColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleColor', e.target.value)} />
+                                                                    <label>主字顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.titleColor || currentSelectedBlock.themeColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, currentSelectedBlock.type === 'timeline' ? 'titleColor' : 'themeColor', e.target.value)} />
                                                                 </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文顏色</label>
-                                                                    <input type="color" value={currentSelectedBlock.descColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descColor', e.target.value)} />
-                                                                </div>
+                                                                {currentSelectedBlock.type === 'timeline' && (
+                                                                    <div className="form-group" style={{ flex: 1 }}>
+                                                                        <label>內文顏色</label>
+                                                                        <input type="color" value={currentSelectedBlock.descColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descColor', e.target.value)} />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題大小</label>
-                                                                    <select value={currentSelectedBlock.titleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleSize', e.target.value)}>
-                                                                        <option value="1rem">小 (1rem)</option>
-                                                                        <option value="1.1rem">預設 (1.1rem)</option>
-                                                                        <option value="1.3rem">大 (1.3rem)</option>
-                                                                        <option value="1.5rem">特大 (1.5rem)</option>
+                                                                    <label>字體大小</label>
+                                                                    <select value={currentSelectedBlock.titleSize || currentSelectedBlock.fontSize || (currentSelectedBlock.type === 'metricCard' ? '3.5rem' : '1.1rem')} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, currentSelectedBlock.type === 'timeline' ? 'titleSize' : 'fontSize', e.target.value)}>
+                                                                        <option value={currentSelectedBlock.type === 'metricCard' ? '2.5rem' : '0.9rem'}>小</option>
+                                                                        <option value={currentSelectedBlock.type === 'metricCard' ? '3.5rem' : '1.1rem'}>中</option>
+                                                                        <option value={currentSelectedBlock.type === 'metricCard' ? '4.5rem' : '1.3rem'}>大</option>
+                                                                        <option value={currentSelectedBlock.type === 'metricCard' ? '5.5rem' : '1.5rem'}>特大</option>
                                                                     </select>
                                                                 </div>
                                                                 <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>標題粗細</label>
-                                                                    <select value={currentSelectedBlock.titleWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'titleWeight', e.target.value)}>
+                                                                    <label>字體粗細</label>
+                                                                    <select value={currentSelectedBlock.titleWeight || currentSelectedBlock.fontWeight || 'normal'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, currentSelectedBlock.type === 'timeline' ? 'titleWeight' : 'fontWeight', e.target.value)}>
                                                                         <option value="normal">正常</option>
                                                                         <option value="bold">粗體</option>
                                                                         <option value="900">特粗</option>
                                                                     </select>
                                                                 </div>
                                                             </div>
-                                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文大小</label>
-                                                                    <select value={currentSelectedBlock.descSize || '0.95rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descSize', e.target.value)}>
-                                                                        <option value="0.85rem">小 (0.85rem)</option>
-                                                                        <option value="0.95rem">預設 (0.95rem)</option>
-                                                                        <option value="1.1rem">大 (1.1rem)</option>
+                                                            {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'metricCard') && (
+                                                                <div className="form-group">
+                                                                    <label>對齊方式</label>
+                                                                    <select value={currentSelectedBlock.textAlign || 'left'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option>
+                                                                        <option value="center">置中</option>
+                                                                        <option value="right">靠右</option>
                                                                     </select>
                                                                 </div>
-                                                                <div className="form-group" style={{ flex: 1 }}>
-                                                                    <label>內文粗細</label>
-                                                                    <select value={currentSelectedBlock.descWeight || 'normal'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'descWeight', e.target.value)}>
-                                                                        <option value="normal">正常</option>
-                                                                        <option value="bold">粗體</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
