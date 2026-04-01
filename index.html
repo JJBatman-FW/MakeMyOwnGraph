@@ -1050,20 +1050,30 @@
 
             const clearFilters = () => setFilters({});
 
+            // 🧠 魔法 3：檢查積木是否該進入「等待選擇」狀態
             const getMissingDropdowns = (comp) => {
                 if (comp.type === 'dropdown') return [];
                 const upstreamDropdowns = sortedComponents.filter(c =>
                     c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
                 );
-                return upstreamDropdowns.filter(uComp => !filters[uComp.categoryColumn]).map(c => c.categoryColumn);
+                // 🌟 核心修正：只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
+                return upstreamDropdowns.filter(uComp => {
+                    const isRequired = uComp.defaultBehavior !== 'all';
+                    return isRequired && !filters[uComp.categoryColumn];
+                }).map(c => c.categoryColumn);
             };
 
             const checkDropdownDisabled = (comp) => {
                 if (comp.type !== 'dropdown') return false;
-                const myListenCols = comp.listenAll !== false
-                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id).map(c => c.categoryColumn)
-                    : (comp.customListenCols || []);
-                return myListenCols.some(colName => colName && !filters[colName]);
+                const upstreamDropdowns = comp.listenAll !== false
+                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id)
+                    : sortedComponents.filter(c => c.type === 'dropdown' && (comp.customListenCols || []).includes(c.categoryColumn));
+
+                // 🌟 同理，上層如果設定為「全部」，就不該讓下層選單被反灰禁用
+                return upstreamDropdowns.some(uComp => {
+                    const isRequired = uComp.defaultBehavior !== 'all';
+                    return isRequired && !filters[uComp.categoryColumn];
+                });
             };
 
             const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
@@ -1603,15 +1613,61 @@
                         );
                     })()}
 
+                    {/* 🔽 智慧下拉選單區塊 (支援下拉與按鈕雙模式) */}
                     {comp.type === 'dropdown' && (() => {
                         if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
-                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
+                        if (isDropdownDisabled) return <div style={{ padding: '10px', fontSize: '0.9rem', color: '#999', background: '#f0f0f0', border: '1px dashed #ccc', textAlign: 'center', borderRadius: '6px' }}>請先選擇上一層條件</div>;
 
                         const options = [...new Set(filteredData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
+                        const currentVal = filters[comp.categoryColumn] || '';
+                        const activeColor = comp.themeColor || '#086788';
+                        const emptyText = comp.defaultBehavior === 'all' ? '全部' : '請選擇...';
 
+                        // 🌟 模式 2：標籤按鈕模式
+                        if (comp.dropdownStyle === 'tabs') {
+                            return (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', width: '100%', maxHeight: '100%', overflowY: 'auto', padding: '2px' }}>
+                                    <button
+                                        onClick={() => onFilterChange(comp.categoryColumn, '')}
+                                        style={{
+                                            padding: '8px 16px', borderRadius: '20px', transition: 'all 0.2s', cursor: 'pointer',
+                                            border: currentVal === '' ? `1px solid ${activeColor}` : '1px solid #ccc',
+                                            background: currentVal === '' ? activeColor : '#fff',
+                                            color: currentVal === '' ? '#fff' : '#666',
+                                            fontSize: comp.fontSize || '1rem',
+                                            fontWeight: comp.fontWeight || 'bold'
+                                        }}>
+                                        {emptyText} {/* 🌟 根據設定顯示 全部 或 請選擇 */}
+                                    </button>
+                                    {options.map(opt => {
+                                        const isActive = currentVal === opt;
+                                        return (
+                                            <button key={opt}
+                                                onClick={() => onFilterChange(comp.categoryColumn, isActive ? '' : opt)}
+                                                style={{
+                                                    padding: '8px 16px', borderRadius: '20px', transition: 'all 0.2s', cursor: 'pointer',
+                                                    border: isActive ? `1px solid ${activeColor}` : '1px solid #ccc',
+                                                    background: isActive ? activeColor : '#fff',
+                                                    color: isActive ? '#fff' : '#666',
+                                                    fontSize: comp.fontSize || '1rem',
+                                                    fontWeight: comp.fontWeight || 'bold'
+                                                }}>
+                                                {opt}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        }
+
+                        // 🌟 模式 1：傳統下拉模式 (預設)
                         return (
-                            <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
-                                <option value="">請選擇 {comp.categoryColumn}...</option>
+                            <select style={{
+                                padding: '10px', width: '100%',
+                                fontSize: comp.fontSize || '1rem',
+                                fontWeight: comp.fontWeight || 'normal'
+                            }} value={currentVal} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
+                                <option value="">{emptyText}</option> {/* 🌟 根據設定顯示 全部 或 請選擇 */}
                                 {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                         );
@@ -1817,7 +1873,7 @@
                                             prefix: c.prefix || '', suffix: c.suffix || '', numberFormat: c.numberFormat || 'comma', multiplier: c.multiplier !== undefined ? c.multiplier : 1,
                                             fontSize: c.fontSize || '', fontFamily: c.fontFamily || '', fontWeight: c.fontWeight || '', textAlign: c.textAlign || '',
                                             w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity,
-                                            legendPosition: c.legendPosition || 'top',
+                                            legendPosition: c.legendPosition || 'top', dropdownStyle: c.dropdownStyle || 'select', defaultBehavior: c.defaultBehavior || 'require',
                                             pieRotation: c.pieRotation || 0,
                                             conditionalColors: c.conditionalColors || [],
                                             lineWidth: c.lineWidth, pointSize: c.pointSize,
@@ -1914,7 +1970,7 @@
                 meta: globalMeta, sheetSources: sheetSources,
                 components: blocks.map(b => ({
                     id: b.i, type: b.type, title: b.title, dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''),
-                    showTitle: b.showTitle !== false, legendPosition: b.legendPosition || 'top',
+                    showTitle: b.showTitle !== false, legendPosition: b.legendPosition || 'top', dropdownStyle: b.dropdownStyle || 'select', defaultBehavior: b.defaultBehavior || 'require',
                     categoryColumn: b.categoryCol || null,
                     multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
                     valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart' && b.type !== 'lineChart') ? (b.valueCol || null) : null,
@@ -2154,11 +2210,11 @@
                                                             {/* 🔌 互動連動設定 (全域/自訂) */}
                                                             <div className="form-group" style={{ background: '#e8f4f8', padding: '12px', borderRadius: '8px', border: '1px solid #bce0ed', marginTop: '15px', marginBottom: 0 }}>
                                                                 <h4 style={{ margin: 0, color: '#086788', marginBottom: '10px' }}>🔌 互動連動設定 (監聽對象)</h4>
-                                                                
+
                                                                 {(() => {
                                                                     // 計算當前的 radio 狀態
                                                                     const listenMode = currentSelectedBlock.listenMode || (currentSelectedBlock.listenAll === false ? (currentSelectedBlock.customListenCols && currentSelectedBlock.customListenCols.length > 0 ? 'custom' : 'none') : 'all');
-                                                                    
+
                                                                     return (
                                                                         <>
                                                                             <div style={{ display: 'flex', gap: '15px', marginBottom: listenMode === 'custom' ? '10px' : '0' }}>
@@ -2186,7 +2242,7 @@
                                                                                             return (
                                                                                                 <label key={dComp.i} style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
                                                                                                     <input type="checkbox" checked={isChecked} onChange={(e) => {
-                                                                                                        const newCols = e.target.checked 
+                                                                                                        const newCols = e.target.checked
                                                                                                             ? [...(currentSelectedBlock.customListenCols || []), dComp.categoryCol]
                                                                                                             : (currentSelectedBlock.customListenCols || []).filter(c => c !== dComp.categoryCol);
                                                                                                         updateBlockProperty(currentSelectedBlock.i, 'customListenCols', newCols);
@@ -2473,6 +2529,53 @@
                                                                     </div>
                                                                 </div>
                                                             )}
+                                                        </div>
+                                                    )}
+                                                    {/* 🌟 下拉選單專屬樣式設定 */}
+                                                    {currentSelectedBlock.type === 'dropdown' && (
+                                                        <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                                                            {/* 🌟 改用 Grid 排版，保證 2x2 整齊排列不擠壓 */}
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>顯示樣式</label>
+                                                                    <select value={currentSelectedBlock.dropdownStyle || 'select'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dropdownStyle', e.target.value)}>
+                                                                        <option value="select">下拉選單 (Dropdown)</option>
+                                                                        <option value="tabs">標籤按鈕 (Button Tabs)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>按鈕選中顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字大小</label>
+                                                                    <select value={currentSelectedBlock.fontSize || '1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
+                                                                        <option value="0.85rem">小 (0.85rem)</option>
+                                                                        <option value="1rem">預設 (1rem)</option>
+                                                                        <option value="1.15rem">大 (1.15rem)</option>
+                                                                        <option value="1.3rem">特大 (1.3rem)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字粗細</label>
+                                                                    <select value={currentSelectedBlock.fontWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="bold">粗體 (預設)</option>
+                                                                        <option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="form-group" style={{ marginTop: '15px', marginBottom: 0 }}>
+                                                                <label>未選擇任何項目時的預設行為</label>
+                                                                <select value={currentSelectedBlock.defaultBehavior || 'require'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'defaultBehavior', e.target.value)}>
+                                                                    <option value="require">要求選擇 (圖表顯示「請先選擇...」)</option>
+                                                                    <option value="all">預設顯示「全部」(圖表顯示加總資料)</option>
+                                                                </select>
+                                                            </div>
+                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '10px', lineHeight: '1.4' }}>
+                                                                💡 標籤按鈕建議搭配「預設顯示全部」。
+                                                            </div>
                                                         </div>
                                                     )}
 
