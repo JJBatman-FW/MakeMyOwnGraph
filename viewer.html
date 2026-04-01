@@ -236,6 +236,10 @@
                 overflow-y: visible !important;
                 height: auto !important;
             }
+            .chart-scroll-area.is-line-chart, .chart-scroll-area.is-bar-chart.is-vertical {
+                aspect-ratio: 1 / 1;
+                min-height: 300px;
+            }
         }
 
         /* 其他積木 CSS */
@@ -264,6 +268,14 @@
         .carousel-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0 5px 0; }
         .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; cursor: pointer; transition: 0.2s; }
         .carousel-dot.active { background: var(--primary); transform: scale(1.2); }
+
+        /* 🌟 數據表格專屬樣式 */
+        .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
+        .custom-table th { position: sticky; top: 0; color: #fff; padding: 12px 15px; font-weight: bold; z-index: 2; white-space: nowrap; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
+        .custom-table td { padding: 10px 15px; border-bottom: 1px solid #eee; color: #444; white-space: nowrap; }
+        .custom-table tbody tr:nth-child(even) { background-color: #fafafa; }
+        .custom-table tbody tr:hover { background-color: #f0f8fa; }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
     </style>
 </head>
@@ -274,8 +286,246 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 🌟 完全移植你的神之 ChartComponent
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, isChartVisible, isDropdownDisabled, firstDropdownCol, orderedDropdownCols, aggregateStackedData }) {
+        function PreviewViewer({ config }) {
+            const [dataMap, setDataMap] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [filters, setFilters] = useState({});
+
+            useEffect(() => {
+                const fetchData = async () => {
+                    if (!config.sheetSources || config.sheetSources.length === 0) {
+                        setError("尚未設定任何資料庫。");
+                        setLoading(false); return;
+                    }
+                    try {
+                        const newDataMap = {};
+                        await Promise.all(config.sheetSources.map(async (source) => {
+                            if (!source.sheetId) return;
+                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
+                            const res = await fetch(url);
+                            const text = await res.text();
+                            const json = JSON.parse(text.substring(47, text.length - 2));
+
+                            let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+                            let rowsData = json.table.rows;
+
+                            if (cols.length === 0 && rowsData.length > 0) {
+                                cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                                rowsData = rowsData.slice(1);
+                            }
+
+                            const parsedData = rowsData.map(row => {
+                                let obj = {};
+                                row.c.forEach((cell, i) => {
+                                    if (cols[i]) {
+                                        obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
+                                    }
+                                });
+                                return obj;
+                            });
+                            newDataMap[source.id] = parsedData;
+                        }));
+                        setDataMap(newDataMap);
+                    } catch (err) {
+                        setError("資料庫連線失敗，請檢查權限。");
+                    }
+                    setLoading(false);
+                };
+                fetchData();
+            }, [config.sheetSources]);
+
+            const sortedComponents = [...config.components].sort((a, b) => {
+                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
+                return a.layout.y - b.layout.y;
+            });
+
+            // 🧠 魔法 1：每個積木自己決定要撈什麼資料
+            const getFilteredDataForComp = (comp) => {
+                const sourceData = dataMap[comp.dataSourceId] || [];
+                return sourceData.filter(row => {
+                    for (let key in filters) {
+                        if (!filters[key]) continue;
+                        if (comp.type === 'dropdown' && key === comp.categoryColumn) continue;
+                        const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
+                        if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            };
+
+            // 🧠 魔法 2：下拉選單改變時的精準連動
+            const handleFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    sortedComponents.forEach((dComp) => {
+                        if (dComp.type === 'dropdown' && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                            const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
+                            if (listensToThisCol) {
+                                if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
+                            }
+                        }
+                    });
+                    return newFilters;
+                });
+            };
+
+            const clearFilters = () => setFilters({});
+
+            // 🧠 魔法 3：檢查積木是否該進入「等待選擇」狀態
+            const getMissingDropdowns = (comp) => {
+                if (comp.type === 'dropdown') return [];
+                const upstreamDropdowns = sortedComponents.filter(c =>
+                    c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
+                );
+                return upstreamDropdowns.filter(uComp => !filters[uComp.categoryColumn]).map(c => c.categoryColumn);
+            };
+
+            const checkDropdownDisabled = (comp) => {
+                if (comp.type !== 'dropdown') return false;
+                const myListenCols = comp.listenAll !== false
+                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id).map(c => c.categoryColumn)
+                    : (comp.customListenCols || []);
+                return myListenCols.some(colName => colName && !filters[colName]);
+            };
+
+            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
+                if (!valueCol) return {};
+                let result = {};
+                rawData.forEach(row => {
+                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                    if (aggType === 'first') {
+                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
+                        return;
+                    }
+                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
+                        let parts = catRaw.split('|');
+                        parts.forEach(part => {
+                            let [subCat, subValStr] = part.split(':');
+                            if (subCat && subValStr !== undefined) {
+                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                if (val > 0) {
+                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
+                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
+                                }
+                            }
+                        });
+                    } else {
+                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
+                        if (val > 0 || aggType === 'count') {
+                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
+                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
+                        }
+                    }
+                });
+                return result;
+            };
+
+            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
+                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean);
+                let datasetsMap = {};
+                categories.forEach((cat, catIndex) => {
+                    const rows = rawData.filter(r => r[categoryCol] === cat);
+                    rows.forEach(r => {
+                        valueCols.forEach(col => {
+                            if (!col) return;
+                            let valRaw = r[col];
+                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
+                                let parts = valRaw.split('|');
+                                parts.forEach(part => {
+                                    let [subCat, subValStr] = part.split(':');
+                                    if (subCat && subValStr !== undefined) {
+                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
+                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
+                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                    }
+                                });
+                            } else {
+                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
+                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
+                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
+                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                            }
+                        });
+                    });
+                });
+                const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
+                return { categories, datasets };
+            };
+
+            if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center', color: '#086788' }}>資料載入中，請稍候...</h3></div>;
+            if (error) return <div className="preview-container"><h3 style={{ color: '#E74C3C', textAlign: 'center' }}>{error}</h3></div>;
+
+            return (
+                <div className="preview-container">
+                    <div className="news-header">
+                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
+                            <h2 className="news-title" style={{
+                                color: config.meta.titleColor || '#222',
+                                fontSize: config.meta.titleFontSize || '1.8rem',
+                                fontWeight: config.meta.titleFontWeight || '900',
+                                fontFamily: config.meta.titleFontFamily || 'inherit',
+                                margin: 0
+                            }}>
+                                {config.meta.title}
+                            </h2>
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px`, marginLeft: '15px' }} />
+                        )}
+                    </div>
+
+                    {Object.values(filters).some(v => v) && (
+                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
+                    )}
+
+                    <div className="preview-grid">
+                        {sortedComponents.map(comp => (
+                            <ChartComponent
+                                key={comp.id} comp={comp}
+                                rawData={dataMap[comp.dataSourceId] || []}
+                                filteredData={getFilteredDataForComp(comp)}
+                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
+                                missingDropdowns={getMissingDropdowns(comp)}
+                                isDropdownDisabled={checkDropdownDisabled(comp)}
+                                aggregateStackedData={aggregateStackedData}
+                            />
+                        ))}
+                    </div>
+
+                    <div className="news-footer">
+                        <div className="news-footer-left">
+                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
+                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                    <span>資料來源：</span>
+                                    {config.meta.dataSources.map((source, idx) => (
+                                        <span key={idx}>
+                                            {source.url ? (
+                                                <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a>
+                                            ) : (
+                                                <span>{source.name || '未命名來源'}</span>
+                                            )}
+                                            {idx < config.meta.dataSources.length - 1 && '、'}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // 🌟 核心畫布元件
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData }) {
+            const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
             const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
@@ -298,8 +548,9 @@
 
             useEffect(() => {
                 if (isChartType && isChartVisible) {
-                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
-                        if (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0) return;
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
+                        const hasData = (comp.multiValueCols && comp.multiValueCols.length > 0) || comp.valueColumn;
+                        if (!comp.categoryColumn || !hasData) return;
                     } else {
                         if (!comp.categoryColumn || !comp.valueColumn) return;
                     }
@@ -339,7 +590,7 @@
                     const categoryAxis = isHorizontal ? 'y' : 'x';
 
                     options.scales[categoryAxis] = {
-                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont, autoSkip: false },
+                        ticks: { color: comp.axisLabelColor || '#666', font: tickFont, autoSkip: comp.type === 'lineChart' ? true : false },
                         grid: { color: gridColor },
                         border: { display: true, color: gridColor },
                         title: { display: false },
@@ -361,17 +612,55 @@
                     let labels = [];
                     let datasets = [];
 
-                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart') {
-                        chartType = 'bar';
+                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
+                        chartType = comp.type === 'lineChart' ? 'line' : 'bar';
                         const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn, comp.compareValueColumn].filter(Boolean);
                         const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, cols, comp.aggregation);
                         labels = stackedData.categories;
                         const customColors = Array.isArray(comp.customColors) ? comp.customColors : [];
-                        datasets = stackedData.datasets.map((ds, idx) => ({
-                            ...ds,
-                            backgroundColor: customColors[idx] || pieColors[idx % pieColors.length],
-                            maxBarThickness: 60
-                        }));
+
+                        datasets = stackedData.datasets.map((ds, idx) => {
+                            const baseColor = customColors[idx] || pieColors[idx % pieColors.length];
+                            let dsConfig = { ...ds, backgroundColor: baseColor, borderColor: baseColor, maxBarThickness: 60 };
+
+                            if (comp.type === 'lineChart') {
+                                const customLineWidth = comp.lineWidth !== undefined ? comp.lineWidth : 3;
+                                const customPointSize = comp.pointSize !== undefined ? comp.pointSize : 5;
+
+                                dsConfig.fill = false;
+                                dsConfig.tension = 0.3;
+                                dsConfig.borderWidth = customLineWidth;
+                                dsConfig.pointRadius = customPointSize;
+                                dsConfig.pointHoverRadius = customPointSize + 2;
+
+                                if (comp.conditionalColors && comp.conditionalColors.length > 0) {
+                                    dsConfig.pointBackgroundColor = (context) => {
+                                        const val = context.raw;
+                                        if (val === undefined || val === null) return baseColor;
+                                        for (let rule of comp.conditionalColors) {
+                                            if (rule.operator === '>=' && val >= rule.value) return rule.color;
+                                            if (rule.operator === '<=' && val <= rule.value) return rule.color;
+                                        }
+                                        return baseColor;
+                                    };
+                                    dsConfig.pointBorderColor = '#fff';
+                                    dsConfig.pointBorderWidth = 2;
+                                    dsConfig.pointRadius = customPointSize + 3;
+                                    dsConfig.pointHoverRadius = customPointSize + 5;
+                                }
+
+                                if (comp.showDataLabels) {
+                                    options.layout.padding = { top: baseFontSize + 20, right: 20, left: 10, bottom: 10 };
+                                    options.plugins.datalabels = {
+                                        display: true, align: 'bottom', anchor: 'end', offset: 8,
+                                        color: comp.axisLabelColor || '#666',
+                                        font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                        formatter: (value) => Number(value).toLocaleString('zh-TW')
+                                    };
+                                }
+                            }
+                            return dsConfig;
+                        });
 
                         if (comp.type === 'stackedBarChart' && comp.isPercentageStacked) {
                             const numCategories = labels.length; const numDatasets = datasets.length;
@@ -380,51 +669,51 @@
                                 if (total > 0) { for (let i = 0; i < numDatasets; i++) datasets[i].data[j] = (datasets[i].data[j] / total) * 100; }
                             }
                             options.scales[valueAxis].max = 100;
-                            options.plugins.datalabels = { display: true, formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '', color: 'white', font: { weight: 'bold' } };
+                            options.plugins.datalabels = {
+                                display: true,
+                                formatter: (value) => value > 0 ? value.toFixed(0) + '%' : '',
+                                color: comp.dataLabelColor || '#ffffff',
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily }
+                            };
+                        } else if ((comp.type === 'barChart' || comp.type === 'stackedBarChart') && comp.showDataLabels) {
+                            options.plugins.datalabels = {
+                                display: true,
+                                color: comp.dataLabelColor || '#ffffff',
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                formatter: (value) => value > 0 ? Number(value).toLocaleString('zh-TW') : ''
+                            };
                         }
-                    } else {
-                        const mainColor = comp.themeColor || '#086788';
+                    } else if (comp.type === 'pieChart') {
                         const aggData1 = aggregateData(filteredData, comp.categoryColumn, comp.valueColumn, comp.aggregation);
                         labels = Object.keys(aggData1); const data1 = Object.values(aggData1);
 
                         let pieCurrentColors = pieColors;
-                        if (comp.type === 'pieChart' && Array.isArray(comp.pieCustomColors) && comp.pieCustomColors.length > 0) {
-                            pieCurrentColors = comp.pieCustomColors;
+                        if (Array.isArray(comp.pieCustomColors) && comp.pieCustomColors.length > 0) pieCurrentColors = comp.pieCustomColors;
+
+                        const bgColors = labels.map((_, i) => pieCurrentColors[i % pieCurrentColors.length]);
+                        datasets = [{ label: comp.title, data: data1, backgroundColor: bgColors, fill: true }];
+
+                        chartType = comp.pieStyle === 'pie' ? 'pie' : 'doughnut';
+                        delete options.scales;
+                        options.rotation = comp.pieRotation || 0;
+
+                        if (comp.showDataLabels) {
+                            options.plugins.datalabels = {
+                                display: true,
+                                color: comp.dataLabelColor === '#ffffff' ? '#333333' : (comp.dataLabelColor || '#666666'),
+                                font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
+                                anchor: 'end', align: 'end', offset: 5,
+                                formatter: (value, context) => {
+                                    const dataset = context.chart.data.datasets[context.datasetIndex];
+                                    const tSum = dataset.data.reduce((acc, curr) => acc + curr, 0);
+                                    if (tSum === 0) return '';
+                                    const percentage = (value / tSum) * 100;
+                                    if (percentage < 1.5) return '';
+                                    if (comp.dataLabelType === 'value') return Number(value).toLocaleString('zh-TW');
+                                    else return Math.round(percentage) + '%';
+                                }
+                            };
                         }
-
-                        const bgColors = comp.type === 'pieChart' ? labels.map((_, i) => pieCurrentColors[i % pieCurrentColors.length]) : mainColor;
-                        datasets = [{ label: comp.compareValueColumn ? comp.valueColumn : comp.title, data: data1, backgroundColor: bgColors, borderColor: comp.type === 'lineChart' ? mainColor : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 }];
-
-                        if (comp.compareValueColumn && comp.type !== 'pieChart') {
-                            const aggData2 = aggregateData(filteredData, comp.categoryColumn, comp.compareValueColumn, comp.aggregation);
-                            const data2 = labels.map(label => aggData2[label] || 0);
-                            datasets.push({ label: comp.compareValueColumn, data: data2, backgroundColor: '#bdc3c7', borderColor: comp.type === 'lineChart' ? '#bdc3c7' : undefined, fill: comp.type === 'lineChart' ? false : true, maxBarThickness: 60 });
-                        }
-
-                        if (comp.type === 'pieChart') {
-                            chartType = comp.pieStyle === 'pie' ? 'pie' : 'doughnut';
-                            delete options.scales;
-                            options.rotation = comp.pieRotation || 0;
-
-                            if (comp.showDataLabels) {
-                                options.plugins.datalabels = {
-                                    display: true,
-                                    color: comp.dataLabelColor === '#ffffff' ? '#333333' : (comp.dataLabelColor || '#666666'),
-                                    font: { weight: 'bold', size: baseFontSize, family: defaultFontFamily },
-                                    anchor: 'end', align: 'end', offset: 5,
-                                    formatter: (value, context) => {
-                                        const dataset = context.chart.data.datasets[context.datasetIndex];
-                                        const tSum = dataset.data.reduce((acc, curr) => acc + curr, 0);
-                                        if (tSum === 0) return '';
-                                        const percentage = (value / tSum) * 100;
-                                        if (percentage < 1.5) return '';
-                                        if (comp.dataLabelType === 'value') return Number(value).toLocaleString('zh-TW');
-                                        else return Math.round(percentage) + '%';
-                                    }
-                                };
-                            }
-                        }
-                        if (comp.type === 'lineChart') { chartType = 'line'; options.elements = { line: { tension: 0.3 } }; }
                     }
 
                     const sortMode = comp.sortBy || 'sheet';
@@ -451,7 +740,6 @@
                 return () => { if (chartInstance.current) chartInstance.current.destroy(); }
             }, [comp, filteredData, isChartVisible, labelCount]);
 
-            // 📐 網格定位計算
             const finalH = comp.layout?.h || comp.h || 6;
             const isHorizontalChart = isChartType && comp.chartOrientation === 'horizontal';
 
@@ -473,11 +761,11 @@
                 height: '100%'
             };
 
-            if (comp.type !== 'dropdown' && !isChartVisible) {
+            if (comp.type !== 'dropdown' && missingDropdowns && missingDropdowns.length > 0) {
                 return (
                     <div className="preview-card" style={gridStyle}>
                         {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>{comp.title}</h3>}
-                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先選擇上方篩選條件</div>
+                        <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於選單選擇「{missingDropdowns[0]}」<br />以載入資料</div>
                     </div>
                 );
             }
@@ -534,7 +822,7 @@
             const renderHtmlLegend = (labels, datasets) => {
                 if (comp.type !== 'pieChart' || comp.legendPosition === 'none' || labels.length === 0) return null;
                 const isVertical = comp.legendPosition === 'right' || comp.legendPosition === 'left';
-                
+
                 return (
                     <div className="custom-html-legend" style={{
                         display: 'flex', flexWrap: 'wrap', gap: '12px',
@@ -550,16 +838,16 @@
                             const bgColor = datasets.length > 0 ? datasets[0].backgroundColor[idx] : '#ccc';
                             return (
                                 <div key={idx} onClick={() => toggleSlice(idx)}
-                                     style={{
-                                         display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-                                         opacity: hiddenSlices[idx] ? 0.4 : 1, 
-                                         fontSize: `${parseInt(comp.axisLabelSize) || 12}px`,
-                                         color: comp.axisLabelColor || '#666',
-                                         transition: 'opacity 0.2s',
-                                         textDecoration: hiddenSlices[idx] ? 'line-through' : 'none' 
-                                     }}>
-                                     <div style={{ width: '14px', height: '14px', backgroundColor: bgColor, borderRadius: '3px', flexShrink: 0 }}></div>
-                                     <span style={{ whiteSpace: isVertical ? 'normal' : 'nowrap', wordBreak: 'break-word' }}>{label}</span>
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
+                                        opacity: hiddenSlices[idx] ? 0.4 : 1,
+                                        fontSize: `${parseInt(comp.axisLabelSize) || 12}px`,
+                                        color: comp.axisLabelColor || '#666',
+                                        transition: 'opacity 0.2s',
+                                        textDecoration: hiddenSlices[idx] ? 'line-through' : 'none'
+                                    }}>
+                                    <div style={{ width: '14px', height: '14px', backgroundColor: bgColor, borderRadius: '3px', flexShrink: 0 }}></div>
+                                    <span style={{ whiteSpace: isVertical ? 'normal' : 'nowrap', wordBreak: 'break-word' }}>{label}</span>
                                 </div>
                             );
                         })}
@@ -595,20 +883,18 @@
                                     <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: comp.axisLabelColor || '#666', textAlign: 'left', paddingLeft: '5px', paddingBottom: '5px', flexShrink: 0 }}>{topUnitText}</div>
                                 )}
 
-                                <div className={`chart-scroll-area ${isHorizontalChart ? 'is-horizontal' : 'is-vertical'}`} style={{ 
-                                    overflowX: !isHorizontalChart ? 'auto' : 'hidden', 
+                                <div className={`chart-scroll-area ${isHorizontalChart ? 'is-horizontal' : 'is-vertical'} ${comp.type === 'lineChart' ? 'is-line-chart' : ''} ${(comp.type === 'barChart' || comp.type === 'stackedBarChart') ? 'is-bar-chart' : ''}`} style={{
+                                    overflowX: !isHorizontalChart ? 'auto' : 'hidden',
                                     overflowY: isHorizontalChart ? 'auto' : 'hidden',
                                     position: 'relative'
                                 }}>
-                                    {/* 🌟 CSS max() 魔法防護：電腦版100%完美填滿，所需像素確保不擠扁 */}
                                     <div style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        minWidth: !isHorizontalChart && neededWidth > 0 ? `${neededWidth}px` : undefined,
+                                        width: '100%', height: '100%',
+                                        minWidth: (!isHorizontalChart && comp.type !== 'lineChart' && neededWidth > 0) ? `${neededWidth}px` : undefined,
                                         minHeight: isHorizontalChart && neededHeight > 0 ? `${neededHeight}px` : undefined,
                                         position: 'relative'
                                     }}>
-                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart') && (!comp.categoryColumn || !comp.multiValueCols || comp.multiValueCols.length === 0)) || ((comp.type === 'lineChart') && (!comp.categoryColumn || !comp.valueColumn))
+                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') && (!comp.categoryColumn || (!(comp.multiValueCols && comp.multiValueCols.length > 0) && !comp.valueColumn)))
                                             ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
                                             : <canvas ref={canvasRef}></canvas>
                                         }
@@ -624,15 +910,15 @@
 
                     {/* 🌟 圓餅圖 渲染區 */}
                     {isChartType && comp.type === 'pieChart' && (() => {
-                        let chartFlexDirection = 'column'; 
+                        let chartFlexDirection = 'column';
                         if (comp.legendPosition === 'right') chartFlexDirection = 'row';
                         else if (comp.legendPosition === 'left') chartFlexDirection = 'row-reverse';
                         else if (comp.legendPosition === 'top') chartFlexDirection = 'column-reverse';
-                        
+
                         return (
                             <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: chartFlexDirection, overflow: 'hidden', minHeight: 0, gap: '10px' }}>
                                 <div style={{ flex: 1, position: 'relative', minHeight: '200px' }}>
-                                    {(!comp.categoryColumn || !comp.valueColumn) 
+                                    {(!comp.categoryColumn || !comp.valueColumn)
                                         ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
                                         : <canvas ref={canvasRef}></canvas>
                                     }
@@ -642,96 +928,159 @@
                         );
                     })()}
 
-                {/* 🔽 下拉選單區塊 */}
-                {comp.type === 'dropdown' && (() => {
-                    if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
-                    if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
-                    const myIndex = orderedDropdownCols.indexOf(comp.categoryColumn);
-                    const upstreamCols = myIndex > 0 ? orderedDropdownCols.slice(0, myIndex) : [];
-                    const optionsData = rawData.filter(row => { for (let uCol of upstreamCols) { if (filters[uCol] && row[uCol] !== filters[uCol]) return false; } return true; });
-                    const options = [...new Set(optionsData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
-                    return (
-                        <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
-                            <option value="">請選擇 {comp.categoryColumn}...</option>
-                            {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                    );
-                })()}
+                    {/* 🔽 智慧下拉選單區塊 */}
+                    {comp.type === 'dropdown' && (() => {
+                        if (!comp.categoryColumn) return <p style={{ color: '#999' }}>未綁定目標欄位</p>;
+                        if (isDropdownDisabled) return <select disabled style={{ padding: '10px', fontSize: '1rem', width: '100%', background: '#f0f0f0', color: '#999', border: '1px dashed #ccc' }}><option>請先選擇上一層選單</option></select>;
 
-                {comp.type === 'button' && (
-                    <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                        <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a>
-                    </div>
-                )}
+                        const options = [...new Set(filteredData.map(r => r[comp.categoryColumn]))].filter(Boolean).sort();
 
-                {comp.type === 'timeline' && (
-                    <div className="timeline-container" style={{
-                        '--time-width': `${comp.timeWidthPercent || 20}%`,
-                        '--timeline-gap': `${comp.timelineGap || 20}px`,
-                        '--time-color': comp.timeColor || '#086788',
-                        '--line-color': comp.lineColor || '#086788',
-                        '--node-color': comp.nodeColor || '#086788'
-                    }}>
-                        {(!comp.categoryColumn || (!comp.valueColumn && !comp.compareValueColumn)) ? (
-                            <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
-                        ) : filteredData.map((row, idx) => {
-                            if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
-                            return (
-                                <div key={idx} className="timeline-item">
-                                    <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
-                                    <div className="timeline-right">
-                                        <div className="timeline-dot"></div>
-                                        {row[comp.valueColumn] && (
-                                            <h4 className="timeline-title" style={{ color: comp.titleColor || '#333333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
-                                        )}
-                                        {comp.compareValueColumn && row[comp.compareValueColumn] && (
-                                            <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>
-                                        )}
-                                        {comp.linkColumn && row[comp.linkColumn] && (
-                                            <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                        return (
+                            <select style={{ padding: '10px', fontSize: '1rem', width: '100%' }} value={filters[comp.categoryColumn] || ''} onChange={(e) => onFilterChange(comp.categoryColumn, e.target.value)}>
+                                <option value="">請選擇 {comp.categoryColumn}...</option>
+                                {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                            </select>
+                        );
+                    })()}
+
+                    {comp.type === 'button' && (
+                        <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
+                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a>
+                        </div>
+                    )}
+
+                    {comp.type === 'timeline' && (
+                        <div className="timeline-container" style={{
+                            '--time-width': `${comp.timeWidthPercent || 20}%`,
+                            '--timeline-gap': `${comp.timelineGap || 20}px`,
+                            '--time-color': comp.timeColor || '#086788',
+                            '--line-color': comp.lineColor || '#086788',
+                            '--node-color': comp.nodeColor || '#086788'
+                        }}>
+                            {(!comp.categoryColumn || (!comp.valueColumn && !comp.compareValueColumn)) ? (
+                                <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
+                            ) : filteredData.map((row, idx) => {
+                                if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
+                                return (
+                                    <div key={idx} className="timeline-item">
+                                        <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
+                                        <div className="timeline-right">
+                                            <div className="timeline-dot"></div>
+                                            {row[comp.valueColumn] && (
+                                                <h4 className="timeline-title" style={{ color: comp.titleColor || '#333333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
+                                            )}
+                                            {comp.compareValueColumn && row[comp.compareValueColumn] && (
+                                                <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>
+                                            )}
+                                            {comp.linkColumn && row[comp.linkColumn] && (
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {comp.type === 'table' && (
+                        <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', height: '100%', width: '100%' }}>
+                            {(!comp.multiValueCols || comp.multiValueCols.length === 0) ? (
+                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定表格顯示欄位</p></div>
+                            ) : (() => {
+                                let displayData = [...filteredData];
+                                const sortCol = comp.sortByCol;
+                                const sortOrder = comp.sortBy;
+
+                                if (sortCol && (sortOrder === 'value_desc' || sortOrder === 'value_asc')) {
+                                    displayData.sort((a, b) => {
+                                        let valA = a[sortCol]; let valB = b[sortCol];
+                                        const numA = parseFloat(String(valA).replace(/,/g, ''));
+                                        const numB = parseFloat(String(valB).replace(/,/g, ''));
+
+                                        if (!isNaN(numA) && !isNaN(numB)) return sortOrder === 'value_desc' ? numB - numA : numA - numB;
+                                        return sortOrder === 'value_desc' ? String(valB).localeCompare(String(valA), 'zh-Hant') : String(valA).localeCompare(String(valB), 'zh-Hant');
+                                    });
+                                }
+                                const borderStyle = comp.tableBorderEnable ? `${comp.tableBorderWidth || 1}px solid ${comp.tableBorderColor || '#dddddd'}` : 'none';
+
+                                return (
+                                    <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle }}>
+                                        <thead style={{ display: comp.tableHeaderEnable ? 'table-header-group' : 'none' }}>
+                                            <tr>
+                                                {comp.multiValueCols.filter(Boolean).map((col, idx) => {
+                                                    const isTopLeft = idx === 0 && comp.tableColEnable;
+                                                    return (
+                                                        <th key={idx} style={{
+                                                            background: comp.tableHeaderBg || comp.themeColor || '#086788',
+                                                            color: comp.tableHeaderColor || '#ffffff', fontSize: `${comp.tableHeaderSize || 14}px`,
+                                                            textAlign: comp.tableHeaderAlign || 'left', fontWeight: comp.tableHeaderWeight || 'bold',
+                                                            border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 1
+                                                        }}>{col}</th>
+                                                    );
+                                                })}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {displayData.map((row, rIdx) => (
+                                                <tr key={rIdx}>
+                                                    {comp.multiValueCols.filter(Boolean).map((col, cIdx) => {
+                                                        const isFirstCol = cIdx === 0 && comp.tableColEnable;
+                                                        const cellStyle = isFirstCol ? {
+                                                            fontSize: `${comp.tableColSize || 14}px`, color: comp.tableColColor || '#444444',
+                                                            fontWeight: comp.tableColWeight || 'bold', textAlign: comp.tableColAlign || 'left',
+                                                            backgroundColor: (comp.tableColBg && comp.tableColBg !== 'transparent') ? comp.tableColBg : '#ffffff',
+                                                            border: borderStyle, position: 'sticky', left: 0, zIndex: 1
+                                                        } : {
+                                                            fontSize: `${comp.tableBodySize || 14}px`, color: comp.tableBodyColor || '#444444',
+                                                            fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left',
+                                                            border: borderStyle
+                                                        };
+                                                        return <td key={cIdx} style={cellStyle}>{row[col] !== undefined && row[col] !== null ? String(row[col]) : ''}</td>;
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                );
+                            })()}
+                        </div>
+                    )}
+
+                    {comp.type === 'carousel' && (
+                        <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
+                            {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
+                                <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在右側資料面板綁定欄位</p>
+                            ) : (
+                                <>
+                                    <div className="carousel-slide">
+                                        {filteredData[currentSlide] && (
+                                            <>
+                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
+                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
+                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
+                                            </>
                                         )}
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {comp.type === 'carousel' && (
-                    <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
-                        {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
-                            <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在右側資料面板綁定欄位</p>
-                        ) : (
-                            <>
-                                <div className="carousel-slide">
-                                    {filteredData[currentSlide] && (
+                                    {filteredData.length > 1 && (
                                         <>
-                                            {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && <img src={filteredData[currentSlide][comp.imageColumn]} className="carousel-img" alt="slide" />}
-                                            {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && <h3 style={{ color: comp.titleColor || '#333', fontSize: comp.titleSize || '1.3rem', margin: '0 0 10px 0' }}>{filteredData[currentSlide][comp.categoryColumn]}</h3>}
-                                            {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && <p style={{ color: comp.descColor || '#666', fontSize: comp.descSize || '1rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6' }}>{filteredData[currentSlide][comp.valueColumn]}</p>}
+                                            <div className="carousel-nav">
+                                                <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev > 0 ? prev - 1 : filteredData.length - 1); }}>&lt;</button>
+                                                <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev < filteredData.length - 1 ? prev + 1 : 0); }}>&gt;</button>
+                                            </div>
+                                            <div className="carousel-dots">
+                                                {filteredData.map((_, i) => <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>)}
+                                            </div>
                                         </>
                                     )}
-                                </div>
-                                {filteredData.length > 1 && (
-                                    <>
-                                        <div className="carousel-nav">
-                                            <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev > 0 ? prev - 1 : filteredData.length - 1); }}>&lt;</button>
-                                            <button className="carousel-arrow" onClick={(e) => { e.stopPropagation(); setCurrentSlide(prev => prev < filteredData.length - 1 ? prev + 1 : 0); }}>&gt;</button>
-                                        </div>
-                                        <div className="carousel-dots">
-                                            {filteredData.map((_, i) => <div key={i} className={`carousel-dot ${i === currentSlide ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentSlide(i); }}></div>)}
-                                        </div>
-                                    </>
-                                )}
-                            </>
-                        )}
-                    </div>
-                )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        // 🌟 核心預覽載入與介面渲染 (剔除掉所有的 builder 邏輯)
+        // 🌟 核心預覽載入與介面渲染
         function ViewerApp() {
             const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
@@ -762,7 +1111,6 @@
             if (!config) return <h2 style={{ textAlign: 'center', marginTop: '50px', color: '#086788', fontFamily: 'sans-serif' }}>儀表板載入中...</h2>;
 
             return (
-                // 確保寬度佔滿 iframe，並讓手機版自動觸發 CSS 的 media-query 條件
                 <div className="preview-wrapper desktop" style={{ width: '100%', maxWidth: 'none', margin: 0, padding: 0 }}>
                     <PreviewViewer config={config} />
                 </div>
