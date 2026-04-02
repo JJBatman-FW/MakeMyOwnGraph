@@ -77,8 +77,7 @@
                 console.error("❌ 讀取失敗: ", e); throw e;
             }
         };
-        // 🌟 新增：讀取雲端所有專案列表 (大廳用)
-        // 🌟 新增：讀取雲端所有專案列表 (大廳用)，並自動排序！
+        // 🌟 讀取雲端所有專案列表 (大廳用)，並自動排序與轉換時間！
         window.getProjectList = async () => {
             try {
                 const q = query(collection(db, "dashboards"));
@@ -86,17 +85,30 @@
                 let projects = [];
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
+
+                    // 🌟 魔法轉換：把系統毫秒轉換成 YYYY/MM/DD HH:mm 格式
+                    let displayTime = data.meta?.lastUpdated || '未知時間'; // 預設先拿手動輸入的墊底
+                    if (data.systemUpdateAt) {
+                        const d = new Date(data.systemUpdateAt);
+                        const yyyy = d.getFullYear();
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const hh = String(d.getHours()).padStart(2, '0');
+                        const min = String(d.getMinutes()).padStart(2, '0');
+                        displayTime = `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+                    }
+
                     projects.push({
                         id: doc.id,
                         title: data.meta?.title || '未命名專案',
-                        date: data.meta?.lastUpdated || '未知時間',
-                        sysTime: data.systemUpdateAt || 0 // 🌟 抓取系統時間戳，舊專案沒有就預設為 0
+                        date: displayTime, // 🌟 顯示自動轉換後的時間
+                        sysTime: data.systemUpdateAt || 0
                     });
                 });
-                
-                // 🌟 核心升級：將專案依據系統時間戳「由大到小 (最新到最舊)」排序
+
+                // 將專案依據系統時間戳「由大到小 (最新到最舊)」排序
                 projects.sort((a, b) => b.sysTime - a.sysTime);
-                
+
                 return projects;
             } catch (e) {
                 console.error("❌ 取得列表失敗: ", e); return [];
@@ -256,6 +268,163 @@
             width: 100%;
             border-radius: 8px;
             border: 2px dashed #eee;
+        }
+
+        /* 🌟 八向拖曳控制區美化 (Canva / Figma 專業視覺版) */
+        .react-resizable-handle {
+            background-image: none !important;
+            position: absolute;
+            z-index: 100;
+            opacity: 0;
+            /* 預設隱藏，維持版面乾淨 */
+            transition: opacity 0.2s;
+        }
+
+        /* 🟢 核心修正：控制點其實是積木的兄弟，必須用外層的 .react-grid-item 來觸發 */
+        .react-grid-item:hover .react-resizable-handle,
+        .react-grid-item:has(.selected) .react-resizable-handle {
+            opacity: 1;
+        }
+
+        /* 用偽元素畫出精美的藍色小圓點 / 膠囊 */
+        .react-resizable-handle::after {
+            content: '';
+            position: absolute;
+            background: #3498DB;
+            border: 1px solid #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 1. 四個角落：16x16 的正方形感應區，畫出 10x10 的圓點 */
+        .react-resizable-handle-nw,
+        .react-resizable-handle-ne,
+        .react-resizable-handle-sw,
+        .react-resizable-handle-se {
+            width: 16px !important;
+            height: 16px !important;
+        }
+
+        .react-resizable-handle-nw::after,
+        .react-resizable-handle-ne::after,
+        .react-resizable-handle-sw::after,
+        .react-resizable-handle-se::after {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* 🌟 強制設定雙向箭頭游標 */
+        .react-resizable-handle-nw {
+            top: -5px;
+            left: -5px;
+            cursor: nwse-resize !important;
+        }
+
+        .react-resizable-handle-nw::after {
+            top: 2px;
+            left: 2px;
+        }
+
+        .react-resizable-handle-ne {
+            top: -5px;
+            right: -5px;
+            cursor: nesw-resize !important;
+        }
+
+        .react-resizable-handle-ne::after {
+            top: 2px;
+            right: 2px;
+        }
+
+        .react-resizable-handle-sw {
+            bottom: -5px;
+            left: -5px;
+            cursor: nesw-resize !important;
+        }
+
+        .react-resizable-handle-sw::after {
+            bottom: 2px;
+            left: 2px;
+        }
+
+        .react-resizable-handle-se {
+            bottom: -5px;
+            right: -5px;
+            cursor: nwse-resize !important;
+        }
+
+        .react-resizable-handle-se::after {
+            bottom: 2px;
+            right: 2px;
+        }
+
+        /* 2. 四個邊緣：加寬感應區，畫出長條膠囊 */
+        .react-resizable-handle-n,
+        .react-resizable-handle-s {
+            width: 100% !important;
+            height: 12px !important;
+            left: 0;
+            cursor: ns-resize !important;
+        }
+
+        .react-resizable-handle-n {
+            top: -6px;
+        }
+
+        .react-resizable-handle-n::after {
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 24px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .react-resizable-handle-s {
+            bottom: -6px;
+        }
+
+        .react-resizable-handle-s::after {
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 24px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .react-resizable-handle-e,
+        .react-resizable-handle-w {
+            width: 12px !important;
+            height: 100% !important;
+            top: 0;
+            cursor: ew-resize !important;
+        }
+
+        .react-resizable-handle-e {
+            right: -6px;
+        }
+
+        .react-resizable-handle-e::after {
+            right: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 24px;
+            width: 4px;
+            border-radius: 2px;
+        }
+
+        .react-resizable-handle-w {
+            left: -6px;
+        }
+
+        .react-resizable-handle-w::after {
+            left: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 24px;
+            width: 4px;
+            border-radius: 2px;
         }
 
         .grid-item {
@@ -2422,7 +2591,16 @@
 
                             <div className="canvas-area">
                                 <div className="grid-bg" onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
-                                    <ResponsiveRGL layout={blocks} cols={12} rowHeight={30} margin={[15, 15]} onLayoutChange={handleLayoutChange} draggableCancel=".delete-btn" style={{ minHeight: '100%' }}>
+                                    <ResponsiveRGL
+                                        layout={blocks}
+                                        cols={12}
+                                        rowHeight={30}
+                                        margin={[15, 15]}
+                                        onLayoutChange={handleLayoutChange}
+                                        draggableCancel=".delete-btn"
+                                        resizeHandles={['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne']}
+                                        style={{ minHeight: '100%' }}
+                                    >
                                         {blocks.map(block => (
                                             <div key={block.i}>
                                                 <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
@@ -3425,11 +3603,11 @@
                                                     {/* 🌟 補回命名欄位 */}
                                                     <div className="form-group" style={{ paddingRight: '60px' }}>
                                                         <label>資料表識別名稱 (讓自己好辨認)</label>
-                                                        <input 
-                                                            type="text" 
-                                                            value={source.name || ''} 
-                                                            onChange={(e) => updateSource(source.id, 'name', e.target.value)} 
-                                                            placeholder="例如：2024各縣市營收" 
+                                                        <input
+                                                            type="text"
+                                                            value={source.name || ''}
+                                                            onChange={(e) => updateSource(source.id, 'name', e.target.value)}
+                                                            placeholder="例如：2024各縣市營收"
                                                         />
                                                     </div>
 
