@@ -183,14 +183,12 @@
             padding: 20px;
         }
 
-        /* 🌟 RWD 排版魔法完全繼承 */
         .chart-scroll-area {
             flex: 1;
             width: 100%;
             min-height: 0;
         }
 
-        /* 當螢幕寬度小於 768px (手機版) 時，自動觸發響應式設計 */
         @media (max-width: 768px) {
             .preview-container {
                 padding: 15px;
@@ -231,7 +229,6 @@
                 width: 100%;
                 text-align: center;
             }
-            /* 🌟 手機版橫向長條圖解除捲軸，向下撐開 */
             .chart-scroll-area.is-horizontal {
                 overflow-y: visible !important;
                 height: auto !important;
@@ -242,7 +239,6 @@
             }
         }
 
-        /* 其他積木 CSS */
         .timeline-container { margin: 10px 0; display: flex; flex-direction: column; overflow-y: auto; height: 100%; width: 100%; padding: 5px 10px; }
         .timeline-item { display: flex; position: relative; }
         .timeline-left { width: var(--time-width, 20%); flex-shrink: 0; text-align: right; padding-right: var(--timeline-gap, 15px); font-weight: bold; color: var(--time-color, var(--primary)); font-size: 0.95rem; padding-top: 2px; }
@@ -262,7 +258,6 @@
         .carousel-container { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
         .carousel-slide { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 10px 30px; box-sizing: border-box; animation: fadeIn 0.4s ease-in-out; overflow-y: auto; }
         
-        /* 🌟 解除圖卡固定天花板，讓動態 RWD 生效 */
         .carousel-img { max-width: 100%; object-fit: contain; margin-bottom: 15px; border-radius: 8px; }
         .carousel-img-dynamic {
             height: var(--img-height-desktop);
@@ -286,7 +281,6 @@
         .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: #ddd; cursor: pointer; transition: 0.2s; }
         .carousel-dot.active { background: var(--primary); transform: scale(1.2); }
 
-        /* 🌟 數據表格專屬樣式 */
         .custom-table { width: 100%; border-collapse: collapse; text-align: left; }
         .custom-table th { position: sticky; top: 0; color: #fff; padding: 12px 15px; font-weight: bold; z-index: 2; white-space: nowrap; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
         .custom-table td { padding: 10px 15px; border-bottom: 1px solid #eee; color: #444; white-space: nowrap; }
@@ -357,13 +351,13 @@
                 return a.layout.y - b.layout.y;
             });
 
-            // 🧠 魔法 1：每個積木自己決定要撈什麼資料
+            // 🧠 魔法 1：每個積木自己決定要撈什麼資料 (包含時間軸的過濾豁免權)
             const getFilteredDataForComp = (comp) => {
                 const sourceData = dataMap[comp.dataSourceId] || [];
                 return sourceData.filter(row => {
                     for (let key in filters) {
                         if (!filters[key]) continue;
-                        if (comp.type === 'dropdown' && key === comp.categoryColumn) continue;
+                        if ((comp.type === 'dropdown' || (comp.type === 'timeline' && comp.enableFilter)) && key === comp.categoryColumn) continue;
                         const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
                         if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
                             return false;
@@ -373,12 +367,12 @@
                 });
             };
 
-            // 🧠 魔法 2：下拉選單改變時的精準連動
+            // 🧠 魔法 2：選單改變時的精準連動 (支援時間軸)
             const handleFilterChange = (column, value) => {
                 setFilters(prev => {
                     const newFilters = { ...prev, [column]: value };
                     sortedComponents.forEach((dComp) => {
-                        if (dComp.type === 'dropdown' && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                        if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
                             const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
                             if (listensToThisCol) {
                                 if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
@@ -395,9 +389,8 @@
             const getMissingDropdowns = (comp) => {
                 if (comp.type === 'dropdown') return [];
                 const upstreamDropdowns = sortedComponents.filter(c =>
-                    c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
+                    (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
                 );
-                // 🌟 只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
                 return upstreamDropdowns.filter(uComp => {
                     const isRequired = uComp.defaultBehavior !== 'all';
                     return isRequired && !filters[uComp.categoryColumn];
@@ -407,10 +400,9 @@
             const checkDropdownDisabled = (comp) => {
                 if (comp.type !== 'dropdown') return false;
                 const upstreamDropdowns = comp.listenAll !== false
-                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id)
-                    : sortedComponents.filter(c => c.type === 'dropdown' && (comp.customListenCols || []).includes(c.categoryColumn));
+                    ? sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && c.id !== comp.id)
+                    : sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && (comp.customListenCols || []).includes(c.categoryColumn));
                 
-                // 🌟 上層如果設定為「全部」，就不該讓下層選單被反灰禁用
                 return upstreamDropdowns.some(uComp => {
                     const isRequired = uComp.defaultBehavior !== 'all';
                     return isRequired && !filters[uComp.categoryColumn];
@@ -1014,12 +1006,10 @@
                     })()}
 
                     {comp.type === 'button' && (() => {
-                        // 計算圓角
-                        let borderRadius = '8px'; // round (預設)
+                        let borderRadius = '8px';
                         if (comp.buttonShape === 'rect') borderRadius = '0px';
                         if (comp.buttonShape === 'pill') borderRadius = '50px';
 
-                        // 計算框線
                         const borderStyle = comp.buttonBorderWidth > 0 
                             ? `${comp.buttonBorderWidth}px solid ${comp.buttonBorderColor || '#000000'}` 
                             : 'none';
@@ -1058,11 +1048,34 @@
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
                             ) : filteredData.map((row, idx) => {
                                 if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
+                                
+                                // 🌟 支援時間軸互動點擊
+                                const isClickable = comp.enableFilter;
+                                const isActive = isClickable && filters[comp.categoryColumn] === String(row[comp.categoryColumn]);
+                                const hasActiveFilter = isClickable && !!filters[comp.categoryColumn];
+
                                 return (
-                                    <div key={idx} className="timeline-item">
+                                    <div key={idx} className="timeline-item" 
+                                         style={{ 
+                                             cursor: isClickable ? 'pointer' : 'default', 
+                                             opacity: (hasActiveFilter && !isActive) ? 0.4 : 1,
+                                             transition: 'opacity 0.3s ease'
+                                         }}
+                                         onClick={() => {
+                                             if (isClickable && comp.categoryColumn) {
+                                                 onFilterChange(comp.categoryColumn, isActive ? '' : String(row[comp.categoryColumn]));
+                                             }
+                                         }}>
                                         <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
                                         <div className="timeline-right">
-                                            <div className="timeline-dot"></div>
+                                            <div className="timeline-dot" style={{
+                                                background: isActive ? '#E74C3C' : 'var(--node-color, var(--primary))',
+                                                transform: isActive ? 'scale(1.5)' : 'scale(1)',
+                                                boxShadow: isActive ? '0 0 0 4px rgba(231, 76, 60, 0.3)' : '0 0 0 2px var(--node-color, var(--primary))',
+                                                borderColor: '#fff',
+                                                transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                zIndex: isActive ? 10 : 2
+                                            }}></div>
                                             {row[comp.valueColumn] && (
                                                 <h4 className="timeline-title" style={{ color: comp.titleColor || '#333333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
                                             )}
@@ -1070,7 +1083,7 @@
                                                 <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>
                                             )}
                                             {comp.linkColumn && row[comp.linkColumn] && (
-                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn" onClick={(e) => e.stopPropagation()}>看相關新聞 ↗</a>
                                             )}
                                         </div>
                                     </div>
@@ -1223,7 +1236,7 @@
 
         // 🌟 核心預覽載入與介面渲染
         function ViewerApp() {
-            const params = newSearchParams(window.location.search);
+            const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
             const [config, setConfig] = useState(null);
             const [error, setError] = useState(null);
