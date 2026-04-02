@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>編輯器原型 - UI升級與發布完整版</title>
+    <title>MMOG編輯器－製作你專屬的儀表板</title>
 
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -1709,11 +1709,38 @@
                         );
                     })()}
 
-                    {comp.type === 'button' && (
-                        <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a>
-                        </div>
-                    )}
+                    {comp.type === 'button' && (() => {
+                        // 計算圓角
+                        let borderRadius = '8px'; // round (預設)
+                        if (comp.buttonShape === 'rect') borderRadius = '0px';
+                        if (comp.buttonShape === 'pill') borderRadius = '50px';
+
+                        // 計算框線
+                        const borderStyle = comp.buttonBorderWidth > 0 
+                            ? `${comp.buttonBorderWidth}px solid ${comp.buttonBorderColor || '#000000'}` 
+                            : 'none';
+
+                        return (
+                            <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
+                                <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" 
+                                    style={{ 
+                                        background: comp.themeColor || '#086788',
+                                        color: comp.buttonTextColor || '#ffffff',
+                                        fontSize: comp.fontSize || '1.1rem',
+                                        fontFamily: comp.fontFamily || 'inherit',
+                                        fontWeight: comp.fontWeight || 'bold',
+                                        borderRadius: borderRadius,
+                                        border: borderStyle,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxSizing: 'border-box'
+                                    }}>
+                                    {comp.title || '點擊連結'}
+                                </a>
+                            </div>
+                        );
+                    })()}
 
                     {comp.type === 'timeline' && (
                         <div className="timeline-container" style={{
@@ -1958,7 +1985,8 @@
                                             i: c.id, type: c.type, title: c.title, showTitle: c.showTitle !== false,
                                             dataSourceId: c.dataSourceId || (data.sheetSources ? data.sheetSources[0]?.id : 'ds_legacy'),
                                             categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [], multiValueCols: c.multiValueCols || [],
-                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '', aggregation: c.aggregation || 'sum',
+                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '',buttonTextColor: c.buttonTextColor || '#ffffff', buttonBorderColor: c.buttonBorderColor || '#000000', buttonBorderWidth: c.buttonBorderWidth || 0, buttonShape: c.buttonShape || 'round', 
+                                            aggregation: c.aggregation || 'sum',
                                             compareValueCol: c.compareValueColumn || '', chartOrientation: c.chartOrientation || 'vertical', themeColor: c.themeColor || '',
                                             timeWidthPercent: c.timeWidthPercent || 20, timelineGap: c.timelineGap || 20, timeColor: c.timeColor || '', lineColor: c.lineColor || '', nodeColor: c.nodeColor || '',
                                             titleColor: c.titleColor || '', titleSize: c.titleSize || '', titleWeight: c.titleWeight || '', descColor: c.descColor || '', descSize: c.descSize || '', descWeight: c.descWeight || '',
@@ -2068,6 +2096,7 @@
                     multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
                     valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart' && b.type !== 'lineChart') ? (b.valueCol || null) : null,
                     compareValueColumn: b.compareValueCol || null, imageColumn: b.imageCol || null, linkColumn: b.linkCol || null, buttonUrl: b.buttonUrl || null,
+                    buttonTextColor: b.buttonTextColor || '#ffffff', buttonBorderColor: b.buttonBorderColor || '#000000', buttonBorderWidth: b.buttonBorderWidth || 0, buttonShape: b.buttonShape || 'round',
                     aggregation: b.aggregation || 'sum', sortBy: b.sortBy || 'sheet', chartOrientation: b.chartOrientation || 'vertical', themeColor: b.themeColor || '',
                     isPercentageStacked: b.isPercentageStacked || false, yAxisMin: b.yAxisMin, stepSize: b.stepSize, showAxisUnit: b.showAxisUnit || false, xAxisUnit: b.xAxisUnit || '', yAxisUnit: b.yAxisUnit || '',
                     customColors: Array.isArray(b.customColors) ? b.customColors : [], axisLabelColor: b.axisLabelColor || '#666666', axisGridColor: b.axisGridColor || '#e0e0e0', axisLabelSize: b.axisLabelSize || '12',
@@ -2113,7 +2142,7 @@
             if (currentScreen === 'home') {
                 return (
                     <div style={{ padding: '60px 20px', maxWidth: '900px', margin: '0 auto', fontFamily: '"Noto Sans TC", sans-serif' }}>
-                        <h1 style={{ color: '#086788', textAlign: 'center', fontSize: '2.5rem', margin: '0 0 10px 0' }}>📊 儀表板生成器</h1>
+                        <h1 style={{ color: '#086788', textAlign: 'center', fontSize: '2.5rem', margin: '0 0 10px 0' }}>🍄蘑菇(MMOG)編輯器</h1>
                         <p style={{ textAlign: 'center', color: '#666', fontSize: '1.1rem', marginBottom: '40px' }}>請選擇建立新專案，或接續編輯先前的專案。</p>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
@@ -2134,7 +2163,7 @@
                         </div>
 
                         <div style={{ background: '#fff', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#086788' }}>☁️ 雲端專案大廳 (全編輯室共享)</h3>
+                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#086788' }}>☁️過往專案</h3>
                             {isLoadingLobby ? (
                                 <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0, fontWeight: 'bold' }}>📡 連線雲端讀取專案中...</p>
                             ) : cloudProjects.length === 0 ? (
@@ -2208,21 +2237,21 @@
                                 <h3 style={{ marginTop: 0, marginBottom: '5px' }}>🛠️ 積木工具</h3>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '10px', marginBottom: '5px' }}>🎛️ 控制器</div>
-                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{ background: '#F0C808', color: '#333' }}>+ 下拉選單</button>
-                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 2)} style={{ background: '#2ECC71', color: '#000' }}>+ 動作按鈕</button>
+                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{ background: '#F0C808', color: '#333' }}>+ 選單</button>
+                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 2)} style={{ background: '#2ECC71', color: '#000' }}>+ 外部按鈕</button>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📇 卡片</div>
-                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 文字區塊</button>
+                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 純數字</button>
                                 <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 4, 3)}>+ 數據卡片</button>
-                                <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 6)} style={{ background: '#3498DB' }}>+ 內容輪播</button>
-                                <button className="add-btn" onClick={() => addBlock('table', '📑 數據明細表', 12, 8)} style={{ background: '#7F8C8D' }}>+ 數據表格</button>
+                                <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 6)} style={{ background: '#3498DB' }}>+ 圖文卡片</button>
+                                <button className="add-btn" onClick={() => addBlock('table', '📑 數據明細表', 12, 8)} style={{ background: '#7F8C8D' }}>+ 表格</button>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📊 圖表</div>
                                 <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
                                 <button className="add-btn" onClick={() => addBlock('pieChart', '圓餅圖', 6, 5)}>+ 圓餅圖</button>
-                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 時間趨勢線</button>
-                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊直條圖</button>
-                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 新聞時間軸</button>
+                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
+                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊長條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
                             </div>
 
                             <div className="canvas-area">
@@ -2529,6 +2558,70 @@
 
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
+                                                    {/* 🌟 動作按鈕專屬樣式設定 */}
+                                                    {currentSelectedBlock.type === 'button' && (
+                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                            
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 按鈕外觀設定</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>按鈕形狀</label>
+                                                                    <select value={currentSelectedBlock.buttonShape || 'round'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonShape', e.target.value)}>
+                                                                        <option value="rect">矩形 (直角)</option>
+                                                                        <option value="round">圓角矩形 (預設)</option>
+                                                                        <option value="pill">膠囊形 (全圓角)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>背景顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>框線粗細 (px)</label>
+                                                                    <input type="number" min="0" max="10" value={currentSelectedBlock.buttonBorderWidth !== undefined ? currentSelectedBlock.buttonBorderWidth : 0} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonBorderWidth', parseInt(e.target.value) || 0)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>框線顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.buttonBorderColor || '#000000'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonBorderColor', e.target.value)} />
+                                                                </div>
+                                                            </div>
+
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📝 按鈕文字設定</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.buttonTextColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'buttonTextColor', e.target.value)} />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字大小</label>
+                                                                    <select value={currentSelectedBlock.fontSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontSize', e.target.value)}>
+                                                                        <option value="0.9rem">小 (0.9rem)</option>
+                                                                        <option value="1.1rem">預設 (1.1rem)</option>
+                                                                        <option value="1.3rem">大 (1.3rem)</option>
+                                                                        <option value="1.5rem">特大 (1.5rem)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字粗細</label>
+                                                                    <select value={currentSelectedBlock.fontWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="bold">粗體 (預設)</option>
+                                                                        <option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字型</label>
+                                                                    <select value={currentSelectedBlock.fontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'fontFamily', e.target.value)}>
+                                                                        <option value="">預設</option>
+                                                                        <option value="Arial, sans-serif">黑體 (Arial)</option>
+                                                                        <option value="'Times New Roman', serif">明體 (Times)</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {/* 🌟 表格專屬樣式設定 */}
                                                     {currentSelectedBlock.type === 'table' && (
@@ -2635,8 +2728,8 @@
                                                                 <div className="form-group" style={{ marginBottom: 0 }}>
                                                                     <label>顯示樣式</label>
                                                                     <select value={currentSelectedBlock.dropdownStyle || 'select'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dropdownStyle', e.target.value)}>
-                                                                        <option value="select">下拉選單 (Dropdown)</option>
-                                                                        <option value="tabs">標籤按鈕 (Button Tabs)</option>
+                                                                        <option value="select">下拉選單</option>
+                                                                        <option value="tabs">標籤按鈕</option>
                                                                     </select>
                                                                 </div>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -3092,7 +3185,7 @@
 
                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📰 標題與樣式設定</h4>
                                             <div className="form-group">
-                                                <label>大標題 (主標)</label>
+                                                <label>儀表板標題</label>
                                                 <input type="text" value={globalMeta.title} onChange={(e) => updateGlobalMeta('title', e.target.value)} />
                                             </div>
 
@@ -3144,7 +3237,7 @@
                                             </div>
 
                                             {/* 🌟 魔王升級：跨表資料源管理 */}
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>📚 跨表資料庫 (BI 引擎)</h4>
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>📚 資料庫</h4>
                                             <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '15px' }}>
                                                 可新增多個 Google Sheet。圖表若綁定「相同名稱」的過濾欄位，即可啟動跨表連動！
                                             </div>
@@ -3291,7 +3384,7 @@
 
                                 <div className="code-snippet">
                                     &lt;iframe <br />
-                                    &nbsp;&nbsp;src="https://你的帳號.github.io/你的儲存庫/viewer.html?id={publishedId}" <br />
+                                    &nbsp;&nbsp;src="https://https://jjbatman-fw.github.io/MakeMyOwnGraph/viewer.html?id={publishedId}" <br />
                                     &nbsp;&nbsp;width="100%" <br />
                                     &nbsp;&nbsp;height="800px" <br />
                                     &nbsp;&nbsp;frameborder="0" <br />
