@@ -1754,20 +1754,40 @@
             };
 
             const renderMetricOrText = () => {
-                if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>未綁定資料</p>;
+                // 1. 真正的未綁定：連原始資料都沒有
+                if (!rawData || rawData.length === 0) {
+                    return <p style={{ color: '#999', textAlign: 'center', lineHeight: '1.5' }}>無資料<br/><span style={{fontSize: '0.8rem'}}>請確認資料源或點擊重新讀取</span></p>;
+                }
+
                 if (comp.type === 'metricCard') {
-                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定數值欄位</p>;
-                    let value = comp.aggregation === 'count' ? filteredData.length : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>請至右側綁定「數值欄位」</p>;
+                    
+                    // 🌟 核心修正：就算過濾後剩下 0 筆資料，加總就是 0，照樣顯示！
+                    let value = 0;
+                    if (filteredData && filteredData.length > 0) {
+                        value = comp.aggregation === 'count' 
+                            ? filteredData.length 
+                            : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
+                    }
+                    
                     const finalDisplayValue = `${comp.prefix || ''}${processAndFormatNumber(value)}${comp.suffix || ''}`;
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
+                    
                     return (
                         <div className="metric-content" style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}>
                             <div className="metric-value" style={{ color: comp.themeColor || '#086788', fontSize: comp.fontSize || '3.5rem', fontWeight: comp.fontWeight || '900', lineHeight: 1 }}>{finalDisplayValue}</div>
                         </div>
                     );
                 }
+                
                 if (comp.type === 'textCard') {
-                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>未綁定文字欄位</p>;
+                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>請至右側綁定「文字欄位」</p>;
+                    
+                    // 文字區塊如果沒有資料，顯示無文字
+                    if (!filteredData || filteredData.length === 0) {
+                        return <p style={{ color: '#999' }}>此條件下無對應文字</p>;
+                    }
+
                     const textContent = filteredData[filteredData.length - 1][comp.valueColumn] || ' (無文字內容) ';
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
                     return (
