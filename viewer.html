@@ -1013,11 +1013,38 @@
                         );
                     })()}
 
-                    {comp.type === 'button' && (
-                        <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                            <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" style={{ background: comp.themeColor || '#086788' }}>{comp.title || '點擊連結'}</a>
-                        </div>
-                    )}
+                    {comp.type === 'button' && (() => {
+                        // 計算圓角
+                        let borderRadius = '8px'; // round (預設)
+                        if (comp.buttonShape === 'rect') borderRadius = '0px';
+                        if (comp.buttonShape === 'pill') borderRadius = '50px';
+
+                        // 計算框線
+                        const borderStyle = comp.buttonBorderWidth > 0 
+                            ? `${comp.buttonBorderWidth}px solid ${comp.buttonBorderColor || '#000000'}` 
+                            : 'none';
+
+                        return (
+                            <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
+                                <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" 
+                                    style={{ 
+                                        background: comp.themeColor || '#086788',
+                                        color: comp.buttonTextColor || '#ffffff',
+                                        fontSize: comp.fontSize || '1.1rem',
+                                        fontFamily: comp.fontFamily || 'inherit',
+                                        fontWeight: comp.fontWeight || 'bold',
+                                        borderRadius: borderRadius,
+                                        border: borderStyle,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxSizing: 'border-box'
+                                    }}>
+                                    {comp.title || '點擊連結'}
+                                </a>
+                            </div>
+                        );
+                    })()}
 
                     {comp.type === 'timeline' && (
                         <div className="timeline-container" style={{
