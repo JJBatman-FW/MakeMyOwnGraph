@@ -994,6 +994,14 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        const parseSheetUrl = (url) => {
+            const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+            const gidMatch = url.match(/gid=([0-9]+)/);
+            return {
+                id: idMatch ? idMatch[1] : url, // 如果不是網址，就回傳原本字串
+                gid: gidMatch ? gidMatch[1] : '0'  // 預設 gid 為 0
+            };
+        };
         const { useState, useEffect, useRef } = React;
         const RGL = window.ReactGridLayout;
         const ResponsiveRGL = RGL.WidthProvider(RGL);
@@ -1716,14 +1724,14 @@
                         if (comp.buttonShape === 'pill') borderRadius = '50px';
 
                         // 計算框線
-                        const borderStyle = comp.buttonBorderWidth > 0 
-                            ? `${comp.buttonBorderWidth}px solid ${comp.buttonBorderColor || '#000000'}` 
+                        const borderStyle = comp.buttonBorderWidth > 0
+                            ? `${comp.buttonBorderWidth}px solid ${comp.buttonBorderColor || '#000000'}`
                             : 'none';
 
                         return (
                             <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                                <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn" 
-                                    style={{ 
+                                <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn"
+                                    style={{
                                         background: comp.themeColor || '#086788',
                                         color: comp.buttonTextColor || '#ffffff',
                                         fontSize: comp.fontSize || '1.1rem',
@@ -1959,6 +1967,14 @@
                 { id: 'ds_' + Date.now(), name: '預設資料表', sheetId: "1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs", gid: "612819456" }
             ]);
             const [columnsMap, setColumnsMap] = useState({});
+            // 🌟 升級版 updateSource：支援一次更新多個屬性 (解決 ID 和 GID 同步問題)
+            const updateSource = (id, keyOrUpdates, value) => {
+                setSheetSources(prev => prev.map(s => {
+                    if (s.id !== id) return s;
+                    if (typeof keyOrUpdates === 'object') return { ...s, ...keyOrUpdates };
+                    return { ...s, [keyOrUpdates]: value };
+                }));
+            };
             const [isFetching, setIsFetching] = useState(false);
             const [isPublishing, setIsPublishing] = useState(false);
             const [showPublishModal, setShowPublishModal] = useState(false);
@@ -1985,7 +2001,7 @@
                                             i: c.id, type: c.type, title: c.title, showTitle: c.showTitle !== false,
                                             dataSourceId: c.dataSourceId || (data.sheetSources ? data.sheetSources[0]?.id : 'ds_legacy'),
                                             categoryCol: c.categoryColumn || '', valueCol: c.valueColumn || '', stackValueCols: c.stackValueColumns || [], multiValueCols: c.multiValueCols || [],
-                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '',buttonTextColor: c.buttonTextColor || '#ffffff', buttonBorderColor: c.buttonBorderColor || '#000000', buttonBorderWidth: c.buttonBorderWidth || 0, buttonShape: c.buttonShape || 'round', 
+                                            imageCol: c.imageColumn || '', linkCol: c.linkColumn || '', buttonUrl: c.buttonUrl || '', buttonTextColor: c.buttonTextColor || '#ffffff', buttonBorderColor: c.buttonBorderColor || '#000000', buttonBorderWidth: c.buttonBorderWidth || 0, buttonShape: c.buttonShape || 'round',
                                             aggregation: c.aggregation || 'sum',
                                             compareValueCol: c.compareValueColumn || '', chartOrientation: c.chartOrientation || 'vertical', themeColor: c.themeColor || '',
                                             timeWidthPercent: c.timeWidthPercent || 20, timelineGap: c.timelineGap || 20, timeColor: c.timeColor || '', lineColor: c.lineColor || '', nodeColor: c.nodeColor || '',
@@ -2054,6 +2070,14 @@
                 } catch (error) { alert("❌ 讀取失敗，請確認試算表已開放權限。"); }
                 setIsFetching(false);
             };
+            // 🌟 自動載入表頭資料：當開啟舊專案時，若有資料來源但還沒抓取表頭，就自動抓取
+            useEffect(() => {
+                const hasValidSource = sheetSources.some(s => s.sheetId && s.sheetId.length > 10);
+                if (!isInitialLoading && hasValidSource && Object.keys(columnsMap).length === 0) {
+                    console.log("📡 自動同步資料庫欄位...");
+                    fetchSheetColumns();
+                }
+            }, [sheetSources, isInitialLoading, columnsMap]);
 
             const handleLayoutChange = (newLayout) => {
                 const updatedBlocks = blocks.map(block => {
@@ -2155,13 +2179,13 @@
                     lineWidth: b.lineWidth || null, // 🌟 加了 null 保護
                     pointSize: b.pointSize || null, // 🌟 加了 null 保護
                     sortByCol: b.sortByCol || null,
-                    
-                    listenMode: b.listenMode || null, 
-                    listenAll: b.listenAll !== false, 
-                    customListenCols: b.customListenCols || [], 
-                    defaultBehavior: b.defaultBehavior || 'require', 
+
+                    listenMode: b.listenMode || null,
+                    listenAll: b.listenAll !== false,
+                    customListenCols: b.customListenCols || [],
+                    defaultBehavior: b.defaultBehavior || 'require',
                     dropdownStyle: b.dropdownStyle || 'select',
-                    
+
                     tableBodySize: b.tableBodySize || 14,
                     tableBodyColor: b.tableBodyColor || '#444444',
                     tableBodyWeight: b.tableBodyWeight || 'normal',
@@ -2181,19 +2205,19 @@
                     tableBorderEnable: b.tableBorderEnable || false,
                     tableBorderColor: b.tableBorderColor || '#dddddd',
                     tableBorderWidth: b.tableBorderWidth || 1,
-                    
+
                     imageHeight: b.imageHeight || null, // 🌟 加了 null 保護
                     imageHeightMobile: b.imageHeightMobile || null, // 🌟 加了 null 保護
-                    imageFit: b.imageFit || 'contain', 
-                    imagePosition: b.imagePosition || 'center', 
-                    imageShape: b.imageShape || 'rect', 
-                    titleAlign: b.titleAlign || 'center', 
-                    descAlign: b.descAlign || 'center', 
-                    titleFontFamily: b.titleFontFamily || '', 
+                    imageFit: b.imageFit || 'contain',
+                    imagePosition: b.imagePosition || 'center',
+                    imageShape: b.imageShape || 'rect',
+                    titleAlign: b.titleAlign || 'center',
+                    descAlign: b.descAlign || 'center',
+                    titleFontFamily: b.titleFontFamily || '',
                     descFontFamily: b.descFontFamily || '',
-                    
-                    buttonTextColor: b.buttonTextColor || '#ffffff', 
-                    buttonBorderColor: b.buttonBorderColor || '#000000', 
+
+                    buttonTextColor: b.buttonTextColor || '#ffffff',
+                    buttonBorderColor: b.buttonBorderColor || '#000000',
                     buttonBorderWidth: b.buttonBorderWidth !== undefined ? b.buttonBorderWidth : 0, // 🌟 確保有預設值
                     buttonShape: b.buttonShape || 'round'
                 }))
@@ -2644,7 +2668,7 @@
                                                     {/* 🌟 動作按鈕專屬樣式設定 */}
                                                     {currentSelectedBlock.type === 'button' && (
                                                         <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
-                                                            
+
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 按鈕外觀設定</h4>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -3326,36 +3350,30 @@
                                             </div>
                                             {sheetSources.map((source, index) => (
                                                 <div key={source.id} style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
-                                                    <div className="form-group" style={{ marginBottom: '10px' }}>
-                                                        <label>資料源名稱</label>
-                                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                                            <input type="text" style={{ flex: 1, fontWeight: 'bold', color: '#086788' }} value={source.name} onChange={(e) => {
-                                                                const newSources = [...sheetSources];
-                                                                newSources[index].name = e.target.value;
-                                                                setSheetSources(newSources);
-                                                            }} placeholder="例如：113年預算表" />
-                                                            {sheetSources.length > 1 && (
-                                                                <button className="action-btn" style={{ margin: 0, background: '#E74C3C', color: 'white', padding: '0 10px' }} onClick={() => {
-                                                                    setSheetSources(sheetSources.filter(s => s.id !== source.id));
-                                                                }}>刪除</button>
-                                                            )}
-                                                        </div>
+                                                    <div className="form-group">
+                                                        <label>試算表整串網址</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="貼上網址，系統會自動拆解"
+                                                            value={source.sheetId}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                const parsed = parseSheetUrl(val);
+                                                                // 🌟 同步更新 ID 與 GID，確保不衝突
+                                                                updateSource(source.id, {
+                                                                    sheetId: parsed.id,
+                                                                    gid: parsed.gid
+                                                                });
+                                                            }}
+                                                        />
                                                     </div>
                                                     <div className="form-group">
-                                                        <label>Google Sheet ID</label>
-                                                        <input type="text" value={source.sheetId} onChange={(e) => {
-                                                            const newSources = [...sheetSources];
-                                                            newSources[index].sheetId = e.target.value;
-                                                            setSheetSources(newSources);
-                                                        }} />
-                                                    </div>
-                                                    <div className="form-group">
-                                                        <label>表單 GID</label>
-                                                        <input type="text" value={source.gid} onChange={(e) => {
-                                                            const newSources = [...sheetSources];
-                                                            newSources[index].gid = e.target.value;
-                                                            setSheetSources(newSources);
-                                                        }} />
+                                                        <label>工作表 GID (這裡不用填系統會自己更新)</label>
+                                                        <input
+                                                            type="text"
+                                                            value={source.gid}
+                                                            onChange={(e) => updateSource(source.id, 'gid', e.target.value)}
+                                                        />
                                                     </div>
                                                 </div>
                                             ))}
