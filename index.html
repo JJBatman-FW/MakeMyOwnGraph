@@ -1173,6 +1173,42 @@
         .custom-table tbody tr:hover {
             background-color: #f0f8fa;
         }
+
+        /* 🌟 WYSIWYG 效能優化：拖曳時隱藏圖表，顯示骨架 */
+        .drag-placeholder {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            background: #fdfdfd;
+        }
+
+        .actual-chart {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* 去除重複的內框與陰影 */
+        .actual-chart .preview-card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        /* 替身切換開關 (拖曳時觸發) */
+        .react-draggable-dragging .actual-chart,
+        .react-resizable-resizing .actual-chart {
+            display: none !important;
+        }
+
+        .react-draggable-dragging .drag-placeholder,
+        .react-resizable-resizing .drag-placeholder {
+            display: flex !important;
+        }
     </style>
 </head>
 
@@ -1195,180 +1231,182 @@
 
         Chart.register(ChartDataLabels);
 
-        function PreviewViewer({ config }) {
-            const [dataMap, setDataMap] = useState({});
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [filters, setFilters] = useState({});
-
-            useEffect(() => {
-                const fetchData = async () => {
-                    if (!config.sheetSources || config.sheetSources.length === 0) {
-                        setError("請先在編輯模式設定至少一個 Google Sheet 資料源");
-                        setLoading(false); return;
-                    }
-                    try {
-                        const newDataMap = {};
-                        await Promise.all(config.sheetSources.map(async (source) => {
-                            if (!source.sheetId) return;
-                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
-                            const res = await fetch(url);
-                            const text = await res.text();
-                            const json = JSON.parse(text.substring(47, text.length - 2));
-
-                            let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
-                            let rowsData = json.table.rows;
-
-                            if (cols.length === 0 && rowsData.length > 0) {
-                                cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
-                                rowsData = rowsData.slice(1);
-                            }
-
-                            const parsedData = rowsData.map(row => {
-                                let obj = {};
-                                row.c.forEach((cell, i) => {
-                                    if (cols[i]) {
-                                        obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
-                                    }
-                                });
-                                return obj;
-                            });
-                            newDataMap[source.id] = parsedData;
-                        }));
-                        setDataMap(newDataMap);
-                    } catch (err) {
-                        setError("部分資料庫讀取失敗，請確認 Sheet ID 與權限。");
-                    }
-                    setLoading(false);
-                };
-                fetchData();
-            }, [config.sheetSources]);
-
-            const sortedComponents = [...config.components].sort((a, b) => {
-                if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
-                return a.layout.y - b.layout.y;
-            });
-
-            const getFilteredDataForComp = (comp) => {
-                const sourceData = dataMap[comp.dataSourceId] || [];
-                return sourceData.filter(row => {
-                    for (let key in filters) {
-                        if (!filters[key]) continue;
-                        // 🌟 升級：讓下拉選單與「啟用了過濾功能的時間軸」不會過濾掉自己！
-                        if ((comp.type === 'dropdown' || (comp.type === 'timeline' && comp.enableFilter)) && key === comp.categoryColumn) continue;
-                        const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
-                        if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
-            };
-
-            const handleFilterChange = (column, value) => {
-                setFilters(prev => {
-                    const newFilters = { ...prev, [column]: value };
-                    sortedComponents.forEach((dComp) => {
-                        if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
-                            const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
-                            if (listensToThisCol) {
-                                if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
+        const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
+            if (!valueCol) return {};
+            let result = {};
+            rawData.forEach(row => {
+                let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
+                if (aggType === 'first') {
+                    if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
+                    return;
+                }
+                if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
+                    let parts = catRaw.split('|');
+                    parts.forEach(part => {
+                        let [subCat, subValStr] = part.split(':');
+                        if (subCat && subValStr !== undefined) {
+                            let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                            if (val > 0) {
+                                if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
+                                else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
                             }
                         }
                     });
-                    return newFilters;
-                });
-            };
-
-            const clearFilters = () => setFilters({});
-
-            // 🧠 魔法 3：檢查積木是否該進入「等待選擇」狀態
-            const getMissingDropdowns = (comp) => {
-                if (comp.type === 'dropdown') return [];
-                const upstreamDropdowns = sortedComponents.filter(c =>
-                    (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
-                );
-                // 🌟 核心修正：只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
-                return upstreamDropdowns.filter(uComp => {
-                    const isRequired = uComp.defaultBehavior !== 'all';
-                    return isRequired && !filters[uComp.categoryColumn];
-                }).map(c => c.categoryColumn);
-            };
-
-            const checkDropdownDisabled = (comp) => {
-                if (comp.type !== 'dropdown') return false;
-                const upstreamDropdowns = comp.listenAll !== false
-                    ? sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && c.id !== comp.id)
-                    : sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && (comp.customListenCols || []).includes(c.categoryColumn));
-
-                // 🌟 同理，上層如果設定為「全部」，就不該讓下層選單被反灰禁用
-                return upstreamDropdowns.some(uComp => {
-                    const isRequired = uComp.defaultBehavior !== 'all';
-                    return isRequired && !filters[uComp.categoryColumn];
-                });
-            };
-
-            const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
-                if (!valueCol) return {};
-                let result = {};
-                rawData.forEach(row => {
-                    let catRaw = categoryCol ? (row[categoryCol] || '未分類') : '總計';
-                    if (aggType === 'first') {
-                        if (result[catRaw] === undefined) result[catRaw] = row[valueCol] || '';
-                        return;
+                } else {
+                    let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
+                    if (val > 0 || aggType === 'count') {
+                        if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
+                        else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
                     }
-                    if (typeof catRaw === 'string' && catRaw.includes('|') && catRaw.includes(':')) {
-                        let parts = catRaw.split('|');
-                        parts.forEach(part => {
-                            let [subCat, subValStr] = part.split(':');
-                            if (subCat && subValStr !== undefined) {
-                                let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
-                                if (val > 0) {
-                                    if (aggType === 'sum') result[subCat] = (result[subCat] || 0) + val;
-                                    else if (aggType === 'count') result[subCat] = (result[subCat] || 0) + 1;
+                }
+            });
+            return result;
+        };
+
+        const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
+            const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean);
+            let datasetsMap = {};
+            categories.forEach((cat, catIndex) => {
+                const rows = rawData.filter(r => r[categoryCol] === cat);
+                rows.forEach(r => {
+                    valueCols.forEach(col => {
+                        if (!col) return;
+                        let valRaw = r[col];
+                        if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
+                            let parts = valRaw.split('|');
+                            parts.forEach(part => {
+                                let [subCat, subValStr] = part.split(':');
+                                if (subCat && subValStr !== undefined) {
+                                    let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
+                                    if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
+                                    if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
+                                    else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
+                                }
+                            });
+                        } else {
+                            let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
+                            if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
+                            if (aggType === 'sum') datasetsMap[col][catIndex] += val;
+                            else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
+                        }
+                    });
+                });
+            });
+
+            function PreviewViewer({ config }) {
+                const [dataMap, setDataMap] = useState({});
+                const [loading, setLoading] = useState(true);
+                const [error, setError] = useState(null);
+                const [filters, setFilters] = useState({});
+
+                useEffect(() => {
+                    const fetchData = async () => {
+                        if (!config.sheetSources || config.sheetSources.length === 0) {
+                            setError("請先在編輯模式設定至少一個 Google Sheet 資料源");
+                            setLoading(false); return;
+                        }
+                        try {
+                            const newDataMap = {};
+                            await Promise.all(config.sheetSources.map(async (source) => {
+                                if (!source.sheetId) return;
+                                const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
+                                const res = await fetch(url);
+                                const text = await res.text();
+                                const json = JSON.parse(text.substring(47, text.length - 2));
+
+                                let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
+                                let rowsData = json.table.rows;
+
+                                if (cols.length === 0 && rowsData.length > 0) {
+                                    cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                                    rowsData = rowsData.slice(1);
+                                }
+
+                                const parsedData = rowsData.map(row => {
+                                    let obj = {};
+                                    row.c.forEach((cell, i) => {
+                                        if (cols[i]) {
+                                            obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
+                                        }
+                                    });
+                                    return obj;
+                                });
+                                newDataMap[source.id] = parsedData;
+                            }));
+                            setDataMap(newDataMap);
+                        } catch (err) {
+                            setError("部分資料庫讀取失敗，請確認 Sheet ID 與權限。");
+                        }
+                        setLoading(false);
+                    };
+                    fetchData();
+                }, [config.sheetSources]);
+
+                const sortedComponents = [...config.components].sort((a, b) => {
+                    if (a.layout.y === b.layout.y) return a.layout.x - b.layout.x;
+                    return a.layout.y - b.layout.y;
+                });
+
+                const getFilteredDataForComp = (comp) => {
+                    const sourceData = dataMap[comp.dataSourceId] || [];
+                    return sourceData.filter(row => {
+                        for (let key in filters) {
+                            if (!filters[key]) continue;
+                            // 🌟 升級：讓下拉選單與「啟用了過濾功能的時間軸」不會過濾掉自己！
+                            if ((comp.type === 'dropdown' || (comp.type === 'timeline' && comp.enableFilter)) && key === comp.categoryColumn) continue;
+                            const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
+                            if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+                };
+
+                const handleFilterChange = (column, value) => {
+                    setFilters(prev => {
+                        const newFilters = { ...prev, [column]: value };
+                        sortedComponents.forEach((dComp) => {
+                            if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                                const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
+                                if (listensToThisCol) {
+                                    if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
                                 }
                             }
                         });
-                    } else {
-                        let val = parseFloat(String(row[valueCol]).replace(/,/g, '')) || 0;
-                        if (val > 0 || aggType === 'count') {
-                            if (aggType === 'sum') result[catRaw] = (result[catRaw] || 0) + val;
-                            else if (aggType === 'count') result[catRaw] = (result[catRaw] || 0) + 1;
-                        }
-                    }
-                });
-                return result;
-            };
-
-            const aggregateStackedData = (rawData, categoryCol, valueCols, aggType) => {
-                const categories = [...new Set(rawData.map(r => r[categoryCol]))].filter(Boolean);
-                let datasetsMap = {};
-                categories.forEach((cat, catIndex) => {
-                    const rows = rawData.filter(r => r[categoryCol] === cat);
-                    rows.forEach(r => {
-                        valueCols.forEach(col => {
-                            if (!col) return;
-                            let valRaw = r[col];
-                            if (typeof valRaw === 'string' && valRaw.includes('|') && valRaw.includes(':')) {
-                                let parts = valRaw.split('|');
-                                parts.forEach(part => {
-                                    let [subCat, subValStr] = part.split(':');
-                                    if (subCat && subValStr !== undefined) {
-                                        let val = parseFloat(String(subValStr).replace(/,/g, '')) || 0;
-                                        if (!datasetsMap[subCat]) datasetsMap[subCat] = new Array(categories.length).fill(0);
-                                        if (aggType === 'sum') datasetsMap[subCat][catIndex] += val;
-                                        else if (aggType === 'count' && val > 0) datasetsMap[subCat][catIndex] += 1;
-                                    }
-                                });
-                            } else {
-                                let val = parseFloat(String(valRaw).replace(/,/g, '')) || 0;
-                                if (!datasetsMap[col]) datasetsMap[col] = new Array(categories.length).fill(0);
-                                if (aggType === 'sum') datasetsMap[col][catIndex] += val;
-                                else if (aggType === 'count' && val > 0) datasetsMap[col][catIndex] += 1;
-                            }
-                        });
+                        return newFilters;
                     });
-                });
+                };
+
+                const clearFilters = () => setFilters({});
+
+                // 🧠 魔法 3：檢查積木是否該進入「等待選擇」狀態
+                const getMissingDropdowns = (comp) => {
+                    if (comp.type === 'dropdown') return [];
+                    const upstreamDropdowns = sortedComponents.filter(c =>
+                        (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
+                    );
+                    // 🌟 核心修正：只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
+                    return upstreamDropdowns.filter(uComp => {
+                        const isRequired = uComp.defaultBehavior !== 'all';
+                        return isRequired && !filters[uComp.categoryColumn];
+                    }).map(c => c.categoryColumn);
+                };
+
+                const checkDropdownDisabled = (comp) => {
+                    if (comp.type !== 'dropdown') return false;
+                    const upstreamDropdowns = comp.listenAll !== false
+                        ? sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && c.id !== comp.id)
+                        : sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && (comp.customListenCols || []).includes(c.categoryColumn));
+
+                    // 🌟 同理，上層如果設定為「全部」，就不該讓下層選單被反灰禁用
+                    return upstreamDropdowns.some(uComp => {
+                        const isRequired = uComp.defaultBehavior !== 'all';
+                        return isRequired && !filters[uComp.categoryColumn];
+                    });
+                };
+
+
                 const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
                 return { categories, datasets };
             };
@@ -1441,7 +1479,7 @@
         }
 
         // 🌟 核心畫布元件
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData }) {
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData, isEditing }) {
             const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
@@ -1488,6 +1526,8 @@
                     const gridColor = comp.axisGridColor || '#e0e0e0';
 
                     let options = {
+                        animation: isEditing ? false : undefined, // 🌟 編輯模式關閉動畫，拯救 CPU
+                        responsive: true, maintainAspectRatio: false,
                         responsive: true, maintainAspectRatio: false,
                         layout: { padding: comp.type === 'pieChart' ? baseFontSize + 25 : 0 },
                         indexAxis: isHorizontal ? 'y' : 'x',
@@ -2176,6 +2216,8 @@
                 { id: 'ds_' + Date.now(), name: '預設資料表', sheetId: "1Qft9FVm9XtT3SVzbgX1NSduPP0sBR3CdGqiUsm-Mmrs", gid: "612819456" }
             ]);
             const [columnsMap, setColumnsMap] = useState({});
+            const [dataMap, setDataMap] = useState({}); // 🌟 編輯器用來算圖的真實資料
+            const [filters, setFilters] = useState({}); // 🌟 編輯器的過濾狀態
             // 🌟 升級版 updateSource：支援一次更新多個屬性 (解決 ID 和 GID 同步問題)
             const updateSource = (id, keyOrUpdates, value) => {
                 setSheetSources(prev => prev.map(s => {
@@ -2261,21 +2303,39 @@
             const fetchSheetColumns = async () => {
                 setIsFetching(true);
                 let newColsMap = {};
+                let newDataMap = {}; // 🌟
                 try {
                     await Promise.all(sheetSources.map(async (source) => {
                         if (!source.sheetId) return;
-                        const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq=limit%202&gid=${source.gid || '0'}`;
+                        // 🌟 移除原本的 limit 2，改為抓取全表！
+                        const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
                         const res = await fetch(url);
                         const text = await res.text();
                         const json = JSON.parse(text.substring(47, text.length - 2));
+
                         let cols = json.table.cols.map(c => c.label).filter(l => l && l.trim() !== '');
-                        if (cols.length === 0 && json.table.rows.length > 0) {
-                            cols = json.table.rows[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                        let rowsData = json.table.rows;
+                        if (cols.length === 0 && rowsData.length > 0) {
+                            cols = rowsData[0].c.map(cell => cell ? (cell.f || cell.v || '') : '').filter(l => String(l).trim() !== '');
+                            rowsData = rowsData.slice(1);
                         }
                         newColsMap[source.id] = cols;
+
+                        // 🌟 解析完整資料存入 dataMap 給編輯器畫圖
+                        const parsedData = rowsData.map(row => {
+                            let obj = {};
+                            row.c.forEach((cell, i) => {
+                                if (cols[i]) {
+                                    obj[cols[i]] = cell ? (cell.f ? String(cell.f) : (cell.v !== null ? String(cell.v) : '')) : '';
+                                }
+                            });
+                            return obj;
+                        });
+                        newDataMap[source.id] = parsedData;
                     }));
                     setColumnsMap(newColsMap);
-                    alert("✅ 成功讀取所有資料庫的表頭欄位！");
+                    setDataMap(newDataMap); // 🌟
+                    alert("✅ 成功讀取資料庫欄位與真實圖表資料！");
                 } catch (error) { alert("❌ 讀取失敗，請確認試算表已開放權限。"); }
                 setIsFetching(false);
             };
@@ -2431,6 +2491,43 @@
                     buttonBorderWidth: b.buttonBorderWidth !== undefined ? b.buttonBorderWidth : 0, // 🌟 確保有預設值
                     buttonShape: b.buttonShape || 'round'
                 }))
+            };
+            // 🌟 編輯器即時預覽過濾器
+            const getFilteredDataForComp = (compJSON) => {
+                const sourceData = dataMap[compJSON.dataSourceId] || [];
+                return sourceData.filter(row => {
+                    for (let key in filters) {
+                        if (!filters[key]) continue;
+                        if ((compJSON.type === 'dropdown' || (compJSON.type === 'timeline' && compJSON.enableFilter)) && key === compJSON.categoryColumn) continue;
+                        const listens = compJSON.listenAll !== false || (compJSON.customListenCols && compJSON.customListenCols.includes(key));
+                        if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) return false;
+                    }
+                    return true;
+                });
+            };
+            const handleEditorFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    finalJSON.components.forEach((dComp) => {
+                        if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                            const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
+                            if (listensToThisCol && prev[column] !== value) newFilters[dComp.categoryColumn] = '';
+                        }
+                    });
+                    return newFilters;
+                });
+            };
+            const getEditorMissingDropdowns = (compJSON) => {
+                if (compJSON.type === 'dropdown') return [];
+                const upstreamDropdowns = finalJSON.components.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && (compJSON.listenAll !== false || (compJSON.customListenCols && compJSON.customListenCols.includes(c.categoryColumn))));
+                return upstreamDropdowns.filter(uComp => uComp.defaultBehavior !== 'all' && !filters[uComp.categoryColumn]).map(c => c.categoryColumn);
+            };
+            const checkEditorDropdownDisabled = (compJSON) => {
+                if (compJSON.type !== 'dropdown') return false;
+                const upstreamDropdowns = compJSON.listenAll !== false
+                    ? finalJSON.components.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && c.id !== compJSON.id)
+                    : finalJSON.components.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && (compJSON.customListenCols || []).includes(c.categoryColumn));
+                return upstreamDropdowns.some(uComp => uComp.defaultBehavior !== 'all' && !filters[uComp.categoryColumn]);
             };
 
             const handlePublish = async () => {
@@ -2597,24 +2694,44 @@
                                         rowHeight={30}
                                         margin={[15, 15]}
                                         onLayoutChange={handleLayoutChange}
-                                        draggableCancel=".delete-btn"
+                                        draggableCancel=".delete-btn, select, button, input, a, .timeline-item, .custom-html-legend div, .carousel-arrow, .carousel-dot"
                                         resizeHandles={['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne']}
                                         style={{ minHeight: '100%' }}
                                     >
-                                        {blocks.map(block => (
-                                            <div key={block.i}>
-                                                <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
-                                                    <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
-                                                    <span style={{ fontSize: '1.2rem' }}>{block.title || '(無標題)'}</span>
-                                                    <div className="type-badge">{
-                                                        block.type === 'stackedBarChart' ? '堆疊圖' :
-                                                            block.type === 'lineChart' ? '折線圖' :
-                                                                block.type === 'textCard' ? '文字區塊' : block.type
-                                                    }</div>
-                                                    <div className="size-badge">{block.w} / 12 格</div>
+                                        {blocks.map(block => {
+                                            const compJSON = finalJSON.components.find(c => c.id === block.i); // 將編輯積木轉換成標準格式給圖表讀取
+                                            return (
+                                                <div key={block.i}>
+                                                    <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
+                                                        <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
+
+                                                        {/* 🌟 替身術：拖曳時才會顯示的骨架 */}
+                                                        <div className="drag-placeholder">
+                                                            <span style={{ fontSize: '1.2rem' }}>{block.title || '(無標題)'}</span>
+                                                            <div className="type-badge">{block.type}</div>
+                                                        </div>
+
+                                                        {/* 🌟 WYSIWYG 真實圖表 */}
+                                                        <div className="actual-chart">
+                                                            <ChartComponent
+                                                                comp={compJSON}
+                                                                rawData={dataMap[compJSON.dataSourceId] || []}
+                                                                filteredData={getFilteredDataForComp(compJSON)}
+                                                                aggregateData={aggregateData}
+                                                                filters={filters}
+                                                                onFilterChange={handleEditorFilterChange}
+                                                                missingDropdowns={getEditorMissingDropdowns(compJSON)}
+                                                                isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
+                                                                aggregateStackedData={aggregateStackedData}
+                                                                isEditing={true}
+                                                            />
+                                                        </div>
+
+                                                        <div className="size-badge">{block.w} / 12 格</div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </ResponsiveRGL>
                                 </div>
                             </div>
@@ -3729,7 +3846,66 @@
                     {viewMode === 'preview' && (
                         <div className="builder-container" style={{ justifyContent: 'center', height: 'auto', background: '#e8e8e8', padding: '40px 20px', borderRadius: '12px' }}>
                             <div className={`preview-wrapper ${previewDevice}`}>
-                                <PreviewViewer config={finalJSON} />
+                                <div className="preview-container">
+                                    
+                                    {/* 📰 預覽頁首 */}
+                                    <div className="news-header">
+                                        <div style={{ flex: 1, textAlign: globalMeta.titleAlign || 'left' }}>
+                                            <h2 className="news-title" style={{ color: globalMeta.titleColor || '#222', fontSize: globalMeta.titleFontSize || '1.8rem', fontWeight: globalMeta.titleFontWeight || '900', fontFamily: globalMeta.titleFontFamily || 'inherit', margin: 0 }}>
+                                                {globalMeta.title}
+                                            </h2>
+                                        </div>
+                                        {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'top-right' && (
+                                            <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px`, marginLeft: '15px' }} />
+                                        )}
+                                    </div>
+                                    
+                                    {/* 🧹 清除篩選按鈕 */}
+                                    {Object.values(filters).some(v => v) && (
+                                        <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
+                                    )}
+
+                                    {/* 📊 圖表網格直接使用編輯器的新引擎渲染！ */}
+                                    <div className="preview-grid">
+                                        {finalJSON.components.map(compJSON => (
+                                            <ChartComponent
+                                                key={compJSON.id}
+                                                comp={compJSON}
+                                                rawData={dataMap[compJSON.dataSourceId] || []}
+                                                filteredData={getFilteredDataForComp(compJSON)}
+                                                aggregateData={aggregateData}
+                                                filters={filters}
+                                                onFilterChange={handleEditorFilterChange}
+                                                missingDropdowns={getEditorMissingDropdowns(compJSON)}
+                                                isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
+                                                aggregateStackedData={aggregateStackedData}
+                                                isEditing={false}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    {/* 📄 預覽頁尾 */}
+                                    <div className="news-footer">
+                                        <div className="news-footer-left">
+                                            {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
+                                            {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                                    <span>資料來源：</span>
+                                                    {globalMeta.dataSources.map((source, idx) => (
+                                                        <span key={idx}>
+                                                            {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a> : <span>{source.name || '未命名來源'}</span>}
+                                                            {idx < globalMeta.dataSources.length - 1 && '、'}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
+                                            <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px` }} />
+                                        )}
+                                    </div>
+
+                                </div>
                             </div>
                         </div>
                     )}
