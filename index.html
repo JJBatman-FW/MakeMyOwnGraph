@@ -20,7 +20,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
@@ -63,6 +63,25 @@
                 else return null;
             } catch (e) {
                 console.error("❌ 讀取失敗: ", e); throw e;
+            }
+        };
+        // 🌟 新增：讀取雲端所有專案列表 (大廳用)
+        window.getProjectList = async () => {
+            try {
+                const q = query(collection(db, "dashboards"));
+                const querySnapshot = await getDocs(q);
+                let projects = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    projects.push({
+                        id: doc.id,
+                        title: data.meta?.title || '未命名專案',
+                        date: data.meta?.lastUpdated || '未知時間'
+                    });
+                });
+                return projects;
+            } catch (e) {
+                console.error("❌ 取得列表失敗: ", e); return [];
             }
         };
     </script>
@@ -1880,18 +1899,24 @@
             const urlId = params.get('id');
             const [currentScreen, setCurrentScreen] = useState(urlId ? 'editor' : 'home');
 
-            const [recentProjects, setRecentProjects] = useState([]);
-            useEffect(() => {
-                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
-                setRecentProjects(saved);
-            }, []);
+            const [cloudProjects, setCloudProjects] = useState([]);
+            const [isLoadingLobby, setIsLoadingLobby] = useState(false);
 
-            const saveToRecent = (id, title) => {
-                const saved = JSON.parse(localStorage.getItem('recentDashboards') || '[]');
-                const updated = [{ id, title: title || '未命名專案', date: new Date().toLocaleString('zh-TW') }, ...saved.filter(p => p.id !== id)].slice(0, 20);
-                localStorage.setItem('recentDashboards', JSON.stringify(updated));
-                setRecentProjects(updated);
-            };
+            // 🌟 大廳載入時，直接去雲端抓所有專案！
+            useEffect(() => {
+                if (currentScreen === 'home') {
+                    setIsLoadingLobby(true);
+                    if (window.getProjectList) {
+                        window.getProjectList().then(list => {
+                            setCloudProjects(list);
+                            setIsLoadingLobby(false);
+                        });
+                    }
+                }
+            }, [currentScreen]);
+
+            // 我們不再需要 localStorage 的 saveToRecent 了，因為每次回大廳都會重新抓取雲端資料
+            const saveToRecent = (id, title) => { /* 留空防呆 */ };
 
             const [viewMode, setViewMode] = useState('builder');
             const [previewDevice, setPreviewDevice] = useState('desktop');
@@ -2109,19 +2134,21 @@
                         </div>
 
                         <div style={{ background: '#fff', borderRadius: '12px', padding: '30px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#333' }}>🕒 最近編輯紀錄 (本機存檔)</h3>
-                            {recentProjects.length === 0 ? (
-                                <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0 }}>尚無編輯紀錄，趕快建立一個吧！</p>
+                            <h3 style={{ marginTop: 0, borderBottom: '2px solid #eee', paddingBottom: '15px', color: '#086788' }}>☁️ 雲端專案大廳 (全編輯室共享)</h3>
+                            {isLoadingLobby ? (
+                                <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0, fontWeight: 'bold' }}>📡 連線雲端讀取專案中...</p>
+                            ) : cloudProjects.length === 0 ? (
+                                <p style={{ color: '#999', textAlign: 'center', padding: '30px 0', margin: 0 }}>雲端尚無專案，趕快建立一個吧！</p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
-                                    {recentProjects.map(p => (
+                                    {cloudProjects.map(p => (
                                         <div key={p.id} onClick={() => window.location.href = `?id=${p.id}`} style={{ background: '#f9f9f9', padding: '15px 20px', borderRadius: '8px', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#f0f8fa'} onMouseOut={(e) => e.currentTarget.style.background = '#f9f9f9'}>
                                             <div>
                                                 <div style={{ fontSize: '1.2rem', color: '#086788', fontWeight: 'bold', marginBottom: '5px' }}>{p.title}</div>
                                                 <div style={{ color: '#888', fontSize: '0.85rem' }}>ID: {p.id}</div>
                                             </div>
                                             <div style={{ color: '#999', fontSize: '0.9rem', textAlign: 'right' }}>
-                                                <span style={{ display: 'block', marginBottom: '3px' }}>上次更新</span>
+                                                <span style={{ display: 'block', marginBottom: '3px' }}>最後標記更新</span>
                                                 {p.date}
                                             </div>
                                         </div>
