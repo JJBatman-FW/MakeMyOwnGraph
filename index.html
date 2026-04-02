@@ -20,7 +20,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query, deleteDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
@@ -38,6 +38,7 @@
 
         window.publishToFirebase = async (dashboardJSON) => {
             try {
+                dashboardJSON.systemUpdateAt = Date.now(); // 🌟 偷偷蓋上精準的系統時間戳
                 const docRef = await addDoc(collection(db, "dashboards"), dashboardJSON);
                 return docRef.id;
             } catch (e) {
@@ -47,11 +48,22 @@
 
         window.updateToFirebase = async (id, dashboardJSON) => {
             try {
+                dashboardJSON.systemUpdateAt = Date.now(); // 🌟 偷偷蓋上精準的系統時間戳
                 const docRef = doc(db, "dashboards", id);
                 await setDoc(docRef, dashboardJSON);
                 return id;
             } catch (e) {
                 console.error("❌ 更新失敗: ", e); throw e;
+            }
+        };
+
+        // 🌟 新增：刪除雲端專案 (大廳用)
+        window.deleteFromFirebase = async (id) => {
+            try {
+                await deleteDoc(doc(db, "dashboards", id));
+                return true;
+            } catch (e) {
+                console.error("❌ 刪除失敗: ", e); throw e;
             }
         };
 
@@ -66,6 +78,7 @@
             }
         };
         // 🌟 新增：讀取雲端所有專案列表 (大廳用)
+        // 🌟 新增：讀取雲端所有專案列表 (大廳用)，並自動排序！
         window.getProjectList = async () => {
             try {
                 const q = query(collection(db, "dashboards"));
@@ -76,9 +89,14 @@
                     projects.push({
                         id: doc.id,
                         title: data.meta?.title || '未命名專案',
-                        date: data.meta?.lastUpdated || '未知時間'
+                        date: data.meta?.lastUpdated || '未知時間',
+                        sysTime: data.systemUpdateAt || 0 // 🌟 抓取系統時間戳，舊專案沒有就預設為 0
                     });
                 });
+                
+                // 🌟 核心升級：將專案依據系統時間戳「由大到小 (最新到最舊)」排序
+                projects.sort((a, b) => b.sysTime - a.sysTime);
+                
                 return projects;
             } catch (e) {
                 console.error("❌ 取得列表失敗: ", e); return [];
@@ -2306,9 +2324,27 @@
                                                 <div style={{ fontSize: '1.2rem', color: '#086788', fontWeight: 'bold', marginBottom: '5px' }}>{p.title}</div>
                                                 <div style={{ color: '#888', fontSize: '0.85rem' }}>ID: {p.id}</div>
                                             </div>
-                                            <div style={{ color: '#999', fontSize: '0.9rem', textAlign: 'right' }}>
-                                                <span style={{ display: 'block', marginBottom: '3px' }}>最後標記更新</span>
-                                                {p.date}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                                                <div style={{ color: '#999', fontSize: '0.9rem', textAlign: 'right' }}>
+                                                    <span style={{ display: 'block', marginBottom: '3px' }}>最後標記更新</span>
+                                                    {p.date}
+                                                </div>
+                                                {/* 🌟 刪除按鈕 */}
+                                                <button onClick={async (e) => {
+                                                    e.stopPropagation(); // 🌟 重要：阻止點擊事件穿透到外層卡片，避免跳轉
+                                                    if (window.confirm(`⚠️ 警告：確定要永久刪除「${p.title}」嗎？\n\n刪除後將無法復原，且所有嵌入此儀表板的新聞網頁都會變成空白！`)) {
+                                                        try {
+                                                            await window.deleteFromFirebase(p.id);
+                                                            // 刪除成功後，即時更新畫面，把這個專案從列表中移除
+                                                            setCloudProjects(prev => prev.filter(proj => proj.id !== p.id));
+                                                            alert('✅ 專案已成功刪除！');
+                                                        } catch (err) {
+                                                            alert('❌ 刪除失敗，請檢查網路連線或權限。');
+                                                        }
+                                                    }
+                                                }} style={{ background: '#fff', color: '#E74C3C', border: '1px solid #ffcdd2', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#ffeeba'} onMouseOut={(e) => e.currentTarget.style.background = '#fff'}>
+                                                    🗑️ 刪除
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
