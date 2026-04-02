@@ -2048,7 +2048,7 @@
                                             titleColor: c.titleColor || '', titleSize: c.titleSize || '', titleWeight: c.titleWeight || '', descColor: c.descColor || '', descSize: c.descSize || '', descWeight: c.descWeight || '',
                                             prefix: c.prefix || '', suffix: c.suffix || '', numberFormat: c.numberFormat || 'comma', multiplier: c.multiplier !== undefined ? c.multiplier : 1,
                                             fontSize: c.fontSize || '', fontFamily: c.fontFamily || '', fontWeight: c.fontWeight || '', textAlign: c.textAlign || '',
-                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x || 0, y: c.layout?.y || Infinity,
+                                            w: c.layout?.desktopCols || 6, h: c.layout?.h || 4, x: c.layout?.x !== undefined ? c.layout.x : 0, y: c.layout?.y !== undefined ? c.layout.y : Infinity,
                                             legendPosition: c.legendPosition || 'top', dropdownStyle: c.dropdownStyle || 'select', defaultBehavior: c.defaultBehavior || 'require',
                                             pieRotation: c.pieRotation || 0,
                                             conditionalColors: c.conditionalColors || [],
