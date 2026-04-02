@@ -1067,7 +1067,8 @@
                 return sourceData.filter(row => {
                     for (let key in filters) {
                         if (!filters[key]) continue;
-                        if (comp.type === 'dropdown' && key === comp.categoryColumn) continue;
+                        // 🌟 升級：讓下拉選單與「啟用了過濾功能的時間軸」不會過濾掉自己！
+                        if ((comp.type === 'dropdown' || (comp.type === 'timeline' && comp.enableFilter)) && key === comp.categoryColumn) continue;
                         const listens = comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(key));
                         if (listens && row[key] !== undefined && String(row[key]) !== String(filters[key])) {
                             return false;
@@ -1081,7 +1082,7 @@
                 setFilters(prev => {
                     const newFilters = { ...prev, [column]: value };
                     sortedComponents.forEach((dComp) => {
-                        if (dComp.type === 'dropdown' && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                        if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
                             const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
                             if (listensToThisCol) {
                                 if (prev[column] !== value) newFilters[dComp.categoryColumn] = '';
@@ -1098,7 +1099,7 @@
             const getMissingDropdowns = (comp) => {
                 if (comp.type === 'dropdown') return [];
                 const upstreamDropdowns = sortedComponents.filter(c =>
-                    c.type === 'dropdown' && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
+                    (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && (comp.listenAll !== false || (comp.customListenCols && comp.customListenCols.includes(c.categoryColumn)))
                 );
                 // 🌟 核心修正：只阻擋那些「設定為要求選擇 (require)」且「目前沒選」的控制器
                 return upstreamDropdowns.filter(uComp => {
@@ -1110,8 +1111,8 @@
             const checkDropdownDisabled = (comp) => {
                 if (comp.type !== 'dropdown') return false;
                 const upstreamDropdowns = comp.listenAll !== false
-                    ? sortedComponents.filter(c => c.type === 'dropdown' && c.categoryColumn && c.id !== comp.id)
-                    : sortedComponents.filter(c => c.type === 'dropdown' && (comp.customListenCols || []).includes(c.categoryColumn));
+                    ? sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && c.categoryColumn && c.id !== comp.id)
+                    : sortedComponents.filter(c => (c.type === 'dropdown' || (c.type === 'timeline' && c.enableFilter)) && (comp.customListenCols || []).includes(c.categoryColumn));
 
                 // 🌟 同理，上層如果設定為「全部」，就不該讓下層選單被反灰禁用
                 return upstreamDropdowns.some(uComp => {
@@ -1762,11 +1763,32 @@
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在編輯模式綁定「日期」與「標題/內文」欄位</p>
                             ) : filteredData.map((row, idx) => {
                                 if (!row[comp.categoryColumn] && !row[comp.valueColumn] && !row[comp.compareValueColumn]) return null;
+                                const isClickable = comp.enableFilter;
+                                const isActive = isClickable && filters[comp.categoryColumn] === String(row[comp.categoryColumn]);
+                                const hasActiveFilter = isClickable && !!filters[comp.categoryColumn];
+
                                 return (
-                                    <div key={idx} className="timeline-item">
+                                    <div key={idx} className="timeline-item"
+                                        style={{
+                                            cursor: isClickable ? 'pointer' : 'default',
+                                            opacity: (hasActiveFilter && !isActive) ? 0.4 : 1,
+                                            transition: 'opacity 0.3s ease'
+                                        }}
+                                        onClick={() => {
+                                            if (isClickable && comp.categoryColumn) {
+                                                onFilterChange(comp.categoryColumn, isActive ? '' : String(row[comp.categoryColumn]));
+                                            }
+                                        }}>
                                         <div className="timeline-left">{row[comp.categoryColumn] || ''}</div>
                                         <div className="timeline-right">
-                                            <div className="timeline-dot"></div>
+                                            <div className="timeline-dot" style={{
+                                                background: isActive ? '#E74C3C' : 'var(--node-color, var(--primary))',
+                                                transform: isActive ? 'scale(1.5)' : 'scale(1)',
+                                                boxShadow: isActive ? '0 0 0 4px rgba(231, 76, 60, 0.3)' : '0 0 0 2px var(--node-color, var(--primary))',
+                                                borderColor: '#fff',
+                                                transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                zIndex: isActive ? 10 : 2
+                                            }}></div>
                                             {row[comp.valueColumn] && (
                                                 <h4 className="timeline-title" style={{ color: comp.titleColor || '#333333', fontSize: comp.titleSize || '1.1rem', fontWeight: comp.titleWeight || '900', textDecoration: 'none' }}>{row[comp.valueColumn]}</h4>
                                             )}
@@ -1774,7 +1796,7 @@
                                                 <p className="timeline-desc" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: comp.descColor || '#666666', fontSize: comp.descSize || '0.95rem', fontWeight: comp.descWeight || 'normal', marginTop: row[comp.valueColumn] ? '0' : '3px' }}>{row[comp.compareValueColumn]}</p>
                                             )}
                                             {comp.linkColumn && row[comp.linkColumn] && (
-                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn">看相關新聞 ↗</a>
+                                                <a href={row[comp.linkColumn]} target="_blank" rel="noreferrer" className="timeline-link-btn" onClick={(e) => e.stopPropagation()}>看相關新聞 ↗</a>
                                             )}
                                         </div>
                                     </div>
@@ -2020,7 +2042,7 @@
                                             tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
-                                            imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '',
+                                            imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -2215,6 +2237,7 @@
                     descAlign: b.descAlign || 'center',
                     titleFontFamily: b.titleFontFamily || '',
                     descFontFamily: b.descFontFamily || '',
+                    enableFilter: b.enableFilter || false,
 
                     buttonTextColor: b.buttonTextColor || '#ffffff',
                     buttonBorderColor: b.buttonBorderColor || '#000000',
@@ -2466,10 +2489,10 @@
                                                                             {listenMode === 'custom' && (
                                                                                 <div style={{ background: '#fff', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}>
                                                                                     <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '8px' }}>請勾選要連動的下拉選單：</div>
-                                                                                    {blocks.filter(b => b.type === 'dropdown' && b.categoryCol && b.i !== currentSelectedBlock.i).length === 0 ? (
+                                                                                    {blocks.filter(b => (b.type === 'dropdown' || (b.type === 'timeline' && b.enableFilter)) && b.categoryCol && b.i !== currentSelectedBlock.i).length === 0 ? (
                                                                                         <div style={{ fontSize: '0.85rem', color: '#E74C3C' }}>畫布上目前沒有其他已綁定欄位的下拉選單。</div>
                                                                                     ) : (
-                                                                                        blocks.filter(b => b.type === 'dropdown' && b.categoryCol && b.i !== currentSelectedBlock.i).map(dComp => {
+                                                                                        blocks.filter(b => (b.type === 'dropdown' || (b.type === 'timeline' && b.enableFilter)) && b.categoryCol && b.i !== currentSelectedBlock.i).map(dComp => {
                                                                                             const isChecked = (currentSelectedBlock.customListenCols || []).includes(dComp.categoryCol);
                                                                                             return (
                                                                                                 <label key={dComp.i} style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
@@ -3216,6 +3239,11 @@
                                                     {/* 🌟 時間軸/文字專屬設定 */}
                                                     {currentSelectedBlock.type === 'timeline' && (
                                                         <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🖱️ 互動設定</h4>
+                                                            <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px', background: '#fff3cd', padding: '10px', borderRadius: '6px', border: '1px solid #ffeeba' }}>
+                                                                <input type="checkbox" id="enableTimelineFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
+                                                                <label htmlFor="enableTimelineFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>啟用點擊過濾 (將節點作為按鈕連動其他圖表)</label>
+                                                            </div>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📏 佈局與間距</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ flex: 1 }}>
@@ -3349,7 +3377,26 @@
                                                 可新增多個 Google Sheet。圖表若綁定「相同名稱」的過濾欄位，即可啟動跨表連動！
                                             </div>
                                             {sheetSources.map((source, index) => (
-                                                <div key={source.id} style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
+                                                <div key={source.id} style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee', position: 'relative' }}>
+                                                    {/* 🌟 實用小功能：刪除按鈕 */}
+                                                    <button onClick={() => {
+                                                        if (sheetSources.length === 1) return alert('最少需保留一個資料來源喔！');
+                                                        if (window.confirm(`確定要刪除「${source.name}」嗎？\n(如果有圖表綁定此資料表將會顯示異常)`)) {
+                                                            setSheetSources(prev => prev.filter(s => s.id !== source.id));
+                                                        }
+                                                    }} style={{ position: 'absolute', top: '15px', right: '15px', background: '#E74C3C', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>✕ 刪除</button>
+
+                                                    {/* 🌟 補回命名欄位 */}
+                                                    <div className="form-group" style={{ paddingRight: '60px' }}>
+                                                        <label>資料表識別名稱 (讓自己好辨認)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={source.name || ''} 
+                                                            onChange={(e) => updateSource(source.id, 'name', e.target.value)} 
+                                                            placeholder="例如：2024各縣市營收" 
+                                                        />
+                                                    </div>
+
                                                     <div className="form-group">
                                                         <label>試算表整串網址</label>
                                                         <input
@@ -3359,7 +3406,7 @@
                                                             onChange={(e) => {
                                                                 const val = e.target.value;
                                                                 const parsed = parseSheetUrl(val);
-                                                                // 🌟 同步更新 ID 與 GID，確保不衝突
+                                                                // 🌟 同步更新 ID 與 GID
                                                                 updateSource(source.id, {
                                                                     sheetId: parsed.id,
                                                                     gid: parsed.gid
@@ -3367,7 +3414,7 @@
                                                             }}
                                                         />
                                                     </div>
-                                                    <div className="form-group">
+                                                    <div className="form-group" style={{ marginBottom: 0 }}>
                                                         <label>工作表 GID (這裡不用填系統會自己更新)</label>
                                                         <input
                                                             type="text"
