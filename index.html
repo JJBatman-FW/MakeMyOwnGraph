@@ -430,8 +430,10 @@
         .grid-item {
             width: 100%;
             height: 100%;
-            background: #FFFFFF;
-            border: 2px solid #ccc;
+            /* 🌟 核心修正：移除預設白底灰框，讓裡面的自訂樣式完全浮現 */
+            background: transparent;
+            border: none;
+            box-shadow: none;
             border-radius: 8px;
             display: flex;
             flex-direction: column;
@@ -441,9 +443,7 @@
             color: #555;
             cursor: grab;
             user-select: none;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
             position: relative;
-            transition: border-color 0.2s;
             box-sizing: border-box;
             overflow: hidden;
         }
@@ -453,9 +453,11 @@
         }
 
         .grid-item.selected {
-            border-color: #3498DB;
-            border-width: 3px;
-            background: #f0f8fa;
+            /* 🌟 核心修正：改用 outline，避免擠壓到裡面的圖表 */
+            outline: 3px solid #3498DB;
+            outline-offset: 2px;
+            border: none;
+            background: transparent;
             box-shadow: 0 0 15px rgba(52, 152, 219, 0.4);
         }
 
@@ -586,7 +588,6 @@
             width: 100%;
             max-width: 1000px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-            min-height: 500px;
             margin: 0 auto;
         }
 
@@ -698,9 +699,11 @@
             min-height: 150px;
             color: #999;
             font-weight: bold;
-            background: #f9f9f9;
+            background: transparent;
+            /* 🌟 改成透明，讓卡片底色透出來 */
             border-radius: 8px;
-            border: 2px dashed #ddd;
+            border: 2px dashed rgba(0, 0, 0, 0.15);
+            /* 🌟 改成半透明虛線 */
             text-align: center;
             padding: 20px;
         }
@@ -1183,6 +1186,8 @@
             width: 100%;
             height: 100%;
             background: #fdfdfd;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
         }
 
         .actual-chart {
@@ -1191,12 +1196,6 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-        }
-
-        /* 去除重複的內框與陰影 */
-        .actual-chart .preview-card {
-            border: none !important;
-            box-shadow: none !important;
         }
 
         /* 替身切換開關 (拖曳時觸發) */
@@ -1227,6 +1226,33 @@
         };
         const { useState, useEffect, useRef } = React;
         const RGL = window.ReactGridLayout;
+        // 🌟 將 HEX 色碼加上透明度轉換為 RGBA 給陰影使用
+        const hexToRgba = (hex, alpha) => {
+            if (!hex || !hex.startsWith('#')) return hex;
+            const r = parseInt(hex.slice(1, 3), 16) || 0;
+            const g = parseInt(hex.slice(3, 5), 16) || 0;
+            const b = parseInt(hex.slice(5, 7), 16) || 0;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+        // 🌟 貼紙製造機：為折線圖節點繪製漸層圓形圖片
+        const createGradientPointCanvas = (color1, color2, radius) => {
+            const size = radius * 2;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // 畫出從左上到右下的對角線漸層
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(radius, radius, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            return canvas;
+        };
         const ResponsiveRGL = RGL.WidthProvider(RGL);
 
         Chart.register(ChartDataLabels);
@@ -1414,71 +1440,71 @@
             const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
             return { categories, datasets };
 
-        if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料載入中，請稍候...</h3></div>;
-        if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
+            if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料載入中，請稍候...</h3></div>;
+            if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
 
-        return (
-            <div className="preview-container">
-                <div className="news-header">
-                    <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
-                        <h2 className="news-title" style={{
-                            color: config.meta.titleColor || '#222',
-                            fontSize: config.meta.titleFontSize || '1.8rem',
-                            fontWeight: config.meta.titleFontWeight || '900',
-                            fontFamily: config.meta.titleFontFamily || 'inherit',
-                            margin: 0
-                        }}>
-                            {config.meta.title}
-                        </h2>
-                    </div>
-                    {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && (
-                        <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px`, marginLeft: '15px' }} />
-                    )}
-                </div>
-
-                {Object.values(filters).some(v => v) && (
-                    <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
-                )}
-
-                <div className="preview-grid">
-                    {sortedComponents.map(comp => (
-                        <ChartComponent
-                            key={comp.id} comp={comp}
-                            rawData={dataMap[comp.dataSourceId] || []}
-                            filteredData={getFilteredDataForComp(comp)}
-                            aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
-                            missingDropdowns={getMissingDropdowns(comp)}
-                            isDropdownDisabled={checkDropdownDisabled(comp)}
-                            aggregateStackedData={aggregateStackedData}
-                        />
-                    ))}
-                </div>
-
-                <div className="news-footer">
-                    <div className="news-footer-left">
-                        {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
-                        {config.meta.dataSources && config.meta.dataSources.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-                                <span>資料來源：</span>
-                                {config.meta.dataSources.map((source, idx) => (
-                                    <span key={idx}>
-                                        {source.url ? (
-                                            <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a>
-                                        ) : (
-                                            <span>{source.name || '未命名來源'}</span>
-                                        )}
-                                        {idx < config.meta.dataSources.length - 1 && '、'}
-                                    </span>
-                                ))}
-                            </div>
+            return (
+                <div className="preview-container" style={{ background: config.meta.canvasBgColor || '#ffffff' }}>
+                    <div className="news-header">
+                        <div style={{ flex: 1, textAlign: config.meta.titleAlign || 'left' }}>
+                            <h2 className="news-title" style={{
+                                color: config.meta.titleColor || '#222',
+                                fontSize: config.meta.titleFontSize || '1.8rem',
+                                fontWeight: config.meta.titleFontWeight || '900',
+                                fontFamily: config.meta.titleFontFamily || 'inherit',
+                                margin: 0
+                            }}>
+                                {config.meta.title}
+                            </h2>
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'top-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px`, marginLeft: '15px' }} />
                         )}
                     </div>
-                    {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && (
-                        <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />
+
+                    {Object.values(filters).some(v => v) && (
+                        <button className="reset-filter-btn" onClick={clearFilters}>↺ 清除所有篩選與重新開始</button>
                     )}
+
+                    <div className="preview-grid">
+                        {sortedComponents.map(comp => (
+                            <ChartComponent
+                                key={comp.id} comp={comp}
+                                rawData={dataMap[comp.dataSourceId] || []}
+                                filteredData={getFilteredDataForComp(comp)}
+                                aggregateData={aggregateData} filters={filters} onFilterChange={handleFilterChange}
+                                missingDropdowns={getMissingDropdowns(comp)}
+                                isDropdownDisabled={checkDropdownDisabled(comp)}
+                                aggregateStackedData={aggregateStackedData}
+                            />
+                        ))}
+                    </div>
+
+                    <div className="news-footer">
+                        <div className="news-footer-left">
+                            {config.meta.lastUpdated && <div>🕒 更新時間：{config.meta.lastUpdated}</div>}
+                            {config.meta.dataSources && config.meta.dataSources.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                    <span>資料來源：</span>
+                                    {config.meta.dataSources.map((source, idx) => (
+                                        <span key={idx}>
+                                            {source.url ? (
+                                                <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a>
+                                            ) : (
+                                                <span>{source.name || '未命名來源'}</span>
+                                            )}
+                                            {idx < config.meta.dataSources.length - 1 && '、'}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        {config.meta.watermarkUrl && config.meta.watermarkPosition === 'bottom-right' && (
+                            <img src={config.meta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${config.meta.watermarkSize || 40}px` }} />
+                        )}
+                    </div>
                 </div>
-            </div>
-        );
+            );
         }
 
         // 🌟 核心畫布元件
@@ -1594,16 +1620,49 @@
                                 dsConfig.pointHoverRadius = customPointSize + 2;
 
                                 if (comp.conditionalColors && comp.conditionalColors.length > 0) {
+                                    const pointCache = {}; // 快取貼紙，避免重複畫圖浪費效能
+
                                     dsConfig.pointBackgroundColor = (context) => {
                                         const val = context.raw;
                                         if (val === undefined || val === null) return baseColor;
                                         for (let rule of comp.conditionalColors) {
-                                            if (rule.operator === '>=' && val >= rule.value) return rule.color;
-                                            if (rule.operator === '<=' && val <= rule.value) return rule.color;
+                                            if ((rule.operator === '>=' && val >= rule.value) || (rule.operator === '<=' && val <= rule.value)) {
+                                                return rule.isGradient ? 'transparent' : rule.color; // 如果是漸層，背景色就變透明，讓貼紙透出來
+                                            }
                                         }
                                         return baseColor;
                                     };
-                                    dsConfig.pointBorderColor = '#fff';
+
+                                    dsConfig.pointStyle = (context) => {
+                                        const val = context.raw;
+                                        if (val === undefined || val === null) return 'circle';
+                                        for (let rule of comp.conditionalColors) {
+                                            if ((rule.operator === '>=' && val >= rule.value) || (rule.operator === '<=' && val <= rule.value)) {
+                                                if (rule.isGradient) {
+                                                    const cacheKey = rule.color + '_' + (rule.color2 || '#0000ff');
+                                                    if (!pointCache[cacheKey]) {
+                                                        // 呼叫貼紙製造機
+                                                        pointCache[cacheKey] = createGradientPointCanvas(rule.color, rule.color2 || '#0000ff', customPointSize + 3);
+                                                    }
+                                                    return pointCache[cacheKey];
+                                                }
+                                                return 'circle';
+                                            }
+                                        }
+                                        return 'circle';
+                                    };
+
+                                    dsConfig.pointBorderColor = (context) => {
+                                        const val = context.raw;
+                                        if (val === undefined || val === null) return '#fff';
+                                        for (let rule of comp.conditionalColors) {
+                                            if ((rule.operator === '>=' && val >= rule.value) || (rule.operator === '<=' && val <= rule.value)) {
+                                                return rule.isGradient ? 'transparent' : '#fff'; // 漸層貼紙不加白色邊框
+                                            }
+                                        }
+                                        return '#fff';
+                                    };
+
                                     dsConfig.pointBorderWidth = 2;
                                     dsConfig.pointRadius = customPointSize + 3;
                                     dsConfig.pointHoverRadius = customPointSize + 5;
@@ -1710,21 +1769,46 @@
             const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
             const rowY = comp.layout?.y !== undefined ? (comp.layout.y + 1) : 'auto';
 
+            // 🌟 卡片外觀動態生成 (漸層、邊框、陰影)
+            const isGradient = comp.cardBgType === 'gradient';
+            const cardBg = isGradient
+                ? `linear-gradient(${comp.cardBgAngle || 180}deg, ${comp.cardBgColor1 || '#ffffff'} 0%, ${comp.cardBgColor2 || '#f0f0f0'} 100%)`
+                : (comp.cardBgColor1 || '#ffffff');
+
+            const cardShadow = comp.cardShadowEnable === false
+                ? 'none'
+                : `${comp.cardShadowX || 0}px ${comp.cardShadowY !== undefined ? comp.cardShadowY : 2}px ${comp.cardShadowBlur !== undefined ? comp.cardShadowBlur : 8}px ${hexToRgba(comp.cardShadowColor || '#000000', (comp.cardShadowOpacity !== undefined ? comp.cardShadowOpacity : 4) / 100)}`;
+
             const gridStyle = {
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
                 gridRow: rowY !== 'auto' ? `${rowY} / span ${finalH}` : `span ${finalH}`,
                 overflow: 'hidden', boxSizing: 'border-box',
-                padding: comp.showTitle !== false ? '15px' : '0px 15px 15px 15px',
+                padding: '15px',
                 display: 'flex', flexDirection: 'column',
                 justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
-                alignItems: 'stretch', minWidth: 0, width: '100%',
-                height: '100%'
+                alignItems: 'stretch', minWidth: 0, width: '100%', height: '100%',
+
+                // 🌟 套用外觀設定
+                background: cardBg,
+                border: `${comp.cardBorderWidth !== undefined ? comp.cardBorderWidth : 1}px solid ${comp.cardBorderColor || '#eeeeee'}`,
+                borderRadius: `${comp.cardBorderRadius !== undefined ? comp.cardBorderRadius : 12}px`,
+                boxShadow: cardShadow
             };
 
             if (comp.type !== 'dropdown' && missingDropdowns && missingDropdowns.length > 0) {
                 return (
                     <div className="preview-card" style={gridStyle}>
-                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem' }}>{comp.title}</h3>}
+                        {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
+                            <h3 className="preview-card-title" style={{
+                                marginTop: 0, marginBottom: '15px', width: '100%', flexShrink: 0,
+                                color: comp.cardTitleColor || '#333333',
+                                fontSize: comp.cardTitleSize || '1.1rem',
+                                fontWeight: comp.cardTitleWeight || 'bold',
+                                textAlign: comp.cardTitleAlign || 'left',
+                                borderBottom: comp.cardTitleBorder !== false ? '2px solid #eee' : 'none',
+                                paddingBottom: comp.cardTitleBorder !== false ? '10px' : '0'
+                            }}>{comp.title}</h3>
+                        )}
                         <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於選單選擇「{missingDropdowns[0]}」<br />以載入資料</div>
                     </div>
                 );
@@ -1756,33 +1840,33 @@
             const renderMetricOrText = () => {
                 // 1. 真正的未綁定：連原始資料都沒有
                 if (!rawData || rawData.length === 0) {
-                    return <p style={{ color: '#999', textAlign: 'center', lineHeight: '1.5' }}>無資料<br/><span style={{fontSize: '0.8rem'}}>請確認資料源或點擊重新讀取</span></p>;
+                    return <p style={{ color: '#999', textAlign: 'center', lineHeight: '1.5' }}>無資料<br /><span style={{ fontSize: '0.8rem' }}>請確認資料源或點擊重新讀取</span></p>;
                 }
 
                 if (comp.type === 'metricCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>請至右側綁定「數值欄位」</p>;
-                    
+
                     // 🌟 核心修正：就算過濾後剩下 0 筆資料，加總就是 0，照樣顯示！
                     let value = 0;
                     if (filteredData && filteredData.length > 0) {
-                        value = comp.aggregation === 'count' 
-                            ? filteredData.length 
+                        value = comp.aggregation === 'count'
+                            ? filteredData.length
                             : filteredData.reduce((sum, row) => sum + (parseFloat(String(row[comp.valueColumn]).replace(/,/g, '')) || 0), 0);
                     }
-                    
+
                     const finalDisplayValue = `${comp.prefix || ''}${processAndFormatNumber(value)}${comp.suffix || ''}`;
                     const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
-                    
+
                     return (
                         <div className="metric-content" style={{ display: 'flex', justifyContent: align, alignItems: 'center', flex: 1, width: '100%' }}>
                             <div className="metric-value" style={{ color: comp.themeColor || '#086788', fontSize: comp.fontSize || '3.5rem', fontWeight: comp.fontWeight || '900', lineHeight: 1 }}>{finalDisplayValue}</div>
                         </div>
                     );
                 }
-                
+
                 if (comp.type === 'textCard') {
                     if (!comp.valueColumn) return <p style={{ color: '#999' }}>請至右側綁定「文字欄位」</p>;
-                    
+
                     // 文字區塊如果沒有資料，顯示無文字
                     if (!filteredData || filteredData.length === 0) {
                         return <p style={{ color: '#999' }}>此條件下無對應文字</p>;
@@ -1872,7 +1956,7 @@
                                 }}>
                                     <div style={{
                                         flex: 1,                // 🌟 解法：用 flex 填滿取代容易衝突的 height: '100%'
-                                        width: '100%', 
+                                        width: '100%',
                                         minWidth: (!isHorizontalChart && comp.type !== 'lineChart' && neededWidth > 0) ? `${neededWidth}px` : undefined,
                                         minHeight: isHorizontalChart && neededHeight > 0 ? `${neededHeight}px` : undefined,
                                         position: 'relative',
@@ -2236,7 +2320,8 @@
 
             const [globalMeta, setGlobalMeta] = useState({
                 title: "未命名儀表板", titleColor: "#222222", titleFontSize: "1.8rem", titleFontWeight: "900", titleFontFamily: "", titleAlign: "left",
-                lastUpdated: "", dataSources: [{ name: "新增資料來源", url: "" }], watermarkUrl: "", watermarkName: "", watermarkSize: 40, watermarkPosition: "top-right"
+                lastUpdated: "", dataSources: [{ name: "新增資料來源", url: "" }], watermarkUrl: "", watermarkName: "", watermarkSize: 40, watermarkPosition: "top-right",
+                canvasBgColor: "#ffffff" // 🌟 新增畫布底色
             });
 
             const [sheetSources, setSheetSources] = useState([
@@ -2299,6 +2384,25 @@
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
                                             imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
+                                            // 🌟 讓讀取專案時也能記住外觀設定
+                                            cardBgType: c.cardBgType || 'solid',
+                                            cardBgColor1: c.cardBgColor1 || '#ffffff',
+                                            cardBgColor2: c.cardBgColor2 || '#f0f0f0',
+                                            cardBgAngle: c.cardBgAngle !== undefined ? c.cardBgAngle : 180,
+                                            cardBorderWidth: c.cardBorderWidth !== undefined ? c.cardBorderWidth : 1,
+                                            cardBorderColor: c.cardBorderColor || '#eeeeee',
+                                            cardBorderRadius: c.cardBorderRadius !== undefined ? c.cardBorderRadius : 12,
+                                            cardShadowEnable: c.cardShadowEnable !== false,
+                                            cardShadowX: c.cardShadowX !== undefined ? c.cardShadowX : 0,
+                                            cardShadowY: c.cardShadowY !== undefined ? c.cardShadowY : 2,
+                                            cardShadowBlur: c.cardShadowBlur !== undefined ? c.cardShadowBlur : 8,
+                                            cardShadowColor: c.cardShadowColor || '#000000',
+                                            cardShadowOpacity: c.cardShadowOpacity !== undefined ? c.cardShadowOpacity : 4,
+                                            cardTitleColor: c.cardTitleColor || '#333333',
+                                            cardTitleSize: c.cardTitleSize || '1.1rem',
+                                            cardTitleWeight: c.cardTitleWeight || 'bold',
+                                            cardTitleAlign: c.cardTitleAlign || 'left',
+                                            cardTitleBorder: c.cardTitleBorder !== false,
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -2517,7 +2621,27 @@
                     buttonTextColor: b.buttonTextColor || '#ffffff',
                     buttonBorderColor: b.buttonBorderColor || '#000000',
                     buttonBorderWidth: b.buttonBorderWidth !== undefined ? b.buttonBorderWidth : 0, // 🌟 確保有預設值
-                    buttonShape: b.buttonShape || 'round'
+                    buttonShape: b.buttonShape || 'round',
+
+                    // 🌟 補上外觀設計的傳輸橋樑
+                    cardBgType: b.cardBgType || 'solid',
+                    cardBgColor1: b.cardBgColor1 || '#ffffff',
+                    cardBgColor2: b.cardBgColor2 || '#f0f0f0',
+                    cardBgAngle: b.cardBgAngle !== undefined ? b.cardBgAngle : 180,
+                    cardBorderWidth: b.cardBorderWidth !== undefined ? b.cardBorderWidth : 1,
+                    cardBorderColor: b.cardBorderColor || '#eeeeee',
+                    cardBorderRadius: b.cardBorderRadius !== undefined ? b.cardBorderRadius : 12,
+                    cardShadowEnable: b.cardShadowEnable !== false,
+                    cardShadowX: b.cardShadowX !== undefined ? b.cardShadowX : 0,
+                    cardShadowY: b.cardShadowY !== undefined ? b.cardShadowY : 2,
+                    cardShadowBlur: b.cardShadowBlur !== undefined ? b.cardShadowBlur : 8,
+                    cardShadowColor: b.cardShadowColor || '#000000',
+                    cardShadowOpacity: b.cardShadowOpacity !== undefined ? b.cardShadowOpacity : 4,
+                    cardTitleColor: b.cardTitleColor || '#333333',
+                    cardTitleSize: b.cardTitleSize || '1.1rem',
+                    cardTitleWeight: b.cardTitleWeight || 'bold',
+                    cardTitleAlign: b.cardTitleAlign || 'left',
+                    cardTitleBorder: b.cardTitleBorder !== false,
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -2660,6 +2784,10 @@
 
             const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
             const currentDataSourceId = currentSelectedBlock ? (currentSelectedBlock.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : '')) : '';
+            // 🌟 計算全域畫布背景 (支援漸層與單色)
+            const globalBgStyle = globalMeta.canvasBgType === 'gradient'
+                ? `linear-gradient(${globalMeta.canvasBgAngle !== undefined ? globalMeta.canvasBgAngle : 180}deg, ${globalMeta.canvasBgColor1 || '#ffffff'} 0%, ${globalMeta.canvasBgColor2 || '#f0f0f0'} 100%)`
+                : (globalMeta.canvasBgColor1 || globalMeta.canvasBgColor || '#ffffff');
             const availableColumns = columnsMap[currentDataSourceId] || [];
 
             return (
@@ -2714,8 +2842,10 @@
                                 <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
                             </div>
 
-                            <div className="canvas-area">
-                                <div className="grid-bg" onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
+                            {/* 🌟 修正：強制隱藏水平捲軸，並套用漸層背景 */}
+                            <div className="canvas-area" style={{ background: globalBgStyle, overflowX: 'hidden' }}>
+                                {/* 🌟 修正：加入 boxSizing 解決邊框撐破畫布的 Bug，並將背景改透明讓漸層透出來 */}
+                                <div className="grid-bg" style={{ background: 'transparent', minHeight: '100%', boxSizing: 'border-box', border: '2px dashed rgba(0,0,0,0.15)' }} onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
                                     <ResponsiveRGL
                                         layout={blocks}
                                         cols={12}
@@ -2805,6 +2935,105 @@
                                                                     isChartType ? '👉 至少 8 ~ 10 格 (讓圖表有空間伸展)' :
                                                                         '👉 視文字或事件內容多寡而定'}
                                                     </div>
+                                                    <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '20px 0' }} />
+                                                    <h4 style={{ marginTop: 0, marginBottom: '15px', color: '#086788' }}>🎨 積木外觀設計</h4>
+
+                                                    {/* 背景與漸層 */}
+                                                    <div style={{ background: '#f9f9f9', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '15px' }}>
+                                                        <div className="form-group" style={{ marginBottom: '10px' }}>
+                                                            <label>背景填色模式</label>
+                                                            <select value={currentSelectedBlock.cardBgType || 'solid'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBgType', e.target.value)}>
+                                                                <option value="solid">單一純色</option>
+                                                                <option value="gradient">漸層色彩 (Linear)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                                                            <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                <label>{currentSelectedBlock.cardBgType === 'gradient' ? '漸層色 1' : '背景顏色'}</label>
+                                                                <input type="color" value={currentSelectedBlock.cardBgColor1 || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBgColor1', e.target.value)} />
+                                                            </div>
+                                                            {currentSelectedBlock.cardBgType === 'gradient' && (
+                                                                <>
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>漸層色 2</label>
+                                                                        <input type="color" value={currentSelectedBlock.cardBgColor2 || '#f0f0f0'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBgColor2', e.target.value)} />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                                        <label>角度</label>
+                                                                        <input type="number" min="0" max="360" value={currentSelectedBlock.cardBgAngle !== undefined ? currentSelectedBlock.cardBgAngle : 180} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBgAngle', e.target.value)} placeholder="度" />
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 邊框與圓角 */}
+                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                            <label>外框粗細 (px)</label>
+                                                            <input type="number" min="0" max="10" value={currentSelectedBlock.cardBorderWidth !== undefined ? currentSelectedBlock.cardBorderWidth : 1} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBorderWidth', parseInt(e.target.value))} />
+                                                        </div>
+                                                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                            <label>外框顏色</label>
+                                                            <input type="color" value={currentSelectedBlock.cardBorderColor || '#eeeeee'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBorderColor', e.target.value)} />
+                                                        </div>
+                                                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                            <label>邊緣圓角 (px)</label>
+                                                            <input type="number" min="0" max="50" value={currentSelectedBlock.cardBorderRadius !== undefined ? currentSelectedBlock.cardBorderRadius : 12} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardBorderRadius', parseInt(e.target.value))} />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* 陰影設定 */}
+                                                    <div style={{ background: '#f9f9f9', padding: '12px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '15px' }}>
+                                                        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                            <input type="checkbox" id="cardShadowEnable" checked={currentSelectedBlock.cardShadowEnable !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowEnable', e.target.checked)} />
+                                                            <label htmlFor="cardShadowEnable" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>開啟卡片陰影</label>
+                                                        </div>
+                                                        {currentSelectedBlock.cardShadowEnable !== false && (
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>水平偏移 X (px)</label><input type="number" value={currentSelectedBlock.cardShadowX !== undefined ? currentSelectedBlock.cardShadowX : 0} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowX', parseInt(e.target.value))} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>垂直偏移 Y (px)</label><input type="number" value={currentSelectedBlock.cardShadowY !== undefined ? currentSelectedBlock.cardShadowY : 2} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowY', parseInt(e.target.value))} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>模糊範圍 (px)</label><input type="number" value={currentSelectedBlock.cardShadowBlur !== undefined ? currentSelectedBlock.cardShadowBlur : 8} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowBlur', parseInt(e.target.value))} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>陰影顏色</label><input type="color" value={currentSelectedBlock.cardShadowColor || '#000000'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                                                                    <label>透明度 (0~100%)</label>
+                                                                    <input type="range" min="0" max="100" value={currentSelectedBlock.cardShadowOpacity !== undefined ? currentSelectedBlock.cardShadowOpacity : 4} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardShadowOpacity', parseInt(e.target.value))} />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* 主標題樣式 */}
+                                                    {currentSelectedBlock.showTitle !== false && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 積木主標題設定</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>標題顏色</label><input type="color" value={currentSelectedBlock.cardTitleColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardTitleColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>對齊方式</label>
+                                                                    <select value={currentSelectedBlock.cardTitleAlign || 'left'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardTitleAlign', e.target.value)}>
+                                                                        <option value="left">靠左</option><option value="center">置中</option><option value="right">靠右</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字體大小</label>
+                                                                    <select value={currentSelectedBlock.cardTitleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardTitleSize', e.target.value)}>
+                                                                        <option value="0.9rem">小</option><option value="1.1rem">標準</option><option value="1.3rem">大</option><option value="1.6rem">特大</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字體粗細</label>
+                                                                    <select value={currentSelectedBlock.cardTitleWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardTitleWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px', marginBottom: 0 }}>
+                                                                    <input type="checkbox" id="cardTitleBorder" checked={currentSelectedBlock.cardTitleBorder !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'cardTitleBorder', e.target.checked)} />
+                                                                    <label htmlFor="cardTitleBorder" style={{ margin: 0, cursor: 'pointer' }}>顯示標題底部分隔線</label>
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                     <button className="delete-panel-btn" onClick={() => removeBlock(currentSelectedBlock.i)}>🗑️ 刪除此積木</button>
                                                 </div>
                                             )}
@@ -3470,30 +3699,53 @@
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🚦 節點條件變色 (如景氣燈號)</h4>
                                                             <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba' }}>
                                                                 {(currentSelectedBlock.conditionalColors || []).map((rule, idx) => (
-                                                                    <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '10px', alignItems: 'center' }}>
-                                                                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>數值</span>
-                                                                        <select value={rule.operator} onChange={(e) => {
-                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
-                                                                            newRules[idx].operator = e.target.value;
-                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
-                                                                        }} style={{ padding: '4px', width: '50px' }}>
-                                                                            <option value=">=">&ge;</option>
-                                                                            <option value="<=">&le;</option>
-                                                                        </select>
-                                                                        <input type="number" value={rule.value} onChange={(e) => {
-                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
-                                                                            newRules[idx].value = Number(e.target.value);
-                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
-                                                                        }} style={{ width: '70px', padding: '4px' }} />
-                                                                        <input type="color" value={rule.color} onChange={(e) => {
-                                                                            const newRules = [...(currentSelectedBlock.conditionalColors || [])];
-                                                                            newRules[idx].color = e.target.value;
-                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
-                                                                        }} style={{ width: '35px', height: '30px', padding: '0', cursor: 'pointer' }} />
-                                                                        <button onClick={() => {
-                                                                            const newRules = (currentSelectedBlock.conditionalColors || []).filter((_, i) => i !== idx);
-                                                                            updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
-                                                                        }} style={{ padding: '4px 8px', background: '#E74C3C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✕</button>
+                                                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px', paddingBottom: '10px', borderBottom: idx === (currentSelectedBlock.conditionalColors.length - 1) ? 'none' : '1px dashed #e5c365' }}>
+                                                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>數值</span>
+                                                                            <select value={rule.operator} onChange={(e) => {
+                                                                                const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                                newRules[idx].operator = e.target.value;
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                            }} style={{ padding: '4px', width: '50px' }}>
+                                                                                <option value=">=">&ge;</option>
+                                                                                <option value="<=">&le;</option>
+                                                                            </select>
+                                                                            <input type="number" value={rule.value} onChange={(e) => {
+                                                                                const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                                newRules[idx].value = Number(e.target.value);
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                            }} style={{ width: '70px', padding: '4px' }} />
+                                                                            <input type="color" value={rule.color} onChange={(e) => {
+                                                                                const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                                newRules[idx].color = e.target.value;
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                            }} style={{ width: '35px', height: '30px', padding: '0', cursor: 'pointer' }} />
+
+                                                                            <button onClick={() => {
+                                                                                const newRules = (currentSelectedBlock.conditionalColors || []).filter((_, i) => i !== idx);
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                            }} style={{ padding: '4px 8px', background: '#E74C3C', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}>✕</button>
+                                                                        </div>
+
+                                                                        {/* 🌟 新增的漸層開關 */}
+                                                                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', paddingLeft: '35px' }}>
+                                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>
+                                                                                <input type="checkbox" checked={rule.isGradient || false} onChange={(e) => {
+                                                                                    const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                                    newRules[idx].isGradient = e.target.checked;
+                                                                                    if (e.target.checked && !newRules[idx].color2) newRules[idx].color2 = '#0000FF'; // 預設藍色
+                                                                                    updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                                }} />
+                                                                                啟用雙色漸層
+                                                                            </label>
+                                                                            {rule.isGradient && (
+                                                                                <input type="color" value={rule.color2 || '#0000FF'} onChange={(e) => {
+                                                                                    const newRules = [...(currentSelectedBlock.conditionalColors || [])];
+                                                                                    newRules[idx].color2 = e.target.value;
+                                                                                    updateBlockProperty(currentSelectedBlock.i, 'conditionalColors', newRules);
+                                                                                }} style={{ width: '35px', height: '30px', padding: '0', cursor: 'pointer', marginLeft: '5px' }} />
+                                                                            )}
+                                                                        </div>
                                                                     </div>
                                                                 ))}
                                                                 <button className="reset-filter-btn" style={{ background: '#fff', margin: 0, width: '100%', textAlign: 'center' }} onClick={() => {
@@ -3681,6 +3933,34 @@
                                             <div className="form-group">
                                                 <label>儀表板標題</label>
                                                 <input type="text" value={globalMeta.title} onChange={(e) => updateGlobalMeta('title', e.target.value)} />
+                                            </div>
+                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 畫布與標題設定</h4>
+                                            <div className="form-group" style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', marginBottom: '15px' }}>
+                                                <div style={{ marginBottom: '10px' }}>
+                                                    <label>畫布 (全域背景) 填色模式</label>
+                                                    <select value={globalMeta.canvasBgType || 'solid'} onChange={(e) => updateGlobalMeta('canvasBgType', e.target.value)} style={{ width: '100%', marginTop: '5px' }}>
+                                                        <option value="solid">單一純色</option>
+                                                        <option value="gradient">漸層色彩 (Linear)</option>
+                                                    </select>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label>{globalMeta.canvasBgType === 'gradient' ? '漸層色 1' : '背景顏色'}</label>
+                                                        <input type="color" value={globalMeta.canvasBgColor1 || globalMeta.canvasBgColor || '#ffffff'} onChange={(e) => updateGlobalMeta('canvasBgColor1', e.target.value)} style={{ width: '100%' }} />
+                                                    </div>
+                                                    {globalMeta.canvasBgType === 'gradient' && (
+                                                        <>
+                                                            <div style={{ flex: 1 }}>
+                                                                <label>漸層色 2</label>
+                                                                <input type="color" value={globalMeta.canvasBgColor2 || '#f0f0f0'} onChange={(e) => updateGlobalMeta('canvasBgColor2', e.target.value)} style={{ width: '100%' }} />
+                                                            </div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <label>角度</label>
+                                                                <input type="number" value={globalMeta.canvasBgAngle !== undefined ? globalMeta.canvasBgAngle : 180} onChange={(e) => updateGlobalMeta('canvasBgAngle', parseInt(e.target.value))} placeholder="度" style={{ width: '100%' }} />
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
@@ -3874,7 +4154,7 @@
                     {viewMode === 'preview' && (
                         <div className="builder-container" style={{ justifyContent: 'center', height: 'auto', background: '#e8e8e8', padding: '40px 20px', borderRadius: '12px' }}>
                             <div className={`preview-wrapper ${previewDevice}`}>
-                                <div className="preview-container">
+                                <div className="preview-container" style={{ background: globalBgStyle }}>
 
                                     {/* 📰 預覽頁首 */}
                                     <div className="news-header">
@@ -3913,25 +4193,27 @@
                                     </div>
 
                                     {/* 📄 預覽頁尾 */}
-                                    <div className="news-footer">
-                                        <div className="news-footer-left">
-                                            {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
-                                            {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-                                                    <span>資料來源：</span>
-                                                    {globalMeta.dataSources.map((source, idx) => (
-                                                        <span key={idx}>
-                                                            {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name || '未命名來源'}</a> : <span>{source.name || '未命名來源'}</span>}
-                                                            {idx < globalMeta.dataSources.length - 1 && '、'}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                                    {(globalMeta.lastUpdated || (globalMeta.dataSources && globalMeta.dataSources.some(s => s.name)) || (globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right')) && (
+                                        <div className="news-footer">
+                                            <div className="news-footer-left">
+                                                {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
+                                                {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                                        {globalMeta.dataSources.some(s => s.name) && <span>資料來源：</span>}
+                                                        {globalMeta.dataSources.filter(s => s.name).map((source, idx, arr) => (
+                                                            <span key={idx}>
+                                                                {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name}</a> : <span>{source.name}</span>}
+                                                                {idx < arr.length - 1 && '、'}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
+                                                <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px` }} />
                                             )}
                                         </div>
-                                        {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
-                                            <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px` }} />
-                                        )}
-                                    </div>
+                                    )}
 
                                 </div>
                             </div>
