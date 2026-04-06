@@ -1344,7 +1344,8 @@
                         const newDataMap = {};
                         await Promise.all(config.sheetSources.map(async (source) => {
                             if (!source.sheetId) return;
-                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}`;
+                            // 🌟 加上時間戳強制打破快取，保證每次抓到的都是熱騰騰的最新票數
+                            const url = `https://docs.google.com/spreadsheets/d/${source.sheetId}/gviz/tq?tqx=out:json&headers=1&tq&gid=${source.gid || '0'}&_=${Date.now()}`;
                             const res = await fetch(url);
                             const text = await res.text();
                             const json = JSON.parse(text.substring(47, text.length - 2));
@@ -1644,13 +1645,31 @@
                         chartType = 'choropleth';
                         const featureKey = comp.mapFeatureKey || 'COUNTYNAME';
 
-                        // 🌟 升級：抓取多個欄位的資料 (支援單色 或 陣營對決)
                         const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn].filter(Boolean);
 
-                        // 將每個欄位的資料分別 aggregate 算好
+                        // 🌟 手術 4 核心：智慧縮放魔法
+                       // 🌟 升級版智慧縮放魔法：根據過濾後的「真實資料(filteredData)」來決定要畫哪些地圖區塊
+                        let displayFeatures = mapFeatures;
+                        
+                        // 只要有開啟放大，且目前畫面上有任何過濾器生效
+                        if (comp.mapAutoZoom !== false && Object.values(filters).some(v => v !== '')) {
+                            // 🔍 關鍵：找出過濾後，真正還有資料的地理區域名稱 (例如萬華區底下所有的里)
+                            const validCategories = new Set(filteredData.map(row => String(row[comp.categoryColumn] || '').replace(/台/g, '臺')));
+                            
+                            const filtered = mapFeatures.filter(f => {
+                                const rawName = f.properties[featureKey] || f.properties.name || '';
+                                return validCategories.has(rawName.replace(/台/g, '臺'));
+                            });
+                            
+                            if (filtered.length > 0) {
+                                displayFeatures = filtered;
+                            }
+                        }
+
                         const aggregatedDataByCol = cols.map(col => aggregateData(filteredData, comp.categoryColumn, col, comp.aggregation));
 
-                        const mapData = mapFeatures.map(f => {
+                        // 🌟 這裡開始，全部改用被裁切過的 displayFeatures 進行運算
+                        const mapData = displayFeatures.map(f => {
                             const rawCountyName = f.properties[featureKey] || f.properties.name || '';
                             const cleanCountyName = rawCountyName.replace(/台/g, '臺');
 
@@ -1673,7 +1692,6 @@
                                 }
                             });
 
-                            // 🌟 新增：計算勝負差值 (第一名減去第二名)
                             let sortedValues = [...values].sort((a, b) => b - a);
                             let margin = sortedValues.length > 1 ? (sortedValues[0] - sortedValues[1]) : 0;
 
@@ -1690,22 +1708,21 @@
                         const userMax = parseFloat(comp.mapMaxValue);
                         const userMin = parseFloat(comp.mapMinValue);
 
-                        // 絕對值最大/小
                         const validValues = mapData.map(d => d.value).filter(v => v > 0);
                         const empiricalMaxAbs = validValues.length > 0 ? Math.max(...validValues) : 1;
 
-                        // 差值最大/小
                         const validMargins = mapData.map(d => d.margin);
                         const empiricalMaxMargin = validMargins.length > 0 ? Math.max(...validMargins) : 1;
 
                         const finalMax = !isNaN(userMax) ? userMax : (comp.mapColorLogic === 'margin' ? empiricalMaxMargin : empiricalMaxAbs);
                         const finalMin = !isNaN(userMin) ? userMin : 0;
 
-                        labels = mapFeatures.map(f => f.properties[featureKey] || f.properties.name);
+                        // 🌟 標籤也是用 displayFeatures
+                        labels = displayFeatures.map(f => f.properties[featureKey] || f.properties.name);
 
                         datasets = [{
                             label: comp.title || '數據',
-                            outline: mapFeatures,
+                            outline: displayFeatures, // 🌟 關鍵：只給 Chart.js 選中的外框，它就會自動算比例並放大填滿畫布！
                             data: mapData,
                             backgroundColor: (context) => {
                                 if (context.dataIndex == null) return null;
@@ -1718,7 +1735,7 @@
                                     baseColor = (comp.customColors && comp.customColors[item.winnerIndex]) ? comp.customColors[item.winnerIndex] : defaultColors[item.winnerIndex % defaultColors.length];
                                 }
 
-                                // 🌟 雙引擎計算漸層比率
+                                // 雙引擎計算漸層比率
                                 let range = finalMax - finalMin;
                                 if (range <= 0) range = 1;
 
@@ -1742,12 +1759,10 @@
                                 datalabels: { display: false },
                                 tooltip: {
                                     callbacks: {
-                                        // 🌟 Tooltip 修復：將地區名稱放在標題 (粗體)
                                         title: (context) => {
                                             if (!context || !context.length) return '';
                                             return context[0].raw.feature.properties[featureKey] || context[0].raw.feature.properties.name || '未知區域';
                                         },
-                                        // 🌟 Tooltip 內文：列出各陣營與票數
                                         label: (context) => {
                                             if (cols.length > 1) {
                                                 let lines = [];
@@ -1755,7 +1770,6 @@
                                                     const val = context.raw.allValues[idx];
                                                     lines.push(`${col}: ${val > 0 ? Number(val).toLocaleString('zh-TW') : '0'}`);
                                                 });
-                                                // 如果是激戰度模式，多附註一行差值提示
                                                 if (comp.mapColorLogic === 'margin') {
                                                     lines.push(`------------------`);
                                                     lines.push(`(領先差值: ${Number(context.raw.margin).toLocaleString('zh-TW')})`);
@@ -2576,7 +2590,7 @@
                                             cardBorderWidth: c.cardBorderWidth !== undefined ? c.cardBorderWidth : 1, cardBorderColor: c.cardBorderColor || '#eeeeee', cardBorderRadius: c.cardBorderRadius !== undefined ? c.cardBorderRadius : 12,
                                             cardShadowEnable: c.cardShadowEnable !== false, cardShadowX: c.cardShadowX !== undefined ? c.cardShadowX : 0, cardShadowY: c.cardShadowY !== undefined ? c.cardShadowY : 2, cardShadowBlur: c.cardShadowBlur !== undefined ? c.cardShadowBlur : 8, cardShadowColor: c.cardShadowColor || '#000000', cardShadowOpacity: c.cardShadowOpacity !== undefined ? c.cardShadowOpacity : 4,
                                             cardTitleColor: c.cardTitleColor || '#333333', cardTitleSize: c.cardTitleSize || '1.1rem', cardTitleWeight: c.cardTitleWeight || 'bold', cardTitleAlign: c.cardTitleAlign || 'left', cardTitleBorder: c.cardTitleBorder !== false,
-                                            mapTopoUrl: c.mapTopoUrl || '', mapFeatureKey: c.mapFeatureKey || '', mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : null, mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : null, mapColorLogic: c.mapColorLogic || 'absolute'
+                                            mapTopoUrl: c.mapTopoUrl || '', mapFeatureKey: c.mapFeatureKey || '', mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : null, mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : null, mapColorLogic: c.mapColorLogic || 'absolute', mapAutoZoom: c.mapAutoZoom !== false,
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -2650,9 +2664,22 @@
                 // 🌟 核心修正：加入 currentScreen === 'view'，讓發布後的網頁也能讀取資料
                 if ((currentScreen === 'editor' || currentScreen === 'view') && !isInitialLoading && hasValidSource && Object.keys(columnsMap).length === 0) {
                     console.log("📡 背景自動同步資料庫...");
-                    fetchSheetColumns(true); 
+                    fetchSheetColumns(true);
                 }
             }, [sheetSources, isInitialLoading, columnsMap, currentScreen]);
+            useEffect(() => {
+                if ((currentScreen === 'view' || currentScreen === 'editor') && globalMeta.autoRefresh && globalMeta.autoRefreshInterval > 0) {
+                    console.log(`⚡ 啟動即時開票模式：每 ${globalMeta.autoRefreshInterval} 秒自動更新資料...`);
+                    const intervalId = setInterval(() => {
+                        const hasValidSource = sheetSources.some(s => s.sheetId && s.sheetId.length > 10);
+                        if (hasValidSource) {
+                            fetchSheetColumns(true); // 🌟 靜默抓取最新資料，畫面會自己平滑更新
+                        }
+                    }, globalMeta.autoRefreshInterval * 1000);
+                    return () => clearInterval(intervalId); // 切換畫面或卸載時清除計時器
+                }
+                // 👇 這裡才是真正的關鍵修正！把開關和秒數放進依賴陣列
+            }, [currentScreen, globalMeta.autoRefresh, globalMeta.autoRefreshInterval, sheetSources]);
 
             const handleLayoutChange = (newLayout) => {
                 const updatedBlocks = blocks.map(block => {
@@ -2822,6 +2849,7 @@
                     mapMaxValue: b.mapMaxValue !== undefined ? b.mapMaxValue : null,
                     mapMinValue: b.mapMinValue !== undefined ? b.mapMinValue : null,
                     mapColorLogic: b.mapColorLogic || 'absolute',
+                    mapAutoZoom: b.mapAutoZoom !== false,
 
                 }))
             };
@@ -2984,10 +3012,18 @@
                                 )}
                             </div>
 
-                            {/* 🧹 篩選區 */}
-                            {Object.values(filters).some(v => v) && (
-                                <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
-                            )}
+                            {/* 🧹 篩選與手動更新功能列 */}
+                            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginBottom: '15px', flexWrap: 'wrap' }}>
+                                {/* 🌟 新增：手動更新資料按鈕 (帶有讀取中狀態，且靜音不跳警告視窗) */}
+                                <button className="reset-filter-btn" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '5px', background: isFetching ? '#e0e0e0' : '#e8f4f8', color: '#086788', borderColor: '#bce0ed', fontWeight: 'bold' }} onClick={() => fetchSheetColumns(true)} disabled={isFetching}>
+                                    {isFetching ? '⏳ 資料讀取中...' : '🔄 重新讀取最新資料'}
+                                </button>
+                                
+                                {/* 原本的清除篩選按鈕 */}
+                                {Object.values(filters).some(v => v) && (
+                                    <button className="reset-filter-btn" style={{ margin: 0 }} onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
+                                )}
+                            </div>
 
                             {/* 📊 圖表網格 */}
                             <div className="preview-grid" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -4176,6 +4212,10 @@
                                                                             <option value="margin">依據「前兩名勝負差值」大小 (激戰度，需選2個以上欄位)</option>
                                                                         </select>
                                                                     </div>
+                                                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', marginBottom: '15px', padding: '10px', background: '#fff', borderRadius: '6px' }}>
+                                                                        <input type="checkbox" id="mapAutoZoom" checked={currentSelectedBlock.mapAutoZoom !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapAutoZoom', e.target.checked)} />
+                                                                        <label htmlFor="mapAutoZoom" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#E74C3C' }}>🔍 選單過濾時自動放大聚焦選區 (隱藏其他區域)</label>
+                                                                    </div>
                                                                     <div className="form-group" style={{ marginBottom: 0 }}>
                                                                         <label>色階最大值 (最深色)</label>
                                                                         <input type="number" value={currentSelectedBlock.mapMaxValue !== undefined ? currentSelectedBlock.mapMaxValue : ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapMaxValue', e.target.value)} placeholder="自動計算" />
@@ -4361,7 +4401,20 @@
                                                 <label>最後更新時間 (顯示於左下角)</label>
                                                 <input type="text" value={globalMeta.lastUpdated} onChange={(e) => updateGlobalMeta('lastUpdated', e.target.value)} placeholder="例如：2023/03/27 22:23" />
                                             </div>
-
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>⚡ 即時自動更新 (開票模式)</h4>
+                                            <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', marginBottom: '15px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: globalMeta.autoRefresh ? '10px' : '0' }}>
+                                                    <input type="checkbox" id="autoRefresh" checked={globalMeta.autoRefresh || false} onChange={(e) => updateGlobalMeta('autoRefresh', e.target.checked)} />
+                                                    <label htmlFor="autoRefresh" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>啟用自動讀取最新資料 (發布後依然有效)</label>
+                                                </div>
+                                                {globalMeta.autoRefresh && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <label style={{ color: '#856404' }}>更新頻率 (秒)：</label>
+                                                        <input type="number" min="10" value={globalMeta.autoRefreshInterval || 60} onChange={(e) => updateGlobalMeta('autoRefreshInterval', parseInt(e.target.value))} style={{ width: '80px', padding: '5px' }} />
+                                                        <span style={{ fontSize: '0.8rem', color: '#856404' }}>建議勿低於 10 秒以免遭 Google 阻擋</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                             {/* 🌟 魔王升級：跨表資料源管理 */}
                                             <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>📚 資料庫</h4>
                                             <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '15px' }}>
