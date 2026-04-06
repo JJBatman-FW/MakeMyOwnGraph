@@ -13,6 +13,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <script src="https://unpkg.com/topojson-client@3"></script>
+    <script src="https://unpkg.com/chartjs-chart-geo@4"></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/css/styles.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-resizable/3.0.5/css/styles.min.css" />
@@ -827,8 +829,7 @@
             max-width: 100%;
             grid-column: 1 / -1 !important;
             grid-row: auto !important;
-            height: auto !important;
-            min-height: 150px;
+            /* 🌟 解除高度封印，讓它自動吃行內算好的 minHeight */
         }
 
         .preview-wrapper.mobile .news-header {
@@ -1256,6 +1257,10 @@
         const ResponsiveRGL = RGL.WidthProvider(RGL);
 
         Chart.register(ChartDataLabels);
+        // 🌟 強制註冊地圖模組，避免瀏覽器漏載入導致畫布空白
+        if (window.ChartGeo) {
+            Chart.register(window.ChartGeo.ChoroplethController, window.ChartGeo.GeoFeature, window.ChartGeo.ColorScale, window.ChartGeo.ProjectionScale);
+        }
 
         const aggregateData = (rawData, categoryCol, valueCol, aggType) => {
             if (!valueCol) return {};
@@ -1512,11 +1517,45 @@
             const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
-            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(comp.type);
+            const isChartType = ['barChart', 'pieChart', 'lineChart', 'stackedBarChart', 'choroplethMap'].includes(comp.type);
 
             const [labelCount, setLabelCount] = useState(0);
             const [currentSlide, setCurrentSlide] = useState(0);
             const [hiddenSlices, setHiddenSlices] = useState({});
+            // 🌟 新增：地圖特屬狀態與圖資載入
+            const [mapFeatures, setMapFeatures] = useState(null);
+
+            useEffect(() => {
+                if (comp.type === 'choroplethMap') {
+                    const processMapData = (mapData) => {
+                        try {
+                            if (mapData.type === 'FeatureCollection') {
+                                // 這是 GeoJSON 格式
+                                setMapFeatures(mapData.features);
+                            } else if (mapData.objects) {
+                                // 這是 TopoJSON 格式
+                                const objectKey = Object.keys(mapData.objects)[0];
+                                const features = topojson.feature(mapData, mapData.objects[objectKey]).features;
+                                setMapFeatures(features);
+                            }
+                        } catch (err) {
+                            console.error("地圖解析失敗", err);
+                        }
+                    };
+
+                    if (comp.customTopoJson) {
+                        // 優先使用使用者上傳的本地檔案
+                        processMapData(comp.customTopoJson);
+                    } else {
+                        // 使用網路圖資
+                        const url = comp.mapTopoUrl || 'https://raw.githubusercontent.com/g0v/twgeojson/master/json/twCounty2010.topo.json';
+                        fetch(url)
+                            .then(res => res.json())
+                            .then(data => processMapData(data))
+                            .catch(err => console.error("地圖載入失敗", err));
+                    }
+                }
+            }, [comp.type, comp.mapTopoUrl, comp.customTopoJson]);
 
             useEffect(() => {
                 setCurrentSlide(0);
@@ -1535,6 +1574,9 @@
                     if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
                         const hasData = (comp.multiValueCols && comp.multiValueCols.length > 0) || comp.valueColumn;
                         if (!comp.categoryColumn || !hasData) return;
+                    } else if (comp.type === 'choroplethMap') {
+                        if (!comp.categoryColumn || !comp.valueColumn) return;
+                        if (!mapFeatures) return; // 🌟 關鍵：如果台灣地圖的邊界檔案還沒下載完，就先不要畫
                     } else {
                         if (!comp.categoryColumn || !comp.valueColumn) return;
                     }
@@ -1597,8 +1639,142 @@
                     const pieColors = ['#086788', '#F0C808', '#E74C3C', '#2ECC71', '#9B59B6', '#34495E', '#E67E22', '#1ABC9C'];
                     let labels = [];
                     let datasets = [];
+                    // 🌟 這裡插入地圖專用的渲染引擎
+                    if (comp.type === 'choroplethMap') {
+                        chartType = 'choropleth';
+                        const featureKey = comp.mapFeatureKey || 'COUNTYNAME';
 
-                    if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
+                        // 🌟 升級：抓取多個欄位的資料 (支援單色 或 陣營對決)
+                        const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn].filter(Boolean);
+
+                        // 將每個欄位的資料分別 aggregate 算好
+                        const aggregatedDataByCol = cols.map(col => aggregateData(filteredData, comp.categoryColumn, col, comp.aggregation));
+
+                        const mapData = mapFeatures.map(f => {
+                            const rawCountyName = f.properties[featureKey] || f.properties.name || '';
+                            const cleanCountyName = rawCountyName.replace(/台/g, '臺');
+
+                            let bestColIndex = 0;
+                            let maxVal = -Infinity;
+                            let values = [];
+
+                            cols.forEach((col, idx) => {
+                                let val = 0;
+                                for (let sheetKey in aggregatedDataByCol[idx]) {
+                                    if (sheetKey.replace(/台/g, '臺') === cleanCountyName) {
+                                        val = aggregatedDataByCol[idx][sheetKey];
+                                        break;
+                                    }
+                                }
+                                values.push(val);
+                                if (val > maxVal) {
+                                    maxVal = val;
+                                    bestColIndex = idx;
+                                }
+                            });
+
+                            // 🌟 新增：計算勝負差值 (第一名減去第二名)
+                            let sortedValues = [...values].sort((a, b) => b - a);
+                            let margin = sortedValues.length > 1 ? (sortedValues[0] - sortedValues[1]) : 0;
+
+                            return {
+                                feature: f,
+                                value: maxVal > -Infinity ? maxVal : 0,
+                                margin: margin, // 把差值存起來備用
+                                winnerIndex: bestColIndex,
+                                allValues: values
+                            };
+                        });
+
+                        // 🌟 計算絕對值與差值的極值
+                        const userMax = parseFloat(comp.mapMaxValue);
+                        const userMin = parseFloat(comp.mapMinValue);
+
+                        // 絕對值最大/小
+                        const validValues = mapData.map(d => d.value).filter(v => v > 0);
+                        const empiricalMaxAbs = validValues.length > 0 ? Math.max(...validValues) : 1;
+
+                        // 差值最大/小
+                        const validMargins = mapData.map(d => d.margin);
+                        const empiricalMaxMargin = validMargins.length > 0 ? Math.max(...validMargins) : 1;
+
+                        const finalMax = !isNaN(userMax) ? userMax : (comp.mapColorLogic === 'margin' ? empiricalMaxMargin : empiricalMaxAbs);
+                        const finalMin = !isNaN(userMin) ? userMin : 0;
+
+                        labels = mapFeatures.map(f => f.properties[featureKey] || f.properties.name);
+
+                        datasets = [{
+                            label: comp.title || '數據',
+                            outline: mapFeatures,
+                            data: mapData,
+                            backgroundColor: (context) => {
+                                if (context.dataIndex == null) return null;
+                                const item = context.dataset.data[context.dataIndex];
+                                if (!item.value || item.value === 0) return '#f5f5f5';
+
+                                const defaultColors = ['#2ECC71', '#3498DB', '#1ABC9C', '#F1C40F', '#E74C3C', '#9B59B6'];
+                                let baseColor = comp.themeColor || '#086788';
+                                if (cols.length > 1) {
+                                    baseColor = (comp.customColors && comp.customColors[item.winnerIndex]) ? comp.customColors[item.winnerIndex] : defaultColors[item.winnerIndex % defaultColors.length];
+                                }
+
+                                // 🌟 雙引擎計算漸層比率
+                                let range = finalMax - finalMin;
+                                if (range <= 0) range = 1;
+
+                                let targetValue = comp.mapColorLogic === 'margin' && cols.length > 1 ? item.margin : item.value;
+                                let ratio = (targetValue - finalMin) / range;
+                                ratio = Math.max(0, Math.min(1, ratio));
+
+                                const alpha = 0.2 + (ratio * 0.8);
+                                return hexToRgba(baseColor, alpha);
+                            },
+                            borderColor: '#ffffff',
+                            borderWidth: 1
+                        }];
+
+                        options = {
+                            animation: isEditing ? false : undefined,
+                            responsive: true, maintainAspectRatio: false,
+                            layout: { padding: 10 },
+                            plugins: {
+                                legend: { display: false },
+                                datalabels: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        // 🌟 Tooltip 修復：將地區名稱放在標題 (粗體)
+                                        title: (context) => {
+                                            if (!context || !context.length) return '';
+                                            return context[0].raw.feature.properties[featureKey] || context[0].raw.feature.properties.name || '未知區域';
+                                        },
+                                        // 🌟 Tooltip 內文：列出各陣營與票數
+                                        label: (context) => {
+                                            if (cols.length > 1) {
+                                                let lines = [];
+                                                cols.forEach((col, idx) => {
+                                                    const val = context.raw.allValues[idx];
+                                                    lines.push(`${col}: ${val > 0 ? Number(val).toLocaleString('zh-TW') : '0'}`);
+                                                });
+                                                // 如果是激戰度模式，多附註一行差值提示
+                                                if (comp.mapColorLogic === 'margin') {
+                                                    lines.push(`------------------`);
+                                                    lines.push(`(領先差值: ${Number(context.raw.margin).toLocaleString('zh-TW')})`);
+                                                }
+                                                return lines;
+                                            } else {
+                                                const val = context.raw.value;
+                                                return `數值: ${val > 0 ? Number(val).toLocaleString('zh-TW') : '無資料'}`;
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                projection: { axis: 'x', projection: 'mercator' },
+                                color: { axis: 'x', display: false }
+                            }
+                        };
+                    } else if (comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') {
                         chartType = comp.type === 'lineChart' ? 'line' : 'bar';
                         const cols = (comp.multiValueCols && comp.multiValueCols.length > 0) ? comp.multiValueCols : [comp.valueColumn, comp.compareValueColumn].filter(Boolean);
                         const stackedData = aggregateStackedData(filteredData, comp.categoryColumn, cols, comp.aggregation);
@@ -1763,7 +1939,7 @@
             const isHorizontalChart = isChartType && comp.chartOrientation === 'horizontal';
 
             const neededHeight = (isHorizontalChart && labelCount > 0) ? (labelCount * 40 + 80) : 0;
-            const neededWidth = (!isHorizontalChart && labelCount > 0) ? (labelCount * 50 + 80) : 0;
+            const neededWidth = (!isHorizontalChart && comp.type !== 'choroplethMap' && labelCount > 0) ? (labelCount * 50 + 80) : 0;
 
             const colWidth = comp.layout?.desktopCols || comp.layout?.w || comp.w || 6;
             const colX = comp.layout?.x !== undefined ? (comp.layout.x + 1) : 'auto';
@@ -1779,6 +1955,9 @@
                 ? 'none'
                 : `${comp.cardShadowX || 0}px ${comp.cardShadowY !== undefined ? comp.cardShadowY : 2}px ${comp.cardShadowBlur !== undefined ? comp.cardShadowBlur : 8}px ${hexToRgba(comp.cardShadowColor || '#000000', (comp.cardShadowOpacity !== undefined ? comp.cardShadowOpacity : 4) / 100)}`;
 
+            // 🌟 智慧判斷：圖表需要大保底高度防壓扁，但選單、按鈕、文字卡片不需要！
+            const minHeightThreshold = ['dropdown', 'button', 'metricCard', 'textCard'].includes(comp.type) ? 0 : 250;
+
             const gridStyle = {
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
                 gridRow: rowY !== 'auto' ? `${rowY} / span ${finalH}` : `span ${finalH}`,
@@ -1787,8 +1966,9 @@
                 display: 'flex', flexDirection: 'column',
                 justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
                 alignItems: 'stretch', minWidth: 0, width: '100%', height: '100%',
+                // 🌟 核心修正：依照積木類型給予合理的保底高度
+                minHeight: `${Math.max(minHeightThreshold, finalH * 40)}px`,
 
-                // 🌟 套用外觀設定
                 background: cardBg,
                 border: `${comp.cardBorderWidth !== undefined ? comp.cardBorderWidth : 1}px solid ${comp.cardBorderColor || '#eeeeee'}`,
                 borderRadius: `${comp.cardBorderRadius !== undefined ? comp.cardBorderRadius : 12}px`,
@@ -1962,7 +2142,7 @@
                                         position: 'relative',
                                         overflow: 'hidden'      // 🌟 解法：鎖死內部溢出，不讓 Chart.js 互相干擾
                                     }}>
-                                        {((comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') && (!comp.categoryColumn || (!(comp.multiValueCols && comp.multiValueCols.length > 0) && !comp.valueColumn)))
+                                        {(((comp.type === 'barChart' || comp.type === 'stackedBarChart' || comp.type === 'lineChart') && (!comp.categoryColumn || (!(comp.multiValueCols && comp.multiValueCols.length > 0) && !comp.valueColumn))) || (comp.type === 'choroplethMap' && (!comp.categoryColumn || !comp.valueColumn)))
                                             ? <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定圖表資料欄位</p></div>
                                             : <canvas ref={canvasRef}></canvas>
                                         }
@@ -2292,7 +2472,13 @@
         function DashboardApp() {
             const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
-            const [currentScreen, setCurrentScreen] = useState(urlId ? 'editor' : 'home');
+            const urlMode = params.get('mode');
+
+            // 🌟 終極防呆機制：檢查自己是不是被嵌入在新聞網頁 (iframe) 裡
+            const isEmbedded = window.self !== window.top;
+
+            // 如果網址有 mode=view，或是被嵌入在 iframe 裡，強制鎖死在 view 模式！
+            const [currentScreen, setCurrentScreen] = useState((urlMode === 'view' || isEmbedded) ? 'view' : (urlId ? 'editor' : 'home'));
 
             const [cloudProjects, setCloudProjects] = useState([]);
             const [isLoadingLobby, setIsLoadingLobby] = useState(false);
@@ -2383,6 +2569,13 @@
                                             tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
+                                            // 🌟 補回遺失的記憶：多陣營自訂色盤與軸線設定
+                                            customColors: Array.isArray(c.customColors) ? c.customColors : [],
+                                            showAxisUnit: c.showAxisUnit || false,
+                                            xAxisUnit: c.xAxisUnit || '',
+                                            yAxisUnit: c.yAxisUnit || '',
+                                            yAxisMin: c.yAxisMin !== undefined ? c.yAxisMin : '',
+                                            stepSize: c.stepSize || '',
                                             imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
                                             // 🌟 讓讀取專案時也能記住外觀設定
                                             cardBgType: c.cardBgType || 'solid',
@@ -2403,6 +2596,11 @@
                                             cardTitleWeight: c.cardTitleWeight || 'bold',
                                             cardTitleAlign: c.cardTitleAlign || 'left',
                                             cardTitleBorder: c.cardTitleBorder !== false,
+                                            mapTopoUrl: c.mapTopoUrl || '',
+                                            mapFeatureKey: c.mapFeatureKey || '',
+                                            mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : '',
+                                            mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : '',
+                                            mapColorLogic: c.mapColorLogic || 'absolute',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -2524,7 +2722,7 @@
                     legendPosition: b.legendPosition || 'top',
 
                     categoryColumn: b.categoryCol || null,
-                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
+                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table' || b.type === 'choroplethMap') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
                     valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart' && b.type !== 'lineChart') ? (b.valueCol || null) : null,
                     compareValueColumn: b.compareValueCol || null,
                     imageColumn: b.imageCol || null,
@@ -2642,6 +2840,13 @@
                     cardTitleWeight: b.cardTitleWeight || 'bold',
                     cardTitleAlign: b.cardTitleAlign || 'left',
                     cardTitleBorder: b.cardTitleBorder !== false,
+
+                    mapTopoUrl: b.mapTopoUrl || '',
+                    mapFeatureKey: b.mapFeatureKey || '',
+                    mapMaxValue: b.mapMaxValue !== undefined ? b.mapMaxValue : null,
+                    mapMinValue: b.mapMinValue !== undefined ? b.mapMinValue : null,
+                    mapColorLogic: b.mapColorLogic || 'absolute',
+
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -2700,7 +2905,8 @@
             };
 
             const handleCopy = () => {
-                const iframeCode = `<iframe \n  src="https://jjbatman-fw.github.io/MakeMyOwnGraph/viewer.html?id=${publishedId}" \n  width="100%" \n  height="800px" \n  frameborder="0" \n  scrolling="no"\n></iframe>`;
+                // 🌟 修正：移除了重複的 https://
+                const iframeCode = `<iframe \n  src="https://jjbatman-fw.github.io/MakeMyOwnGraph/index.html?id=${publishedId}&mode=view" \n  width="100%" \n  height="800px" \n  frameborder="0" \n  scrolling="no"\n></iframe>`;
                 navigator.clipboard.writeText(iframeCode);
                 alert("✅ 嵌入代碼已複製到剪貼簿！");
             };
@@ -2781,8 +2987,77 @@
                     </div>
                 );
             }
+            // 🌟 終極殺手鐧：純淨檢視模式 (提供給 iframe 嵌入使用)
+            if (currentScreen === 'view') {
+                const globalBgStyle = globalMeta.canvasBgType === 'gradient'
+                    ? `linear-gradient(${globalMeta.canvasBgAngle !== undefined ? globalMeta.canvasBgAngle : 180}deg, ${globalMeta.canvasBgColor1 || '#ffffff'} 0%, ${globalMeta.canvasBgColor2 || '#f0f0f0'} 100%)`
+                    : (globalMeta.canvasBgColor1 || globalMeta.canvasBgColor || '#ffffff');
 
-            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart'].includes(currentSelectedBlock.type);
+                return (
+                    <div style={{ background: globalBgStyle, minHeight: '100vh', padding: '20px', boxSizing: 'border-box' }}>
+                        <div className="preview-container" style={{ background: 'transparent', boxShadow: 'none', padding: 0, maxWidth: '1200px', margin: '0 auto' }}>
+                            {/* 📰 頁首 */}
+                            <div className="news-header">
+                                <div style={{ flex: 1, textAlign: globalMeta.titleAlign || 'left' }}>
+                                    <h2 className="news-title" style={{ color: globalMeta.titleColor || '#222', fontSize: globalMeta.titleFontSize || '1.8rem', fontWeight: globalMeta.titleFontWeight || '900', fontFamily: globalMeta.titleFontFamily || 'inherit', margin: 0 }}>
+                                        {globalMeta.title}
+                                    </h2>
+                                </div>
+                                {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'top-right' && (
+                                    <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px`, marginLeft: '15px' }} />
+                                )}
+                            </div>
+
+                            {/* 🧹 篩選區 */}
+                            {Object.values(filters).some(v => v) && (
+                                <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
+                            )}
+
+                            {/* 📊 圖表網格 */}
+                            <div className="preview-grid" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {/* 🌟 座標修復：使用正確的 .layout.y 進行精準排序 */}
+                                {[...finalJSON.components].sort((a, b) => {
+                                    const aY = a.layout?.y || 0; const aX = a.layout?.x || 0;
+                                    const bY = b.layout?.y || 0; const bX = b.layout?.x || 0;
+                                    return aY === bY ? aX - bX : aY - bY;
+                                }).map(compJSON => (
+                                    <ChartComponent
+                                        key={compJSON.id} comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
+                                        aggregateData={aggregateData} filters={filters} onFilterChange={handleEditorFilterChange}
+                                        missingDropdowns={getEditorMissingDropdowns(compJSON)} isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
+                                        aggregateStackedData={aggregateStackedData} isEditing={false}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* 📄 頁尾 */}
+                            {(globalMeta.lastUpdated || (globalMeta.dataSources && globalMeta.dataSources.some(s => s.name)) || (globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right')) && (
+                                <div className="news-footer">
+                                    <div className="news-footer-left">
+                                        {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
+                                        {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                                {globalMeta.dataSources.some(s => s.name) && <span>資料來源：</span>}
+                                                {globalMeta.dataSources.filter(s => s.name).map((source, idx, arr) => (
+                                                    <span key={idx}>
+                                                        {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name}</a> : <span>{source.name}</span>}
+                                                        {idx < arr.length - 1 && '、'}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
+                                        <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px` }} />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            const isChartType = currentSelectedBlock && ['barChart', 'pieChart', 'lineChart', 'stackedBarChart', 'choroplethMap'].includes(currentSelectedBlock.type);
             const currentDataSourceId = currentSelectedBlock ? (currentSelectedBlock.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : '')) : '';
             // 🌟 計算全域畫布背景 (支援漸層與單色)
             const globalBgStyle = globalMeta.canvasBgType === 'gradient'
@@ -2840,6 +3115,7 @@
                                 <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
                                 <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊長條圖</button>
                                 <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
+                                <button className="add-btn" onClick={() => addBlock('choroplethMap', '🗺️ 台灣熱力圖', 12, 10)} style={{ background: '#1ABC9C' }}>+ 熱力地圖</button>
                             </div>
 
                             {/* 🌟 修正：強制隱藏水平捲軸，並套用漸層背景 */}
@@ -3120,7 +3396,7 @@
                                                             {/* 分類/日期 X軸 */}
                                                             {(isChartType || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel') && (
                                                                 <div className="form-group">
-                                                                    <label>{currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '日期/大標題欄位' : '分類欄位 (X軸)'}</label>
+                                                                    <label>{currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '日期/大標題欄位' : currentSelectedBlock.type === 'choroplethMap' ? '地理區域 (縣市名稱)' : '分類欄位 (X軸)'}</label>
                                                                     <select value={currentSelectedBlock.categoryCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
                                                                         <option value="">請選擇...</option>
                                                                         {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
@@ -3151,7 +3427,7 @@
                                                             )}
 
                                                             {/* 📊 長條圖/堆疊圖/表格 多欄位選擇 */}
-                                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart' || currentSelectedBlock.type === 'table') ? (
+                                                            {(currentSelectedBlock.type === 'barChart' || currentSelectedBlock.type === 'stackedBarChart' || currentSelectedBlock.type === 'lineChart' || currentSelectedBlock.type === 'table' || currentSelectedBlock.type === 'choroplethMap') ? (
                                                                 <div className="form-group">
                                                                     <label>{currentSelectedBlock.type === 'table' ? '表格顯示欄位 (可選多個，依序排列)' : currentSelectedBlock.type === 'lineChart' ? '折線圖數值欄位 (可選多條線)' : '長條圖數值欄位 (可多選)'}</label>
                                                                     {((currentSelectedBlock.multiValueCols || currentSelectedBlock.stackValueCols) || [currentSelectedBlock.valueCol, currentSelectedBlock.compareValueCol].filter(Boolean)).map((col, index) => (
@@ -3180,8 +3456,11 @@
                                                                 currentSelectedBlock.type !== 'dropdown' && (
                                                                     <div className="form-group">
                                                                         <label>
-                                                                            {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
-                                                                                currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' : '數值欄位 (Y軸)'}
+                                                                            <label>
+                                                                                {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
+                                                                                    currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' :
+                                                                                        currentSelectedBlock.type === 'choroplethMap' ? '熱力數值欄位 (決定漸層深淺)' : '數值欄位 (Y軸)'}
+                                                                            </label>
                                                                         </label>
                                                                         <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
                                                                             <option value="">請選擇...</option>
@@ -3874,6 +4153,103 @@
                                                             </div>
                                                         </>
                                                     )}
+                                                    {currentSelectedBlock.type === 'choroplethMap' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📍 外部圖資設定 (進階)</h4>
+                                                            <div className="form-group" style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', border: '1px solid #e9ecef', marginBottom: '20px' }}>
+                                                                <div className="form-group" style={{ marginBottom: '10px' }}>
+                                                                    <label>TopoJSON 網址 (留空則使用 2015 版台灣縣市圖)</label>
+                                                                    <input type="text" value={currentSelectedBlock.mapTopoUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapTopoUrl', e.target.value)} placeholder="https://..." />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>圖資屬性鍵值 (預設為 COUNTYNAME)</label>
+                                                                    <input type="text" value={currentSelectedBlock.mapFeatureKey || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapFeatureKey', e.target.value)} placeholder="例如：TOWNNAME 或 name" />
+                                                                    <span style={{ fontSize: '0.8rem', color: '#888', marginTop: '5px' }}>這是用來與你的 Google Sheet 進行名字比對的欄位。</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="form-group" style={{ marginTop: '10px', marginBottom: 0, borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
+                                                                <label>📁 或上傳本地圖資測試 (支援 TopoJSON / GeoJSON)</label>
+                                                                <input type="file" accept=".json" onChange={(e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (!file) return;
+                                                                    const reader = new FileReader();
+                                                                    reader.onload = (evt) => {
+                                                                        try {
+                                                                            const json = JSON.parse(evt.target.result);
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'customTopoJson', json);
+                                                                            alert('✅ 本地地圖檔案載入成功！');
+                                                                        } catch (err) {
+                                                                            alert('❌ 解析失敗，請確認檔案是否為合法的 JSON。');
+                                                                        }
+                                                                    };
+                                                                    reader.readAsText(file);
+                                                                }} style={{ padding: '5px 0', border: 'none' }} />
+                                                                <span style={{ fontSize: '0.8rem', color: '#E74C3C', fontWeight: 'bold' }}>⚠️ 警告：本地圖資僅供測試預覽！若檔案過大，點擊「發布」時將會導致存檔失敗。正式發布請務必使用上方網址！</span>
+
+                                                                {currentSelectedBlock.customTopoJson && (
+                                                                    <button onClick={() => updateBlockProperty(currentSelectedBlock.i, 'customTopoJson', null)} style={{ marginTop: '5px', padding: '5px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>清除本地圖資</button>
+                                                                )}
+                                                            </div>
+                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🗺️ 地圖色階與極值設定</h4>
+                                                            <div style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', marginBottom: '20px' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: '15px' }}>
+                                                                        <label style={{ fontWeight: 'bold' }}>🧠 漸層深淺計算邏輯</label>
+                                                                        <select value={currentSelectedBlock.mapColorLogic || 'absolute'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapColorLogic', e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}>
+                                                                            <option value="absolute">依據「贏家絕對數值」大小 (預設)</option>
+                                                                            <option value="margin">依據「前兩名勝負差值」大小 (激戰度，需選2個以上欄位)</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>色階最大值 (最深色)</label>
+                                                                        <input type="number" value={currentSelectedBlock.mapMaxValue !== undefined ? currentSelectedBlock.mapMaxValue : ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapMaxValue', e.target.value)} placeholder="自動計算" />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>色階最小值 (最淺色)</label>
+                                                                        <input type="number" value={currentSelectedBlock.mapMinValue !== undefined ? currentSelectedBlock.mapMinValue : ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapMinValue', e.target.value)} placeholder="預設 0" />
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', lineHeight: '1.4' }}>
+                                                                    💡 若資料差距極小 (例如得票率都在 45%~55%)，請手動設定最大值 60 與最小值 40，漸層對比會更明顯！<br />
+                                                                    💡 若只綁定<b>單一欄位</b>，可在此設定單一代表色：
+                                                                </div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px', padding: '10px', background: '#fff', borderRadius: '6px' }}>
+                                                                    {(() => {
+                                                                        const cols = currentSelectedBlock.multiValueCols || [];
+                                                                        // 🌟 智慧判斷：如果選了 2 個以上的欄位，就啟動陣營多色面板！
+                                                                        if (cols.length > 1) {
+                                                                            return (
+                                                                                <>
+                                                                                    <label style={{ fontWeight: 'bold', color: '#E74C3C' }}>⚔️ 陣營對決：請為各陣營選擇代表色</label>
+                                                                                    {cols.map((col, idx) => {
+                                                                                        if (!col) return null;
+                                                                                        return (
+                                                                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                                                                <input type="color" value={(currentSelectedBlock.customColors && currentSelectedBlock.customColors[idx]) || ['#2ECC71', '#3498DB', '#1ABC9C', '#F1C40F', '#E74C3C', '#9B59B6'][idx % 6]} onChange={(e) => {
+                                                                                                    const newColors = [...(currentSelectedBlock.customColors || [])];
+                                                                                                    newColors[idx] = e.target.value;
+                                                                                                    updateBlockProperty(currentSelectedBlock.i, 'customColors', newColors);
+                                                                                                }} style={{ width: '45px', height: '35px', padding: '2px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }} />
+                                                                                                <span style={{ fontWeight: 'bold', color: '#333' }}>{col}</span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                </>
+                                                                            );
+                                                                        } else {
+                                                                            // 單一欄位時，維持原本的單色漸層設定
+                                                                            return (
+                                                                                <>
+                                                                                    <label style={{ fontWeight: 'bold', color: '#086788' }}>🎨 單一代表色 (漸層主色)</label>
+                                                                                    <input type="color" value={currentSelectedBlock.themeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'themeColor', e.target.value)} style={{ width: '50px', height: '40px', padding: '2px', cursor: 'pointer' }} />
+                                                                                </>
+                                                                            );
+                                                                        }
+                                                                    })()}
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     {/* 🌟 文字相關共用排版 */}
                                                     {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'carousel') && (
@@ -4175,7 +4551,12 @@
 
                                     {/* 📊 圖表網格直接使用編輯器的新引擎渲染！ */}
                                     <div className="preview-grid">
-                                        {finalJSON.components.map(compJSON => (
+                                        {/* 🌟 核心修正：將預覽模式的陣列也加上正確的 Y 座標排序 */}
+                                        {[...finalJSON.components].sort((a, b) => {
+                                            const aY = a.layout?.y || 0; const aX = a.layout?.x || 0;
+                                            const bY = b.layout?.y || 0; const bX = b.layout?.x || 0;
+                                            return aY === bY ? aX - bX : aY - bY;
+                                        }).map(compJSON => (
                                             <ChartComponent
                                                 key={compJSON.id}
                                                 comp={compJSON}
@@ -4232,7 +4613,7 @@
 
                                 <div className="code-snippet">
                                     &lt;iframe <br />
-                                    &nbsp;&nbsp;src="https://https://jjbatman-fw.github.io/MakeMyOwnGraph/viewer.html?id={publishedId}" <br />
+                                    &nbsp;&nbsp;src="https://jjbatman-fw.github.io/MakeMyOwnGraph/index.html?id={publishedId}&mode=view" <br />
                                     &nbsp;&nbsp;width="100%" <br />
                                     &nbsp;&nbsp;height="800px" <br />
                                     &nbsp;&nbsp;frameborder="0" <br />
