@@ -2648,7 +2648,7 @@
             useEffect(() => {
                 const hasValidSource = sheetSources.some(s => s.sheetId && s.sheetId.length > 10);
                 // 🌟 新增 currentScreen === 'editor' 判斷
-                if (currentScreen === 'editor' && !isInitialLoading && hasValidSource && Object.keys(columnsMap).length === 0) {
+                if ((currentScreen === 'editor' || currentScreen === 'view') && !isInitialLoading && hasValidSource && Object.keys(columnsMap).length === 0) {
                     console.log("📡 進入編輯器，背景自動同步資料庫...");
                     fetchSheetColumns(true); // 🌟 傳入 true 開啟靜音模式，不跳 alert
                 }
