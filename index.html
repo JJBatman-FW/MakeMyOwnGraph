@@ -2472,13 +2472,10 @@
         function DashboardApp() {
             const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
-            const urlMode = params.get('mode');
 
-            // 🌟 終極防呆機制：檢查自己是不是被嵌入在新聞網頁 (iframe) 裡
-            const isEmbedded = window.self !== window.top;
-
-            // 如果網址有 mode=view，或是被嵌入在 iframe 裡，強制鎖死在 view 模式！
-            const [currentScreen, setCurrentScreen] = useState((urlMode === 'view' || isEmbedded) ? 'view' : (urlId ? 'editor' : 'home'));
+            // 🌟 終極防呆：不管 CMS 怎麼竄改 & 符號，只要字串裡包含 mode=view，或是被包在 iframe 裡，強制鎖死純淨模式！
+            const isViewMode = window.location.href.includes('mode=view') || window.self !== window.top;
+            const [currentScreen, setCurrentScreen] = useState(isViewMode ? 'view' : (urlId ? 'editor' : 'home'));
 
             const [cloudProjects, setCloudProjects] = useState([]);
             const [isLoadingLobby, setIsLoadingLobby] = useState(false);
@@ -2561,46 +2558,25 @@
                                             legendPosition: c.legendPosition || 'top', dropdownStyle: c.dropdownStyle || 'select', defaultBehavior: c.defaultBehavior || 'require',
                                             pieRotation: c.pieRotation || 0,
                                             conditionalColors: c.conditionalColors || [],
-                                            lineWidth: c.lineWidth, pointSize: c.pointSize,
+                                            lineWidth: c.lineWidth || null, pointSize: c.pointSize || null,
                                             sortByCol: c.sortByCol || null,
                                             listenMode: c.listenMode || null, listenAll: c.listenAll !== false, customListenCols: c.customListenCols || [],
                                             tableBodySize: c.tableBodySize || 14, tableBodyColor: c.tableBodyColor || '#444444', tableBodyWeight: c.tableBodyWeight || 'normal', tableBodyAlign: c.tableBodyAlign || 'left',
                                             tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left',
                                             tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
-                                            showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff', pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
-                                            // 🌟 補回遺失的記憶：多陣營自訂色盤與軸線設定
+                                            showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff',
+                                            pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
+
+                                            // 🌟 記憶恢復關鍵：確保 customColors 等進階參數被正確載入
                                             customColors: Array.isArray(c.customColors) ? c.customColors : [],
-                                            showAxisUnit: c.showAxisUnit || false,
-                                            xAxisUnit: c.xAxisUnit || '',
-                                            yAxisUnit: c.yAxisUnit || '',
-                                            yAxisMin: c.yAxisMin !== undefined ? c.yAxisMin : '',
-                                            stepSize: c.stepSize || '',
-                                            imageHeight: c.imageHeight, imageHeightMobile: c.imageHeightMobile, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
-                                            // 🌟 讓讀取專案時也能記住外觀設定
-                                            cardBgType: c.cardBgType || 'solid',
-                                            cardBgColor1: c.cardBgColor1 || '#ffffff',
-                                            cardBgColor2: c.cardBgColor2 || '#f0f0f0',
-                                            cardBgAngle: c.cardBgAngle !== undefined ? c.cardBgAngle : 180,
-                                            cardBorderWidth: c.cardBorderWidth !== undefined ? c.cardBorderWidth : 1,
-                                            cardBorderColor: c.cardBorderColor || '#eeeeee',
-                                            cardBorderRadius: c.cardBorderRadius !== undefined ? c.cardBorderRadius : 12,
-                                            cardShadowEnable: c.cardShadowEnable !== false,
-                                            cardShadowX: c.cardShadowX !== undefined ? c.cardShadowX : 0,
-                                            cardShadowY: c.cardShadowY !== undefined ? c.cardShadowY : 2,
-                                            cardShadowBlur: c.cardShadowBlur !== undefined ? c.cardShadowBlur : 8,
-                                            cardShadowColor: c.cardShadowColor || '#000000',
-                                            cardShadowOpacity: c.cardShadowOpacity !== undefined ? c.cardShadowOpacity : 4,
-                                            cardTitleColor: c.cardTitleColor || '#333333',
-                                            cardTitleSize: c.cardTitleSize || '1.1rem',
-                                            cardTitleWeight: c.cardTitleWeight || 'bold',
-                                            cardTitleAlign: c.cardTitleAlign || 'left',
-                                            cardTitleBorder: c.cardTitleBorder !== false,
-                                            mapTopoUrl: c.mapTopoUrl || '',
-                                            mapFeatureKey: c.mapFeatureKey || '',
-                                            mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : '',
-                                            mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : '',
-                                            mapColorLogic: c.mapColorLogic || 'absolute',
+
+                                            imageHeight: c.imageHeight || null, imageHeightMobile: c.imageHeightMobile || null, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
+                                            cardBgType: c.cardBgType || 'solid', cardBgColor1: c.cardBgColor1 || '#ffffff', cardBgColor2: c.cardBgColor2 || '#f0f0f0', cardBgAngle: c.cardBgAngle !== undefined ? c.cardBgAngle : 180,
+                                            cardBorderWidth: c.cardBorderWidth !== undefined ? c.cardBorderWidth : 1, cardBorderColor: c.cardBorderColor || '#eeeeee', cardBorderRadius: c.cardBorderRadius !== undefined ? c.cardBorderRadius : 12,
+                                            cardShadowEnable: c.cardShadowEnable !== false, cardShadowX: c.cardShadowX !== undefined ? c.cardShadowX : 0, cardShadowY: c.cardShadowY !== undefined ? c.cardShadowY : 2, cardShadowBlur: c.cardShadowBlur !== undefined ? c.cardShadowBlur : 8, cardShadowColor: c.cardShadowColor || '#000000', cardShadowOpacity: c.cardShadowOpacity !== undefined ? c.cardShadowOpacity : 4,
+                                            cardTitleColor: c.cardTitleColor || '#333333', cardTitleSize: c.cardTitleSize || '1.1rem', cardTitleWeight: c.cardTitleWeight || 'bold', cardTitleAlign: c.cardTitleAlign || 'left', cardTitleBorder: c.cardTitleBorder !== false,
+                                            mapTopoUrl: c.mapTopoUrl || '', mapFeatureKey: c.mapFeatureKey || '', mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : null, mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : null, mapColorLogic: c.mapColorLogic || 'absolute'
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
