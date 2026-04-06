@@ -2644,13 +2644,13 @@
                 }
                 setIsFetching(false);
             };
-            // 🌟 自動載入表頭資料：只有在「編輯器畫面」才自動抓取，且開啟靜音模式
+            // 🌟 自動載入表頭資料：編輯器與「純淨檢視模式」都需要自動抓取資料！
             useEffect(() => {
                 const hasValidSource = sheetSources.some(s => s.sheetId && s.sheetId.length > 10);
-                // 🌟 新增 currentScreen === 'editor' 判斷
+                // 🌟 核心修正：加入 currentScreen === 'view'，讓發布後的網頁也能讀取資料
                 if ((currentScreen === 'editor' || currentScreen === 'view') && !isInitialLoading && hasValidSource && Object.keys(columnsMap).length === 0) {
-                    console.log("📡 進入編輯器，背景自動同步資料庫...");
-                    fetchSheetColumns(true); // 🌟 傳入 true 開啟靜音模式，不跳 alert
+                    console.log("📡 背景自動同步資料庫...");
+                    fetchSheetColumns(true); 
                 }
             }, [sheetSources, isInitialLoading, columnsMap, currentScreen]);
 
