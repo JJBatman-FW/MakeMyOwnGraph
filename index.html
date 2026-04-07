@@ -2450,16 +2450,13 @@
                                                             let extractedText = cellText;
 
                                                             if (isImageCol) {
-                                                                // 用正規表達式抓出裡面的 http 網址
                                                                 const urlMatch = cellText.match(/(https?:\/\/[^\s]+)/i);
                                                                 if (urlMatch) {
                                                                     extractedImgUrl = urlMatch[0];
-                                                                    // 把網址從文字中挖掉，剩下的就是純文字 (例如人名)
                                                                     extractedText = cellText.replace(extractedImgUrl, '').trim();
                                                                 }
                                                             }
 
-                                                            // 寬度套用
                                                             const customWidth = colWidths[cIdx] || undefined;
                                                             cellStyle.width = customWidth;
                                                             cellStyle.minWidth = customWidth;
@@ -2467,26 +2464,30 @@
                                                             cellStyle.whiteSpace = 'normal';
                                                             cellStyle.wordBreak = 'break-word';
 
+                                                            // 🌟 解法 1：讀取編輯器設定的「對齊方式」，翻譯給 Flexbox 聽
+                                                            let flexJustify = 'flex-start';
+                                                            if (cellStyle.textAlign === 'center') flexJustify = 'center';
+                                                            if (cellStyle.textAlign === 'right') flexJustify = 'flex-end';
+
                                                             return (
                                                                 <td key={cIdx} style={cellStyle}>
-                                                                    {/* 🌟 渲染邏輯：如果有網址，就啟動 Flexbox 橫向排列 */}
                                                                     {isImageCol && extractedImgUrl ? (
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                                            {/* 💡 動態樣式：如果有附帶文字，就變成圓形大頭照；如果是純圖片，就保持原比例 */}
+                                                                        // 把翻譯好的 flexJustify 餵給它，這樣就會完美置中了！
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: flexJustify, gap: '8px' }}>
+                                                                            {/* 🌟 解法 2：移除圓形設定，回歸原始比例的方形 (加上 4px 微圓角讓邊緣不刺眼) */}
                                                                             <img
                                                                                 src={extractedImgUrl}
                                                                                 alt="圖"
                                                                                 style={{
                                                                                     height: '45px',
-                                                                                    width: extractedText ? '45px' : 'auto',
-                                                                                    maxWidth: '120px',
-                                                                                    objectFit: extractedText ? 'cover' : 'contain',
-                                                                                    borderRadius: extractedText ? '50%' : '4px',
-                                                                                    flexShrink: 0,
-                                                                                    border: extractedText ? '1px solid #eee' : 'none'
+                                                                                    width: 'auto',
+                                                                                    maxWidth: '100px',
+                                                                                    objectFit: 'contain', // 保持完整圖片不裁切
+                                                                                    borderRadius: '4px',  // 回歸方形
+                                                                                    flexShrink: 0
                                                                                 }}
                                                                             />
-                                                                            {/* 畫出剩下的文字 */}
+                                                                            {/* 文字部分 */}
                                                                             {extractedText && <span>{extractedText}</span>}
                                                                         </div>
                                                                     ) : (
