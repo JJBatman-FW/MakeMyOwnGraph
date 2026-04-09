@@ -1325,22 +1325,14 @@
             background: #fff;
             border-radius: 6px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            /* 保持圓角 */
-
-            /* 🌟 關鍵魔法：Flex 列佈局，確保子元素 (隊伍) 垂直排列 🌟 */
             display: flex;
             flex-direction: column;
-
-            /* 用戶提到「隨高度調整」，確保它能佔滿 Flex 父級提供的垂直空間 */
-            height: 100%;
-
             position: relative;
             z-index: 2;
-            /* 浮在連線上方 */
-            margin: 0;
-            padding: 0 !important;
-            /* 🌟 重要：移除所有原本在方格上的 padding 🌟 */
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            /* 🌟 確保方格填滿計算好的高度 */
         }
 
         /* 2. 時間與隊伍樣式保持，但調整 padding 以控制內容位置 */
@@ -1363,10 +1355,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 4px 6px;
+            padding: 8px 10px;
+            /* 稍微增加一點內邊距讓文字不要太貼邊 */
             font-size: 0.85rem;
             font-weight: 500;
             background: transparent;
+            flex: 1;
+            /* 🌟 關鍵魔法：平分剩餘高度 */
+            box-sizing: border-box;
         }
 
         /* 4. 🌟 中間分隔線：只設置在上部隊伍的底邊，確保線在中間 🌟 */
@@ -2948,6 +2944,7 @@
                         // 🌟 新增：提取贏家高亮樣式
                         const winnerBg = comp.winnerBgColor || '#fffcf0';
                         const winnerFontC = comp.winnerFontColor || '#086788';
+                        const winnerFontW = comp.winnerFontWeight || '900';
 
                         // 左側標籤佈局設定 (直向時使用右框線當底線)
                         const labelColStyle = {
@@ -3009,39 +3006,47 @@
                                                                     const winnerA = hasScore && scoreA > scoreB;
                                                                     const winnerB = hasScore && scoreB > scoreA;
 
-                                                                    const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 100}%` : '100%';
+                                                                    // 🌟 改變比例：把 100% 縮小成 85%，縫隙就自然跑出來了！
+                                                                    const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 85}%` : '100%';
                                                                     const boxHeightPercent = bracketDir === 'horizontal' ? `${(round.matches.length / maxMatches) * 100}%` : 'auto';
 
                                                                     return (
-                                                                        <div key={mIdx} className="bracket-match-wrapper">
-                                                                            {/* 🌟 方塊底色與邊框綁定 */}
-                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: boxHeightPercent, background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}` }}>
+                                                                        // 🌟 魔法 1：直向模式時設定 stretch，讓同一排的所有方格自動撐到最高的那格一樣高！
+                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: bracketDir === 'vertical' ? 'stretch' : 'center' }}>
+
+                                                                            {/* 外層方格：直向時 height 設為 100% 填滿拉伸的高度 */}
+                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: bracketDir === 'vertical' ? '100%' : boxHeightPercent, background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}` }}>
                                                                                 {comp.timeColumn && match[comp.timeColumn] && (
                                                                                     <div className="bracket-time">{match[comp.timeColumn]}</div>
                                                                                 )}
-                                                                                {/* 🌟 隊伍 A (上半部) */}
-                                                                                <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{
-                                                                                    background: winnerA ? winnerBg : 'transparent',
-                                                                                    color: winnerA ? winnerFontC : matchFontC,
-                                                                                    fontSize: matchFontSize,
-                                                                                    fontWeight: winnerA ? '900' : matchFontWeight,
-                                                                                    fontFamily: matchFontFamily,
-                                                                                    borderBottom: `1px solid ${matchBorderC}` /* 🌟 中間分隔線與外框同色 */
-                                                                                }}>
-                                                                                    <span>{match[comp.teamAColumn] || 'TBD'}</span>
-                                                                                    <span className="bracket-score">{hasScore ? scoreA : '-'}</span>
-                                                                                </div>
 
-                                                                                {/* 🌟 隊伍 B (下半部) */}
-                                                                                <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{
-                                                                                    background: winnerB ? winnerBg : 'transparent',
-                                                                                    color: winnerB ? winnerFontC : matchFontC,
-                                                                                    fontSize: matchFontSize,
-                                                                                    fontWeight: winnerB ? '900' : matchFontWeight,
-                                                                                    fontFamily: matchFontFamily
-                                                                                }}>
-                                                                                    <span>{match[comp.teamBColumn] || 'TBD'}</span>
-                                                                                    <span className="bracket-score">{hasScore ? scoreB : '-'}</span>
+                                                                                <div style={{ display: 'flex', flexDirection: bracketDir === 'vertical' ? 'row' : 'column', flex: 1, width: '100%' }}>
+
+                                                                                    {/* 隊伍 A */}
+                                                                                    <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{
+                                                                                        background: winnerA ? winnerBg : 'transparent',
+                                                                                        color: winnerA ? winnerFontC : matchFontC,
+                                                                                        fontFamily: matchFontFamily,
+                                                                                        borderBottom: bracketDir === 'vertical' ? 'none' : `1px solid ${matchBorderC}`,
+                                                                                        borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
+                                                                                        flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', boxSizing: 'border-box'
+                                                                                    }}>
+                                                                                        {/* 🌟 破解魔法：直接將 fontSize 和 fontWeight 綁定在文字的 span 上 */}
+                                                                                        <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{match[comp.teamAColumn] || 'TBD'}</span>
+                                                                                        <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{hasScore ? scoreA : '-'}</span>
+                                                                                    </div>
+
+                                                                                    {/* 隊伍 B */}
+                                                                                    <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{
+                                                                                        background: winnerB ? winnerBg : 'transparent',
+                                                                                        color: winnerB ? winnerFontC : matchFontC,
+                                                                                        fontFamily: matchFontFamily,
+                                                                                        flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', boxSizing: 'border-box'
+                                                                                    }}>
+                                                                                        <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{match[comp.teamBColumn] || 'TBD'}</span>
+                                                                                        <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{hasScore ? scoreB : '-'}</span>
+                                                                                    </div>
+
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -3289,6 +3294,8 @@
                                             matchFontColor: c.matchFontColor || '#333333',
                                             winnerBgColor: c.winnerBgColor || '#fffcf0',
                                             winnerFontColor: c.winnerFontColor || '#086788',
+                                            winnerFontWeight: c.winnerFontWeight || '900',
+                                            teamLayout: c.teamLayout || 'column',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -3413,6 +3420,8 @@
                     baseComp.matchFontColor = '#333333';
                     baseComp.winnerBgColor = '#fffcf0';
                     baseComp.winnerFontColor = '#086788';
+                    baseComp.winnerFontWeight = '900';
+                    baseComp.teamLayout = 'column'; // 預設上下排列
                 }
 
                 setBlocks(prev => [...prev, baseComp]);
@@ -3613,6 +3622,8 @@
                     matchFontColor: b.matchFontColor || '#333333',
                     winnerBgColor: b.winnerBgColor || '#fffcf0',
                     winnerFontColor: b.winnerFontColor || '#086788',
+                    winnerFontWeight: b.winnerFontWeight || '900',
+                    teamLayout: b.teamLayout || 'column',
 
                 }))
             };
@@ -5162,6 +5173,15 @@
                                                                 <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.matchFontColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchFontColor', e.target.value)} /></div>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}><label>贏家背景色 (高亮)</label><input type="color" value={currentSelectedBlock.winnerBgColor || '#fffcf0'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'winnerBgColor', e.target.value)} /></div>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}><label>贏家文字色 (高亮)</label><input type="color" value={currentSelectedBlock.winnerFontColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'winnerFontColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>贏家文字粗細</label>
+                                                                    <select value={currentSelectedBlock.winnerFontWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'winnerFontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option>
+                                                                        <option value="500">微粗</option>
+                                                                        <option value="bold">粗體</option>
+                                                                        <option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}><label>邊框顏色</label><input type="color" value={currentSelectedBlock.matchBorderColor || '#eeeeee'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchBorderColor', e.target.value)} /></div>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}>
                                                                     <label>邊框粗細 (px)</label>
