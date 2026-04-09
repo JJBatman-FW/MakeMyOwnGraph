@@ -1320,48 +1320,63 @@
             position: relative;
         }
 
+        /* 1. 比賽方格容器：設置 Flex 列佈局，並佔滿垂直空間 */
         .bracket-match {
             background: #fff;
             border-radius: 6px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            /* 保持圓角 */
+
+            /* 🌟 關鍵魔法：Flex 列佈局，確保子元素 (隊伍) 垂直排列 🌟 */
             display: flex;
             flex-direction: column;
+
+            /* 用戶提到「隨高度調整」，確保它能佔滿 Flex 父級提供的垂直空間 */
+            height: 100%;
+
             position: relative;
             z-index: 2;
-            overflow: hidden;
-            width: 100%;
+            /* 浮在連線上方 */
+            margin: 0;
+            padding: 0 !important;
+            /* 🌟 重要：移除所有原本在方格上的 padding 🌟 */
         }
 
+        /* 2. 時間與隊伍樣式保持，但調整 padding 以控制內容位置 */
         .bracket-time {
             font-size: 0.65rem;
             text-align: center;
             background: #f8f9fa;
             color: #888;
-            padding: 2px;
+            padding: 2px 5px;
+            /* 調整 padding，防止時間文字過度擠壓 */
             border-bottom: 1px solid #eee;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            box-sizing: border-box;
         }
 
+        /* 3. 🌟 關鍵魔法：隊伍區域 (代表方格的上下兩半) 🌟 */
         .bracket-team {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 4px 6px;
-            border-bottom: 1px solid #eee;
             font-size: 0.85rem;
             font-weight: 500;
-            background: #fff;
+            background: transparent;
         }
 
-        .bracket-team:last-child {
-            border-bottom: none;
+        /* 4. 🌟 中間分隔線：只設置在上部隊伍的底邊，確保線在中間 🌟 */
+        .bracket-team:not(:last-child) {
+            border-bottom: 1px solid #eee;
+            /* 這條線就是中間的分隔線 */
         }
 
         .bracket-team.winner {
             font-weight: 900;
-            background: #fffcf0;
         }
 
         .bracket-team.loser {
@@ -2906,7 +2921,7 @@
                         })).sort((a, b) => b.matches.length - a.matches.length);
 
                         // 🌟 絕對防當機版：安全獲取變數，若無則預設為 desktop
-                        // 安全防當機變數
+                        // 獲取安全變數
                         const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
                         const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
                         const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
@@ -2914,66 +2929,72 @@
                         const bracketDir = isMobileView ? 'horizontal' : (comp.chartOrientation || 'vertical');
                         const maxMatches = Math.max(...sortedRounds.map(r => r.matches.length));
 
-                        // 🌟 新佈局：為了讓標籤在左側
+                        // 🌟 提取標籤樣式
+                        const labelColor = comp.roundLabelColor || '#086788';
+                        const labelFontSize = comp.roundLabelFontSize || '1.1rem';
+                        const labelFontWeight = comp.roundLabelFontWeight || '900';
+                        const labelFontFamily = comp.roundLabelFontFamily || 'inherit';
+                        const labelBorderW = comp.roundLabelBorderWidth !== undefined ? comp.roundLabelBorderWidth : 2;
+                        const labelBorderC = comp.roundLabelBorderColor || '#086788';
+
+                        // 🌟 提取方格樣式
+                        const matchBg = comp.matchBgColor || '#ffffff';
+                        const matchBorderC = comp.matchBorderColor || '#eeeeee';
+                        const matchBorderW = comp.matchBorderWidth !== undefined ? comp.matchBorderWidth : 2;
+                        const matchFontC = comp.matchFontColor || '#333333';
+                        const matchFontSize = comp.matchFontSize || '0.85rem';
+                        const matchFontWeight = comp.matchFontWeight || '500';
+                        const matchFontFamily = comp.matchFontFamily || 'inherit';
+                        // 🌟 新增：提取贏家高亮樣式
+                        const winnerBg = comp.winnerBgColor || '#fffcf0';
+                        const winnerFontC = comp.winnerFontColor || '#086788';
+
+                        // 左側標籤佈局設定 (直向時使用右框線當底線)
                         const labelColStyle = {
-                            width: bracketDir === 'vertical' ? '120px' : 'auto', // 直向模式 fixed 寬
-                            display: 'flex',
-                            flexDirection: bracketDir === 'vertical' ? 'column-reverse' : 'row',
-                            gap: bracketDir === 'vertical' ? '30px' : '0', // 與 main column gap 一致
-                            boxSizing: 'border-box',
+                            width: bracketDir === 'vertical' ? '120px' : 'auto',
+                            display: 'flex', flexDirection: bracketDir === 'vertical' ? 'column-reverse' : 'row',
+                            gap: bracketDir === 'vertical' ? '30px' : '0', boxSizing: 'border-box',
                             paddingRight: bracketDir === 'vertical' ? '15px' : '0',
-                            borderRight: bracketDir === 'vertical' ? '1px solid #eee' : 'none',
+                            borderRight: bracketDir === 'vertical' ? `${labelBorderW}px solid ${labelBorderC}` : 'none',
                             flexShrink: 0,
                         };
-                        const mainStyle = {
-                            flex: 1,
-                            display: 'flex',
-                            width: bracketDir === 'vertical' ? '100%' : '100%',
-                            overflowX: bracketDir === 'vertical' ? 'hidden' : 'auto', // 橫向不捲動
-                        }
+
+                        const mainStyle = { flex: 1, display: 'flex', width: '100%', overflowX: bracketDir === 'vertical' ? 'hidden' : 'auto' };
 
                         return (
                             <div className="bracket-main-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
-                                {/* 🌟 左側：賽程階段標籤 */}
+
+                                {/* 🌟 手機版 (直向)：左側標籤 */}
                                 {bracketDir === 'vertical' && (
                                     <div className="bracket-label-column" style={labelColStyle}>
                                         {sortedRounds.map((round, rIdx) => (
                                             <div key={rIdx} className="bracket-label-item" style={{
-                                                flex: 1, // Equally space labels in reverse col
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1rem',
-                                                fontWeight: '900',
-                                                color: comp.themeColor || '#086788',
-                                                position: 'relative',
+                                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily, position: 'relative'
                                             }}>
-                                                {/* 將文字拆分並上下堆疊 */}
-                                                <div style={{
-                                                    whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                }}>{round.name}</div>
+                                                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{round.name}</div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
 
-                                {/* 🌟 右側：比賽樹狀圖 (保持原樣，除標題移除外) */}
+                                {/* 🌟 賽程主體 */}
                                 <div className="bracket-wrapper-wrapper" style={mainStyle}>
                                     <div className={`bracket-wrapper is-${bracketDir}`}>
                                         {sortedRounds.map((round, rIdx) => {
                                             const isLastRound = rIdx === sortedRounds.length - 1;
                                             const matchPairs = [];
-                                            for (let i = 0; i < round.matches.length; i += 2) {
-                                                matchPairs.push(round.matches.slice(i, i + 2));
-                                            }
+                                            for (let i = 0; i < round.matches.length; i += 2) matchPairs.push(round.matches.slice(i, i + 2));
 
                                             return (
                                                 <div key={rIdx} className="bracket-round">
-                                                    {/* 🌟 舊標題與藍線移除，不干擾排版 */}
+
+                                                    {/* 🌟 電腦版 (橫向)：上方標籤 */}
                                                     {bracketDir !== 'vertical' && (
-                                                        <h4 className="bracket-round-title" style={{ color: comp.themeColor || '#086788', borderBottom: `2px solid ${comp.themeColor || '#086788'}` }}>
+                                                        <h4 className="bracket-round-title" style={{
+                                                            color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily,
+                                                            borderBottom: `${labelBorderW}px solid ${labelBorderC}`
+                                                        }}>
                                                             {round.name}
                                                         </h4>
                                                     )}
@@ -2988,21 +3009,37 @@
                                                                     const winnerA = hasScore && scoreA > scoreB;
                                                                     const winnerB = hasScore && scoreB > scoreA;
 
-                                                                    // 魔法計算：強制每一輪的方塊，都跟第一輪的方塊「一模一樣寬」和「一模一樣高」！
                                                                     const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 100}%` : '100%';
                                                                     const boxHeightPercent = bracketDir === 'horizontal' ? `${(round.matches.length / maxMatches) * 100}%` : 'auto';
 
                                                                     return (
                                                                         <div key={mIdx} className="bracket-match-wrapper">
-                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: boxHeightPercent, border: `2px solid ${comp.themeColor || '#eee'}` }}>
+                                                                            {/* 🌟 方塊底色與邊框綁定 */}
+                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: boxHeightPercent, background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}` }}>
                                                                                 {comp.timeColumn && match[comp.timeColumn] && (
                                                                                     <div className="bracket-time">{match[comp.timeColumn]}</div>
                                                                                 )}
-                                                                                <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{ color: winnerA ? (comp.themeColor || '#E67E22') : '' }}>
+                                                                                {/* 🌟 隊伍 A (上半部) */}
+                                                                                <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{
+                                                                                    background: winnerA ? winnerBg : 'transparent',
+                                                                                    color: winnerA ? winnerFontC : matchFontC,
+                                                                                    fontSize: matchFontSize,
+                                                                                    fontWeight: winnerA ? '900' : matchFontWeight,
+                                                                                    fontFamily: matchFontFamily,
+                                                                                    borderBottom: `1px solid ${matchBorderC}` /* 🌟 中間分隔線與外框同色 */
+                                                                                }}>
                                                                                     <span>{match[comp.teamAColumn] || 'TBD'}</span>
                                                                                     <span className="bracket-score">{hasScore ? scoreA : '-'}</span>
                                                                                 </div>
-                                                                                <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{ color: winnerB ? (comp.themeColor || '#E67E22') : '' }}>
+
+                                                                                {/* 🌟 隊伍 B (下半部) */}
+                                                                                <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{
+                                                                                    background: winnerB ? winnerBg : 'transparent',
+                                                                                    color: winnerB ? winnerFontC : matchFontC,
+                                                                                    fontSize: matchFontSize,
+                                                                                    fontWeight: winnerB ? '900' : matchFontWeight,
+                                                                                    fontFamily: matchFontFamily
+                                                                                }}>
                                                                                     <span>{match[comp.teamBColumn] || 'TBD'}</span>
                                                                                     <span className="bracket-score">{hasScore ? scoreB : '-'}</span>
                                                                                 </div>
@@ -3225,6 +3262,33 @@
                                             scoreBColumn: c.scoreBColumn || '',
                                             teamBColumn: c.teamBColumn || '',
                                             timeColumn: c.timeColumn || '',
+                                            // 🌟 賽程樹狀圖：資料欄位記憶恢復
+                                            bracketScale: c.bracketScale || 8,
+                                            roundColumn: c.roundColumn || '',
+                                            posColumn: c.posColumn || '',
+                                            teamAColumn: c.teamAColumn || '',
+                                            scoreAColumn: c.scoreAColumn || '',
+                                            scoreBColumn: c.scoreBColumn || '',
+                                            teamBColumn: c.teamBColumn || '',
+                                            timeColumn: c.timeColumn || '',
+
+                                            // 👇 補上這裡！賽程樹狀圖：外觀樣式記憶恢復 👇
+                                            roundLabelFontFamily: c.roundLabelFontFamily || '',
+                                            roundLabelFontWeight: c.roundLabelFontWeight || '900',
+                                            roundLabelFontSize: c.roundLabelFontSize || '1.1rem',
+                                            roundLabelColor: c.roundLabelColor || '#086788',
+                                            roundLabelBorderWidth: c.roundLabelBorderWidth !== undefined ? c.roundLabelBorderWidth : 2,
+                                            roundLabelBorderColor: c.roundLabelBorderColor || '#086788',
+
+                                            matchBgColor: c.matchBgColor || '#ffffff',
+                                            matchBorderColor: c.matchBorderColor || '#eeeeee',
+                                            matchBorderWidth: c.matchBorderWidth !== undefined ? c.matchBorderWidth : 2,
+                                            matchFontFamily: c.matchFontFamily || '',
+                                            matchFontWeight: c.matchFontWeight || '500',
+                                            matchFontSize: c.matchFontSize || '0.85rem',
+                                            matchFontColor: c.matchFontColor || '#333333',
+                                            winnerBgColor: c.winnerBgColor || '#fffcf0',
+                                            winnerFontColor: c.winnerFontColor || '#086788',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -3330,13 +3394,25 @@
                 // 🏆 給賽程圖塞入專屬記憶體
                 if (type === 'bracket') {
                     baseComp.bracketScale = 8;
-                    baseComp.roundColumn = '';
-                    baseComp.posColumn = '';
-                    baseComp.teamAColumn = '';
-                    baseComp.scoreAColumn = '';
-                    baseComp.scoreBColumn = '';
-                    baseComp.teamBColumn = '';
-                    baseComp.timeColumn = '';
+                    // ... (保留你原本的 roundColumn 等等資料欄位) ...
+
+                    // 👇 從這裡開始補上樣式屬性 👇
+                    baseComp.roundLabelFontFamily = '';
+                    baseComp.roundLabelFontWeight = '900';
+                    baseComp.roundLabelFontSize = '1.1rem';
+                    baseComp.roundLabelColor = '#086788';
+                    baseComp.roundLabelBorderWidth = 2;
+                    baseComp.roundLabelBorderColor = '#086788';
+
+                    baseComp.matchBgColor = '#ffffff';
+                    baseComp.matchBorderColor = '#eeeeee';
+                    baseComp.matchBorderWidth = 2;
+                    baseComp.matchFontFamily = '';
+                    baseComp.matchFontWeight = '500';
+                    baseComp.matchFontSize = '0.85rem';
+                    baseComp.matchFontColor = '#333333';
+                    baseComp.winnerBgColor = '#fffcf0';
+                    baseComp.winnerFontColor = '#086788';
                 }
 
                 setBlocks(prev => [...prev, baseComp]);
@@ -3520,6 +3596,23 @@
                     scoreBColumn: b.scoreBColumn || '',
                     teamBColumn: b.teamBColumn || '',
                     timeColumn: b.timeColumn || '',
+                    // 🌟 賽程圖樣式存檔
+                    roundLabelFontFamily: b.roundLabelFontFamily || '',
+                    roundLabelFontWeight: b.roundLabelFontWeight || '900',
+                    roundLabelFontSize: b.roundLabelFontSize || '1.1rem',
+                    roundLabelColor: b.roundLabelColor || '#086788',
+                    roundLabelBorderWidth: b.roundLabelBorderWidth !== undefined ? b.roundLabelBorderWidth : 2,
+                    roundLabelBorderColor: b.roundLabelBorderColor || '#086788',
+
+                    matchBgColor: b.matchBgColor || '#ffffff',
+                    matchBorderColor: b.matchBorderColor || '#eeeeee',
+                    matchBorderWidth: b.matchBorderWidth !== undefined ? b.matchBorderWidth : 2,
+                    matchFontFamily: b.matchFontFamily || '',
+                    matchFontWeight: b.matchFontWeight || '500',
+                    matchFontSize: b.matchFontSize || '0.85rem',
+                    matchFontColor: b.matchFontColor || '#333333',
+                    winnerBgColor: b.winnerBgColor || '#fffcf0',
+                    winnerFontColor: b.winnerFontColor || '#086788',
 
                 }))
             };
@@ -5026,6 +5119,74 @@
                                                                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}><label>節點</label><input type="color" value={currentSelectedBlock.nodeColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'nodeColor', e.target.value)} /></div>
                                                             </div>
                                                         </>
+                                                    )}
+                                                    {/* 🏆 賽程樹狀圖專屬樣式設定 */}
+                                                    {currentSelectedBlock.type === 'bracket' && (
+                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+
+                                                            {/* 1. 賽事階段標籤 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🏷️ 賽事階段標籤樣式</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.roundLabelColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>底線顏色</label><input type="color" value={currentSelectedBlock.roundLabelBorderColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelBorderColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字大小</label>
+                                                                    <select value={currentSelectedBlock.roundLabelFontSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelFontSize', e.target.value)}>
+                                                                        <option value="0.9rem">小</option><option value="1.1rem">標準</option><option value="1.3rem">大</option><option value="1.5rem">特大</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字體粗細</label>
+                                                                    <select value={currentSelectedBlock.roundLabelFontWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelFontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字型</label>
+                                                                    <select value={currentSelectedBlock.roundLabelFontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelFontFamily', e.target.value)}>
+                                                                        <option value="">預設</option><option value="Arial, sans-serif">黑體</option><option value="'Times New Roman', serif">明體</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>底線粗細 (px)</label>
+                                                                    <input type="number" min="0" max="10" value={currentSelectedBlock.roundLabelBorderWidth !== undefined ? currentSelectedBlock.roundLabelBorderWidth : 2} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundLabelBorderWidth', parseInt(e.target.value))} />
+                                                                </div>
+                                                            </div>
+
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ddd', margin: '15px 0' }} />
+
+                                                            {/* 2. 對戰組合方格 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>⚔️ 對戰組合方格樣式</h4>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>方格背景色</label><input type="color" value={currentSelectedBlock.matchBgColor || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchBgColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>文字顏色</label><input type="color" value={currentSelectedBlock.matchFontColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchFontColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>贏家背景色 (高亮)</label><input type="color" value={currentSelectedBlock.winnerBgColor || '#fffcf0'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'winnerBgColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>贏家文字色 (高亮)</label><input type="color" value={currentSelectedBlock.winnerFontColor || '#086788'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'winnerFontColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>邊框顏色</label><input type="color" value={currentSelectedBlock.matchBorderColor || '#eeeeee'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchBorderColor', e.target.value)} /></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>邊框粗細 (px)</label>
+                                                                    <input type="number" min="0" max="10" value={currentSelectedBlock.matchBorderWidth !== undefined ? currentSelectedBlock.matchBorderWidth : 2} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchBorderWidth', parseInt(e.target.value))} />
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>文字大小</label>
+                                                                    <select value={currentSelectedBlock.matchFontSize || '0.85rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchFontSize', e.target.value)}>
+                                                                        <option value="0.75rem">小</option><option value="0.85rem">標準</option><option value="1rem">大</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>字體粗細</label>
+                                                                    <select value={currentSelectedBlock.matchFontWeight || '500'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchFontWeight', e.target.value)}>
+                                                                        <option value="normal">正常</option><option value="500">微粗</option><option value="bold">粗體</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="form-group" style={{ gridColumn: 'span 2', marginBottom: 0 }}>
+                                                                    <label>字型</label>
+                                                                    <select value={currentSelectedBlock.matchFontFamily || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'matchFontFamily', e.target.value)}>
+                                                                        <option value="">預設</option><option value="Arial, sans-serif">黑體</option><option value="'Times New Roman', serif">明體</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                     {currentSelectedBlock.type === 'choroplethMap' && (
                                                         <>
