@@ -2681,17 +2681,14 @@
                             ) : (() => {
                                 let displayData = [...filteredData];
 
-                                // 🌟 需求 5：提取分頁並過濾資料
+                                // 🌟 提取分頁並過濾資料
                                 let uniqueTabs = [];
                                 let currentActiveTab = '';
                                 if (comp.tableTabCol) {
-                                    // 找出該欄位所有不重複的值，當作分頁按鈕
                                     const tabSet = new Set(displayData.map(row => String(row[comp.tableTabCol] || '').trim()).filter(Boolean));
                                     uniqueTabs = Array.from(tabSet);
-                                    // 決定目前亮起的是哪一個分頁 (預設是第一個)
                                     currentActiveTab = localTableTabs[comp.i] || (uniqueTabs.length > 0 ? uniqueTabs[0] : '');
 
-                                    // 裁切資料：只留下屬於這個分頁的資料
                                     if (currentActiveTab) {
                                         displayData = displayData.filter(row => String(row[comp.tableTabCol] || '').trim() === currentActiveTab);
                                     }
@@ -2713,24 +2710,59 @@
 
                                 const colWidths = (comp.tableColWidths || '').split(',').map(s => s.trim());
                                 const imgCols = (comp.tableImageCols || '').split(',').map(s => s.trim());
+                                const activeCols = comp.multiValueCols.filter(Boolean); // 提取有效欄位
+
+                                // 🌟🌟🌟 新增：智慧合併儲存格 (rowSpan) 預處理引擎 (支援指定欄位) 🌟🌟🌟
+                                const spanData = {};
+                                if (comp.autoMergeCells) {
+                                    // 📝 取得使用者設定的「指定欄位白名單」
+                                    const mergeTargetCols = (comp.mergeCols || '').split(',').map(s => s.trim()).filter(Boolean);
+
+                                    for (let cIdx = 0; cIdx < activeCols.length; cIdx++) {
+                                        const colName = activeCols[cIdx];
+
+                                        // 🎯 精準打擊判斷：如果有設定白名單，且當前欄位「不在」名單內，就跳過不合併！
+                                        if (mergeTargetCols.length > 0 && !mergeTargetCols.includes(colName)) {
+                                            continue;
+                                        }
+
+                                        for (let rIdx = 0; rIdx < displayData.length; rIdx++) {
+                                            if (!spanData[rIdx]) spanData[rIdx] = {};
+                                            if (spanData[rIdx][cIdx] === 0) continue;
+
+                                            let span = 1;
+                                            const currentVal = String(displayData[rIdx][colName] || '').trim();
+
+                                            if (currentVal !== '') {
+                                                for (let nextRIdx = rIdx + 1; nextRIdx < displayData.length; nextRIdx++) {
+                                                    const nextVal = String(displayData[nextRIdx][colName] || '').trim();
+                                                    if (nextVal === currentVal) {
+                                                        span++;
+                                                        if (!spanData[nextRIdx]) spanData[nextRIdx] = {};
+                                                        spanData[nextRIdx][cIdx] = 0;
+                                                    } else {
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                            spanData[rIdx][cIdx] = span;
+                                        }
+                                    }
+                                }
 
                                 return (
                                     <>
-                                        {/* 🌟 渲染分頁按鈕列 (升級左右切換鍵與平滑跟隨) */}
+                                        {/* 🌟 渲染分頁按鈕列 */}
                                         {uniqueTabs.length > 0 && (() => {
-                                            // 找出目前亮起的是第幾個分頁
                                             const currentIndex = uniqueTabs.indexOf(currentActiveTab);
                                             const themeColor = comp.themeColor || '#086788';
 
-                                            // 🌟 修正：精準局部滑動，絕對不干擾外層畫布
                                             const handleTabChange = (newIndex) => {
                                                 setLocalTableTabs(prev => ({ ...prev, [comp.i]: uniqueTabs[newIndex] }));
-                                                // 延遲 100 毫秒，確保 React 已經把新按鈕的狀態渲染完畢
                                                 setTimeout(() => {
                                                     const container = document.getElementById(`tabs-container-${comp.i}`);
                                                     const btn = document.getElementById(`tab-btn-${comp.i}-${newIndex}`);
                                                     if (container && btn) {
-                                                        // btn.offsetLeft 現在會完美地相對於 container 計算距離
                                                         const scrollPos = btn.offsetLeft - (container.clientWidth / 2) + (btn.clientWidth / 2);
                                                         container.scrollTo({ left: scrollPos, behavior: 'smooth' });
                                                     }
@@ -2795,10 +2827,10 @@
                                         })()}
 
                                         <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', flexGrow: 1, width: '100%' }}>
-                                            <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle, width: '100%', marginBottom: '30px' /* 🌟 加上底部隱形墊片，防止最後一列被截斷 */ }}>
+                                            <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle, width: '100%', marginBottom: '30px' }}>
                                                 <thead style={{ display: comp.tableHeaderEnable ? 'table-header-group' : 'none' }}>
                                                     <tr>
-                                                        {comp.multiValueCols.filter(Boolean).map((col, idx) => {
+                                                        {activeCols.map((col, idx) => {
                                                             const isTopLeft = idx === 0 && comp.tableColEnable;
                                                             return (
                                                                 <th key={idx} style={{
@@ -2830,7 +2862,13 @@
                                                                 style={{ cursor: isClickable ? 'pointer' : 'default', backgroundColor: isActive ? '#e3f2fd' : undefined, transition: 'background-color 0.2s' }}
                                                                 className={isClickable ? 'table-row-hover' : ''}
                                                             >
-                                                                {comp.multiValueCols.filter(Boolean).map((col, cIdx) => {
+                                                                {activeCols.map((col, cIdx) => {
+                                                                    // 🌟🌟🌟 新增：取得這格是否需要合併或隱藏
+                                                                    const spanCount = comp.autoMergeCells ? (spanData[rIdx]?.[cIdx] ?? 1) : 1;
+
+                                                                    // 如果被標記為 0，代表他被上面的大哥合併了，所以直接隱藏不畫！
+                                                                    if (comp.autoMergeCells && spanCount === 0) return null;
+
                                                                     const isFirstCol = cIdx === 0 && comp.tableColEnable;
                                                                     const cellStyle = isFirstCol ? {
                                                                         fontSize: `${comp.tableColSize || 14}px`, color: comp.tableColColor || '#444444',
@@ -2839,7 +2877,8 @@
                                                                         border: borderStyle, position: 'sticky', left: 0, zIndex: 1
                                                                     } : {
                                                                         fontSize: `${comp.tableBodySize || 14}px`, color: comp.tableBodyColor || '#444444',
-                                                                        fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left', border: borderStyle
+                                                                        fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left', border: borderStyle,
+                                                                        backgroundColor: isActive ? '#e3f2fd' : undefined
                                                                     };
 
                                                                     if (isActive) cellStyle.fontWeight = '900';
@@ -2869,7 +2908,8 @@
                                                                     if (cellStyle.textAlign === 'right') flexJustify = 'flex-end';
 
                                                                     return (
-                                                                        <td key={cIdx} style={cellStyle}>
+                                                                        // 🌟🌟🌟 新增：把計算好的 rowSpan 套用給 HTML 標籤
+                                                                        <td key={cIdx} style={cellStyle} rowSpan={spanCount > 1 ? spanCount : undefined}>
                                                                             {isImageCol && extractedImgUrl ? (
                                                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: flexJustify, gap: '8px', width: '100%' }}>
                                                                                     <img src={extractedImgUrl} alt="圖" style={{ height: '45px', width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} />
@@ -3246,7 +3286,7 @@
                                             sortByCol: c.sortByCol || null,
                                             listenMode: c.listenMode || null, listenAll: c.listenAll !== false, customListenCols: c.customListenCols || [],
                                             tableBodySize: c.tableBodySize || 14, tableBodyColor: c.tableBodyColor || '#444444', tableBodyWeight: c.tableBodyWeight || 'normal', tableBodyAlign: c.tableBodyAlign || 'left',
-                                            tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left',
+                                            tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left', autoMergeCells: c.autoMergeCells || false, mergeCols: c.mergeCols || '',
                                             tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent', tableTabCol: c.tableTabCol || '', tableImageCols: c.tableImageCols || '',
                                             tableColWidths: c.tableColWidths || '',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
@@ -3428,6 +3468,9 @@
                     baseComp.teamLayout = 'column'; // 預設上下排列
                 }
 
+                if (type === 'table') {
+                    baseComp.mergeCols = ''; // 預設為空 (全合併)
+                }
                 setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
             };
@@ -3556,6 +3599,8 @@
                     tableTabCol: b.tableTabCol || '',
                     tableImageCols: b.tableImageCols || '',
                     tableColWidths: b.tableColWidths || '',
+                    autoMergeCells: b.autoMergeCells || false,
+                    mergeCols: b.mergeCols || '',
 
                     imageHeight: b.imageHeight || null, // 🌟 加了 null 保護
                     imageHeightMobile: b.imageHeightMobile || null, // 🌟 加了 null 保護
@@ -4445,7 +4490,26 @@
                                                                                 <option value="">(預設順序)</option>
                                                                                 {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                             </select>
+                                                                            <label>🪄 智慧合併儲存格</label>
+                                                                            <select value={currentSelectedBlock.autoMergeCells ? 'true' : 'false'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'autoMergeCells', e.target.value === 'true')}>
+                                                                                <option value="false">關閉 (預設逐列顯示)</option>
+                                                                                <option value="true">開啟 (自動合併上下相同內容)</option>
+                                                                            </select>
+                                                                            <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 開啟後，同一個欄位如果上下列的文字完全一樣，會自動整合成一格大格子！</div>
+                                                                            {currentSelectedBlock.autoMergeCells && (
+                                                                                <div className="form-group" style={{ marginTop: '10px' }}>
+                                                                                    <label>🎯 指定合併欄位 (選填)</label>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        placeholder="例如：日期, 賽事階段"
+                                                                                        value={currentSelectedBlock.mergeCols || ''}
+                                                                                        onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mergeCols', e.target.value)}
+                                                                                    />
+                                                                                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 請輸入要合併的「欄位名稱」，並用半形逗號 `,` 隔開。若留空，則所有欄位只要內容相同都會自動合併。</div>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
+
                                                                     )}
                                                                     <div className="form-group" style={{ marginTop: '5px' }}>
                                                                         <label style={{ fontSize: '0.75rem' }}>排序規則</label>
