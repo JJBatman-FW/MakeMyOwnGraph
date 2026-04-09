@@ -1222,7 +1222,7 @@
         }
 
         /* 🌟 賽程樹狀圖專屬樣式 (定寬捲軸 + 橫向標題回歸版) */
-        
+
         .bracket-main-container {
             display: flex;
             width: 100%;
@@ -1230,19 +1230,20 @@
             box-sizing: border-box;
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
             overflow: hidden;
         }
 
         .bracket-label-column {
             flex-shrink: 0;
             display: flex;
-            flex-direction: column-reverse; 
-            gap: 30px; 
+            flex-direction: column-reverse;
+            gap: 30px;
             border-right: 1px solid #eee;
             padding: 10px 0;
             position: relative;
         }
+
         .bracket-label-item {
             flex: 1;
             display: flex;
@@ -1250,7 +1251,7 @@
             justify-content: center;
             font-size: 1.1rem;
             font-weight: 900;
-            color: #086788; 
+            color: #086788;
             writing-mode: vertical-rl;
             text-orientation: mixed;
             padding: 10px 0;
@@ -1259,11 +1260,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .bracket-label-item > div {
-             writing-mode: horizontal-tb;
-             max-height: 100%;
-             overflow: hidden;
-             text-overflow: ellipsis;
+
+        .bracket-label-item>div {
+            writing-mode: horizontal-tb;
+            max-height: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .bracket-wrapper {
@@ -1285,9 +1287,10 @@
         }
 
         /* 🌟 修正 1：標題隱藏邏輯 (直向隱藏交給左側，橫向顯示於方塊上方) */
-        .bracket-wrapper.is-vertical .bracket-round-title { 
-            display: none !important; 
+        .bracket-wrapper.is-vertical .bracket-round-title {
+            display: none !important;
         }
+
         .bracket-wrapper.is-horizontal .bracket-round-title {
             text-align: center;
             margin: 0 0 15px 0;
@@ -1313,70 +1316,182 @@
             flex: 1;
             display: flex;
             justify-content: center;
-            align-items: center; 
+            align-items: center;
             position: relative;
         }
 
         .bracket-match {
             background: #fff;
             border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             display: flex;
             flex-direction: column;
             position: relative;
-            z-index: 2; 
+            z-index: 2;
             overflow: hidden;
             width: 100%;
         }
 
-        .bracket-time { font-size: 0.65rem; text-align: center; background: #f8f9fa; color: #888; padding: 2px; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .bracket-team { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #eee; font-size: 0.85rem; font-weight: 500; background: #fff; }
-        .bracket-team:last-child { border-bottom: none; }
-        .bracket-team.winner { font-weight: 900; background: #fffcf0; }
-        .bracket-team.loser { color: #aaa; }
-        .bracket-score { font-family: monospace; font-size: 0.9rem; margin-left: 4px; }
+        .bracket-time {
+            font-size: 0.65rem;
+            text-align: center;
+            background: #f8f9fa;
+            color: #888;
+            padding: 2px;
+            border-bottom: 1px solid #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .bracket-team {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: #fff;
+        }
+
+        .bracket-team:last-child {
+            border-bottom: none;
+        }
+
+        .bracket-team.winner {
+            font-weight: 900;
+            background: #fffcf0;
+        }
+
+        .bracket-team.loser {
+            color: #aaa;
+        }
+
+        .bracket-score {
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin-left: 4px;
+        }
 
         /* 💻 模式一：橫向發展 (左到右) */
         /* 🌟 修正 2：放開 100% 限制，加上 max-content 讓它自動撐開撐出捲軸 */
-        .bracket-wrapper.is-horizontal { flex-direction: row; gap: 40px; width: max-content; min-width: 100%; }
+        .bracket-wrapper.is-horizontal {
+            flex-direction: row;
+            gap: 40px;
+            width: max-content;
+            min-width: 100%;
+        }
+
         /* 🌟 鎖定每輪方格固定寬度為 180px，不會被擠壓變形 */
-        .bracket-wrapper.is-horizontal .bracket-round { flex: 0 0 180px; flex-direction: column; margin-right: 0; }
-        .bracket-wrapper.is-horizontal .bracket-round-matches { flex-direction: column; }
-        .bracket-wrapper.is-horizontal .bracket-match-pair { flex-direction: column; padding: 10px 0; }
-        .bracket-wrapper.is-horizontal .bracket-match-wrapper { flex-direction: column; padding: 5px 0; }
-        
+        .bracket-wrapper.is-horizontal .bracket-round {
+            flex: 0 0 180px;
+            flex-direction: column;
+            margin-right: 0;
+        }
+
+        .bracket-wrapper.is-horizontal .bracket-round-matches {
+            flex-direction: column;
+        }
+
+        .bracket-wrapper.is-horizontal .bracket-match-pair {
+            flex-direction: column;
+            padding: 10px 0;
+        }
+
+        .bracket-wrapper.is-horizontal .bracket-match-wrapper {
+            flex-direction: column;
+            padding: 5px 0;
+        }
+
         /* 橫向連線 (配合 40px 的 gap 精準連線) */
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::after {
-            content: ''; position: absolute; right: -20px; top: 25%; bottom: 25%; width: 20px;
-            border: 2px solid #ccc; border-left: none; border-radius: 0 4px 4px 0; z-index: 1;
+            content: '';
+            position: absolute;
+            right: -20px;
+            top: 25%;
+            bottom: 25%;
+            width: 20px;
+            border: 2px solid #ccc;
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+            z-index: 1;
         }
+
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::before {
-            content: ''; position: absolute; right: -40px; top: 50%; width: 20px; border-top: 2px solid #ccc; z-index: 1;
+            content: '';
+            position: absolute;
+            right: -40px;
+            top: 50%;
+            width: 20px;
+            border-top: 2px solid #ccc;
+            z-index: 1;
         }
 
         /* 📱 模式二：直向發展 (下到上，冠軍在最頂部！) */
-        .bracket-wrapper.is-vertical { 
-            flex-direction: column-reverse; 
-            gap: 30px; 
+        .bracket-wrapper.is-vertical {
+            flex-direction: column-reverse;
+            gap: 30px;
         }
-        .bracket-wrapper.is-vertical .bracket-round { flex-direction: column; }
-        .bracket-wrapper.is-vertical .bracket-round-matches { flex-direction: row; }
-        .bracket-wrapper.is-vertical .bracket-match-pair { flex-direction: row; padding: 0 2px; }
-        .bracket-wrapper.is-vertical .bracket-match-wrapper { flex-direction: row; padding: 0 2px; }
-        
+
+        .bracket-wrapper.is-vertical .bracket-round {
+            flex-direction: column;
+        }
+
+        .bracket-wrapper.is-vertical .bracket-round-matches {
+            flex-direction: row;
+        }
+
+        .bracket-wrapper.is-vertical .bracket-match-pair {
+            flex-direction: row;
+            padding: 0 2px;
+        }
+
+        .bracket-wrapper.is-vertical .bracket-match-wrapper {
+            flex-direction: row;
+            padding: 0 2px;
+        }
+
         /* 直向連線 */
         .bracket-wrapper.is-vertical .bracket-match-pair.has-lines::after {
-            content: ''; position: absolute; top: -15px; left: 25%; right: 25%; height: 15px;
-            border: 2px solid #ccc; border-bottom: none; border-radius: 4px 4px 0 0; z-index: 1;
+            content: '';
+            position: absolute;
+            top: -15px;
+            left: 25%;
+            right: 25%;
+            height: 15px;
+            border: 2px solid #ccc;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            z-index: 1;
         }
+
         .bracket-wrapper.is-vertical .bracket-match-pair.has-lines::before {
-            content: ''; position: absolute; top: -30px; left: 50%; height: 15px; border-left: 2px solid #ccc; z-index: 1;
+            content: '';
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            height: 15px;
+            border-left: 2px solid #ccc;
+            z-index: 1;
         }
 
         /* 直向模式隊伍上下排列 */
-        .bracket-wrapper.is-vertical .bracket-team { flex-direction: column; text-align: center; }
-        .bracket-wrapper.is-vertical .bracket-team span:first-child { font-size: 0.75rem; line-height: 1.2; margin-bottom: 2px; }
-        .bracket-wrapper.is-vertical .bracket-score { margin-left: 0; margin-top: 2px; }
+        .bracket-wrapper.is-vertical .bracket-team {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .bracket-wrapper.is-vertical .bracket-team span:first-child {
+            font-size: 0.75rem;
+            line-height: 1.2;
+            margin-bottom: 2px;
+        }
+
+        .bracket-wrapper.is-vertical .bracket-score {
+            margin-left: 0;
+            margin-top: 2px;
+        }
     </style>
 </head>
 
@@ -3101,6 +3216,15 @@
                                             cardShadowEnable: c.cardShadowEnable !== false, cardShadowX: c.cardShadowX !== undefined ? c.cardShadowX : 0, cardShadowY: c.cardShadowY !== undefined ? c.cardShadowY : 2, cardShadowBlur: c.cardShadowBlur !== undefined ? c.cardShadowBlur : 8, cardShadowColor: c.cardShadowColor || '#000000', cardShadowOpacity: c.cardShadowOpacity !== undefined ? c.cardShadowOpacity : 4,
                                             cardTitleColor: c.cardTitleColor || '#333333', cardTitleSize: c.cardTitleSize || '1.1rem', cardTitleWeight: c.cardTitleWeight || 'bold', cardTitleAlign: c.cardTitleAlign || 'left', cardTitleBorder: c.cardTitleBorder !== false,
                                             mapTopoUrl: c.mapTopoUrl || '', mapFeatureKey: c.mapFeatureKey || '', mapMaxValue: c.mapMaxValue !== undefined ? c.mapMaxValue : null, mapMinValue: c.mapMinValue !== undefined ? c.mapMinValue : null, mapColorLogic: c.mapColorLogic || 'absolute', mapAutoZoom: c.mapAutoZoom !== false,
+                                            // 🌟 賽程樹狀圖：記憶恢復
+                                            bracketScale: c.bracketScale || 8,
+                                            roundColumn: c.roundColumn || '',
+                                            posColumn: c.posColumn || '',
+                                            teamAColumn: c.teamAColumn || '',
+                                            scoreAColumn: c.scoreAColumn || '',
+                                            scoreBColumn: c.scoreBColumn || '',
+                                            teamBColumn: c.teamBColumn || '',
+                                            timeColumn: c.timeColumn || '',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
