@@ -1215,6 +1215,168 @@
                 filter: brightness(0.98);
             }
         }
+
+        /* 隱藏表格分頁的底部醜捲軸，讓畫面更像 App */
+        .table-tabs-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 🌟 賽程樹狀圖專屬樣式 (定寬捲軸 + 橫向標題回歸版) */
+        
+        .bracket-main-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        .bracket-label-column {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column-reverse; 
+            gap: 30px; 
+            border-right: 1px solid #eee;
+            padding: 10px 0;
+            position: relative;
+        }
+        .bracket-label-item {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 900;
+            color: #086788; 
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            padding: 10px 0;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .bracket-label-item > div {
+             writing-mode: horizontal-tb;
+             max-height: 100%;
+             overflow: hidden;
+             text-overflow: ellipsis;
+        }
+
+        .bracket-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .bracket-round {
+            display: flex;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            position: relative;
+        }
+
+        /* 🌟 修正 1：標題隱藏邏輯 (直向隱藏交給左側，橫向顯示於方塊上方) */
+        .bracket-wrapper.is-vertical .bracket-round-title { 
+            display: none !important; 
+        }
+        .bracket-wrapper.is-horizontal .bracket-round-title {
+            text-align: center;
+            margin: 0 0 15px 0;
+            padding-bottom: 8px;
+            font-size: 1.1rem;
+            font-weight: 900;
+        }
+
+        .bracket-round-matches {
+            display: flex;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .bracket-match-pair {
+            display: flex;
+            flex: 1;
+            position: relative;
+        }
+
+        .bracket-match-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center; 
+            position: relative;
+        }
+
+        .bracket-match {
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            z-index: 2; 
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .bracket-time { font-size: 0.65rem; text-align: center; background: #f8f9fa; color: #888; padding: 2px; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bracket-team { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-bottom: 1px solid #eee; font-size: 0.85rem; font-weight: 500; background: #fff; }
+        .bracket-team:last-child { border-bottom: none; }
+        .bracket-team.winner { font-weight: 900; background: #fffcf0; }
+        .bracket-team.loser { color: #aaa; }
+        .bracket-score { font-family: monospace; font-size: 0.9rem; margin-left: 4px; }
+
+        /* 💻 模式一：橫向發展 (左到右) */
+        /* 🌟 修正 2：放開 100% 限制，加上 max-content 讓它自動撐開撐出捲軸 */
+        .bracket-wrapper.is-horizontal { flex-direction: row; gap: 40px; width: max-content; min-width: 100%; }
+        /* 🌟 鎖定每輪方格固定寬度為 180px，不會被擠壓變形 */
+        .bracket-wrapper.is-horizontal .bracket-round { flex: 0 0 180px; flex-direction: column; margin-right: 0; }
+        .bracket-wrapper.is-horizontal .bracket-round-matches { flex-direction: column; }
+        .bracket-wrapper.is-horizontal .bracket-match-pair { flex-direction: column; padding: 10px 0; }
+        .bracket-wrapper.is-horizontal .bracket-match-wrapper { flex-direction: column; padding: 5px 0; }
+        
+        /* 橫向連線 (配合 40px 的 gap 精準連線) */
+        .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::after {
+            content: ''; position: absolute; right: -20px; top: 25%; bottom: 25%; width: 20px;
+            border: 2px solid #ccc; border-left: none; border-radius: 0 4px 4px 0; z-index: 1;
+        }
+        .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::before {
+            content: ''; position: absolute; right: -40px; top: 50%; width: 20px; border-top: 2px solid #ccc; z-index: 1;
+        }
+
+        /* 📱 模式二：直向發展 (下到上，冠軍在最頂部！) */
+        .bracket-wrapper.is-vertical { 
+            flex-direction: column-reverse; 
+            gap: 30px; 
+        }
+        .bracket-wrapper.is-vertical .bracket-round { flex-direction: column; }
+        .bracket-wrapper.is-vertical .bracket-round-matches { flex-direction: row; }
+        .bracket-wrapper.is-vertical .bracket-match-pair { flex-direction: row; padding: 0 2px; }
+        .bracket-wrapper.is-vertical .bracket-match-wrapper { flex-direction: row; padding: 0 2px; }
+        
+        /* 直向連線 */
+        .bracket-wrapper.is-vertical .bracket-match-pair.has-lines::after {
+            content: ''; position: absolute; top: -15px; left: 25%; right: 25%; height: 15px;
+            border: 2px solid #ccc; border-bottom: none; border-radius: 4px 4px 0 0; z-index: 1;
+        }
+        .bracket-wrapper.is-vertical .bracket-match-pair.has-lines::before {
+            content: ''; position: absolute; top: -30px; left: 50%; height: 15px; border-left: 2px solid #ccc; z-index: 1;
+        }
+
+        /* 直向模式隊伍上下排列 */
+        .bracket-wrapper.is-vertical .bracket-team { flex-direction: column; text-align: center; }
+        .bracket-wrapper.is-vertical .bracket-team span:first-child { font-size: 0.75rem; line-height: 1.2; margin-bottom: 2px; }
+        .bracket-wrapper.is-vertical .bracket-score { margin-left: 0; margin-top: 2px; }
     </style>
 </head>
 
@@ -1260,7 +1422,7 @@
             ctx.fill();
             return canvas;
         };
-        const ResponsiveRGL = RGL.WidthProvider(RGL);
+        const ResponsiveRGL = ReactGridLayout.WidthProvider(ReactGridLayout.Responsive);
 
         Chart.register(ChartDataLabels);
         // 🌟 強制註冊地圖模組，避免瀏覽器漏載入導致畫布空白
@@ -1519,8 +1681,9 @@
             );
         }
 
-        // 🌟 核心畫布元件
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData, isEditing }) {
+        // 🌟 修正：接收 editorBreakpoint 與 previewDevice，才不會 ReferenceError 當機
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData, isEditing, editorBreakpoint, previewDevice }) {
+            const [localTableTabs, setLocalTableTabs] = React.useState({});
             const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
             const chartInstance = useRef(null);
@@ -1759,13 +1922,39 @@
                                 if (context.dataIndex == null) return '#ffffff';
                                 const item = context.dataset.data[context.dataIndex];
                                 // 主角加上深灰色框凸顯，配角維持白色細框
-                                return (item.value && item.value > 0) ? '#444444' : '#ffffff';
+                                return (item.value && item.value > 0) ? '#ffffff' : '#ffffff';
                             },
                             borderWidth: (context) => {
                                 if (context.dataIndex == null) return 1;
                                 const item = context.dataset.data[context.dataIndex];
-                                // 主角框線變粗 (2px)
-                                return (item.value && item.value > 0) ? 2 : 1;
+                                return (item.value && item.value > 0) ? 1 : 1;
+                            },
+
+                            // 👇 👇 👇 新增 Hover 狀態的樣式控制 👇 👇 👇
+                            hoverBackgroundColor: (context) => {
+                                if (context.dataIndex == null) return null;
+                                const item = context.dataset.data[context.dataIndex];
+
+                                // 🌟 灰色配角：強制鎖定為相同的淺灰色，完全無動於衷
+                                if (!item.value || item.value === 0) return '#f0f0f0';
+
+                                // 🌟 有顏色的主角：呼叫原本的 backgroundColor 函式，直接把原本的深淺顏色複製過來！
+                                if (typeof context.dataset.backgroundColor === 'function') {
+                                    return context.dataset.backgroundColor(context);
+                                }
+                                return context.dataset.backgroundColor;
+                            },
+                            hoverBorderColor: (context) => {
+                                if (context.dataIndex == null) return '#ffffff';
+                                const item = context.dataset.data[context.dataIndex];
+                                // 主角滑過去時外框變成純黑色，配角維持白色
+                                return (item.value && item.value > 0) ? '#ffffff' : '#ffffff';
+                            },
+                            hoverBorderWidth: (context) => {
+                                if (context.dataIndex == null) return 1;
+                                const item = context.dataset.data[context.dataIndex];
+                                // 主角滑過去時外框變粗 (3px)，配角維持 1px
+                                return (item.value && item.value > 0) ? 3 : 1;
                             }
                         }];
 
@@ -1777,6 +1966,10 @@
                                 legend: { display: false },
                                 datalabels: { display: false },
                                 tooltip: {
+                                    // 🌟 終極防護：如果這塊地的數值是 0 (也就是灰色配角)，Tooltip 就直接隱身不顯示！
+                                    filter: (tooltipItem) => {
+                                        return tooltipItem.raw && tooltipItem.raw.value > 0;
+                                    },
                                     callbacks: {
                                         title: (context) => {
                                             if (!context || !context.length) return '';
@@ -2356,11 +2549,28 @@
                         </div>
                     )}
                     {comp.type === 'table' && (
-                        <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', height: '100%', width: '100%' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
                             {(!comp.multiValueCols || comp.multiValueCols.length === 0) ? (
-                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定表格顯示欄位</p></div>
+                                <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定表格顯示欄位</p></div>
                             ) : (() => {
                                 let displayData = [...filteredData];
+
+                                // 🌟 需求 5：提取分頁並過濾資料
+                                let uniqueTabs = [];
+                                let currentActiveTab = '';
+                                if (comp.tableTabCol) {
+                                    // 找出該欄位所有不重複的值，當作分頁按鈕
+                                    const tabSet = new Set(displayData.map(row => String(row[comp.tableTabCol] || '').trim()).filter(Boolean));
+                                    uniqueTabs = Array.from(tabSet);
+                                    // 決定目前亮起的是哪一個分頁 (預設是第一個)
+                                    currentActiveTab = localTableTabs[comp.i] || (uniqueTabs.length > 0 ? uniqueTabs[0] : '');
+
+                                    // 裁切資料：只留下屬於這個分頁的資料
+                                    if (currentActiveTab) {
+                                        displayData = displayData.filter(row => String(row[comp.tableTabCol] || '').trim() === currentActiveTab);
+                                    }
+                                }
+
                                 const sortCol = comp.sortByCol;
                                 const sortOrder = comp.sortBy;
 
@@ -2375,136 +2585,327 @@
                                 }
                                 const borderStyle = comp.tableBorderEnable ? `${comp.tableBorderWidth || 1}px solid ${comp.tableBorderColor || '#dddddd'}` : 'none';
 
-                                // 🌟 將安全變數宣告在 return 之外
                                 const colWidths = (comp.tableColWidths || '').split(',').map(s => s.trim());
                                 const imgCols = (comp.tableImageCols || '').split(',').map(s => s.trim());
 
                                 return (
-                                    <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle, width: '100%' }}>
-                                        <thead style={{ display: comp.tableHeaderEnable ? 'table-header-group' : 'none' }}>
-                                            <tr>
-                                                {comp.multiValueCols.filter(Boolean).map((col, idx) => {
-                                                    const isTopLeft = idx === 0 && comp.tableColEnable;
-                                                    return (
-                                                        <th key={idx} style={{
-                                                            background: comp.tableHeaderBg || comp.themeColor || '#086788',
-                                                            color: comp.tableHeaderColor || '#ffffff', fontSize: `${comp.tableHeaderSize || 14}px`,
-                                                            textAlign: comp.tableHeaderAlign || 'left', fontWeight: comp.tableHeaderWeight || 'bold',
-                                                            border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 1,
-                                                            width: colWidths[idx] || undefined, minWidth: colWidths[idx] || undefined, maxWidth: colWidths[idx] || undefined,
-                                                            whiteSpace: (colWidths[idx] && colWidths[idx] !== 'auto') ? 'normal' : 'nowrap'
-                                                        }}>{col}</th>
-                                                    );
-                                                })}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displayData.map((row, rIdx) => {
-                                                // 🌟 正確的宣告層級：讓整列的 TD 都能讀到這個變數
-                                                const rowKeyVal = String(row[comp.categoryColumn] || '');
-                                                const isActive = comp.enableFilter && filters[comp.categoryColumn] === rowKeyVal;
-                                                const isClickable = comp.enableFilter && comp.categoryColumn;
+                                    <>
+                                        {/* 🌟 渲染分頁按鈕列 (升級左右切換鍵與平滑跟隨) */}
+                                        {uniqueTabs.length > 0 && (() => {
+                                            // 找出目前亮起的是第幾個分頁
+                                            const currentIndex = uniqueTabs.indexOf(currentActiveTab);
+                                            const themeColor = comp.themeColor || '#086788';
 
-                                                return (
-                                                    <tr key={rIdx}
-                                                        onClick={() => {
-                                                            if (isClickable) {
-                                                                const newVal = isActive ? '' : rowKeyVal;
-                                                                onFilterChange(comp.categoryColumn, newVal);
-                                                            }
-                                                        }}
+                                            // 🌟 修正：精準局部滑動，絕對不干擾外層畫布
+                                            const handleTabChange = (newIndex) => {
+                                                setLocalTableTabs(prev => ({ ...prev, [comp.i]: uniqueTabs[newIndex] }));
+                                                // 延遲 100 毫秒，確保 React 已經把新按鈕的狀態渲染完畢
+                                                setTimeout(() => {
+                                                    const container = document.getElementById(`tabs-container-${comp.i}`);
+                                                    const btn = document.getElementById(`tab-btn-${comp.i}-${newIndex}`);
+                                                    if (container && btn) {
+                                                        // btn.offsetLeft 現在會完美地相對於 container 計算距離
+                                                        const scrollPos = btn.offsetLeft - (container.clientWidth / 2) + (btn.clientWidth / 2);
+                                                        container.scrollTo({ left: scrollPos, behavior: 'smooth' });
+                                                    }
+                                                }, 100);
+                                            };
+
+                                            return (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', width: '100%' }}>
+                                                    {/* ◀ 左按鈕 */}
+                                                    <button
+                                                        onClick={() => handleTabChange(currentIndex - 1)}
+                                                        disabled={currentIndex <= 0}
                                                         style={{
-                                                            cursor: isClickable ? 'pointer' : 'default',
-                                                            backgroundColor: isActive ? '#e3f2fd' : undefined,
-                                                            transition: 'background-color 0.2s'
+                                                            width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd',
+                                                            background: currentIndex <= 0 ? '#f5f5f5' : '#fff', color: currentIndex <= 0 ? '#ccc' : themeColor,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            cursor: currentIndex <= 0 ? 'not-allowed' : 'pointer', flexShrink: 0, padding: 0, fontWeight: 'bold',
+                                                            boxShadow: currentIndex <= 0 ? 'none' : '0 2px 4px rgba(0,0,0,0.05)', transition: 'all 0.2s'
                                                         }}
-                                                        className={isClickable ? 'table-row-hover' : ''}
                                                     >
-                                                        {comp.multiValueCols.filter(Boolean).map((col, cIdx) => {
-                                                            const isFirstCol = cIdx === 0 && comp.tableColEnable;
-                                                            const cellStyle = isFirstCol ? {
-                                                                fontSize: `${comp.tableColSize || 14}px`, color: comp.tableColColor || '#444444',
-                                                                fontWeight: comp.tableColWeight || 'bold', textAlign: comp.tableColAlign || 'left',
-                                                                backgroundColor: isActive ? '#e3f2fd' : ((comp.tableColBg && comp.tableColBg !== 'transparent') ? comp.tableColBg : '#ffffff'),
-                                                                border: borderStyle, position: 'sticky', left: 0, zIndex: 1
-                                                            } : {
-                                                                fontSize: `${comp.tableBodySize || 14}px`, color: comp.tableBodyColor || '#444444',
-                                                                fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left',
-                                                                border: borderStyle
-                                                            };
+                                                        &#10094;
+                                                    </button>
 
-                                                            // 套用高亮加粗
-                                                            if (isActive) cellStyle.fontWeight = '900';
-
-                                                            // 🌟 圖片判定與容錯
-                                                            const cleanColName = String(col).trim();
-                                                            const isImageCol = imgCols.includes(cleanColName);
-
-                                                            let cellText = row[col] !== undefined && row[col] !== null ? String(row[col]).trim() : '';
-                                                            if (cellText.startsWith("'") || cellText.startsWith('"')) {
-                                                                cellText = cellText.substring(1);
-                                                            }
-
-                                                            // 🌟 智慧圖文分離魔法：如果這欄被指定為圖片欄
-                                                            let extractedImgUrl = '';
-                                                            let extractedText = cellText;
-
-                                                            if (isImageCol) {
-                                                                const urlMatch = cellText.match(/(https?:\/\/[^\s]+)/i);
-                                                                if (urlMatch) {
-                                                                    extractedImgUrl = urlMatch[0];
-                                                                    extractedText = cellText.replace(extractedImgUrl, '').trim();
-                                                                }
-                                                            }
-
-                                                            const customWidth = colWidths[cIdx] || undefined;
-                                                            cellStyle.width = customWidth;
-                                                            cellStyle.minWidth = customWidth;
-                                                            cellStyle.maxWidth = customWidth;
-                                                            cellStyle.whiteSpace = 'normal';
-                                                            cellStyle.wordBreak = 'break-word';
-
-                                                            // 🌟 解法 1：讀取編輯器設定的「對齊方式」，翻譯給 Flexbox 聽
-                                                            let flexJustify = 'flex-start';
-                                                            if (cellStyle.textAlign === 'center') flexJustify = 'center';
-                                                            if (cellStyle.textAlign === 'right') flexJustify = 'flex-end';
-
+                                                    {/* 中間的按鈕軌道 */}
+                                                    <div id={`tabs-container-${comp.i}`} className="table-tabs-container" style={{ position: 'relative', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', flexGrow: 1, scrollBehavior: 'smooth', minWidth: 0, msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+                                                        {uniqueTabs.map((tab, idx) => {
+                                                            const isActiveTab = currentActiveTab === tab;
                                                             return (
-                                                                <td key={cIdx} style={cellStyle}>
-                                                                    {isImageCol && extractedImgUrl ? (
-                                                                        // 把翻譯好的 flexJustify 餵給它，這樣就會完美置中了！
-                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: flexJustify, gap: '8px' }}>
-                                                                            {/* 🌟 解法 2：移除圓形設定，回歸原始比例的方形 (加上 4px 微圓角讓邊緣不刺眼) */}
-                                                                            <img
-                                                                                src={extractedImgUrl}
-                                                                                alt="圖"
-                                                                                style={{
-                                                                                    height: '45px',
-                                                                                    width: 'auto',
-                                                                                    maxWidth: '100px',
-                                                                                    objectFit: 'contain', // 保持完整圖片不裁切
-                                                                                    borderRadius: '4px',  // 回歸方形
-                                                                                    flexShrink: 0
-                                                                                }}
-                                                                            />
-                                                                            {/* 文字部分 */}
-                                                                            {extractedText && <span>{extractedText}</span>}
-                                                                        </div>
-                                                                    ) : (
-                                                                        cellText
-                                                                    )}
-                                                                </td>
+                                                                <button
+                                                                    id={`tab-btn-${comp.i}-${idx}`}
+                                                                    key={tab}
+                                                                    onClick={() => handleTabChange(idx)}
+                                                                    style={{
+                                                                        padding: '6px 16px', borderRadius: '20px', border: `1px solid ${isActiveTab ? themeColor : '#ddd'}`,
+                                                                        background: isActiveTab ? themeColor : '#f8f9fa', color: isActiveTab ? '#fff' : '#555',
+                                                                        fontWeight: isActiveTab ? 'bold' : 'normal', cursor: 'pointer', whiteSpace: 'nowrap',
+                                                                        transition: 'all 0.2s ease', fontSize: '14px', boxShadow: isActiveTab ? '0 2px 4px rgba(0,0,0,0.1)' : 'none'
+                                                                    }}
+                                                                >
+                                                                    {tab}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* ▶ 右按鈕 */}
+                                                    <button
+                                                        onClick={() => handleTabChange(currentIndex + 1)}
+                                                        disabled={currentIndex >= uniqueTabs.length - 1}
+                                                        style={{
+                                                            width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd',
+                                                            background: currentIndex >= uniqueTabs.length - 1 ? '#f5f5f5' : '#fff', color: currentIndex >= uniqueTabs.length - 1 ? '#ccc' : themeColor,
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            cursor: currentIndex >= uniqueTabs.length - 1 ? 'not-allowed' : 'pointer', flexShrink: 0, padding: 0, fontWeight: 'bold',
+                                                            boxShadow: currentIndex >= uniqueTabs.length - 1 ? 'none' : '0 2px 4px rgba(0,0,0,0.05)', transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        &#10095;
+                                                    </button>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        <div className="chart-scroll-area" style={{ overflow: 'auto', position: 'relative', flexGrow: 1, width: '100%' }}>
+                                            <table className="custom-table" style={{ borderCollapse: 'collapse', border: borderStyle, width: '100%', marginBottom: '30px' /* 🌟 加上底部隱形墊片，防止最後一列被截斷 */ }}>
+                                                <thead style={{ display: comp.tableHeaderEnable ? 'table-header-group' : 'none' }}>
+                                                    <tr>
+                                                        {comp.multiValueCols.filter(Boolean).map((col, idx) => {
+                                                            const isTopLeft = idx === 0 && comp.tableColEnable;
+                                                            return (
+                                                                <th key={idx} style={{
+                                                                    background: comp.tableHeaderBg || comp.themeColor || '#086788',
+                                                                    color: comp.tableHeaderColor || '#ffffff', fontSize: `${comp.tableHeaderSize || 14}px`,
+                                                                    textAlign: comp.tableHeaderAlign || 'left', fontWeight: comp.tableHeaderWeight || 'bold',
+                                                                    border: borderStyle, left: isTopLeft ? 0 : undefined, zIndex: isTopLeft ? 3 : 1, position: isTopLeft ? 'sticky' : undefined,
+                                                                    width: colWidths[idx] || undefined, minWidth: colWidths[idx] || undefined, maxWidth: colWidths[idx] || undefined,
+                                                                    whiteSpace: (colWidths[idx] && colWidths[idx] !== 'auto') ? 'normal' : 'nowrap'
+                                                                }}>{col}</th>
                                                             );
                                                         })}
                                                     </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                </thead>
+                                                <tbody>
+                                                    {displayData.map((row, rIdx) => {
+                                                        const rowKeyVal = String(row[comp.categoryColumn] || '');
+                                                        const isActive = comp.enableFilter && filters[comp.categoryColumn] === rowKeyVal;
+                                                        const isClickable = comp.enableFilter && comp.categoryColumn;
+
+                                                        return (
+                                                            <tr key={rIdx}
+                                                                onClick={() => {
+                                                                    if (isClickable) {
+                                                                        const newVal = isActive ? '' : rowKeyVal;
+                                                                        onFilterChange(comp.categoryColumn, newVal);
+                                                                    }
+                                                                }}
+                                                                style={{ cursor: isClickable ? 'pointer' : 'default', backgroundColor: isActive ? '#e3f2fd' : undefined, transition: 'background-color 0.2s' }}
+                                                                className={isClickable ? 'table-row-hover' : ''}
+                                                            >
+                                                                {comp.multiValueCols.filter(Boolean).map((col, cIdx) => {
+                                                                    const isFirstCol = cIdx === 0 && comp.tableColEnable;
+                                                                    const cellStyle = isFirstCol ? {
+                                                                        fontSize: `${comp.tableColSize || 14}px`, color: comp.tableColColor || '#444444',
+                                                                        fontWeight: comp.tableColWeight || 'bold', textAlign: comp.tableColAlign || 'left',
+                                                                        backgroundColor: isActive ? '#e3f2fd' : ((comp.tableColBg && comp.tableColBg !== 'transparent') ? comp.tableColBg : '#ffffff'),
+                                                                        border: borderStyle, position: 'sticky', left: 0, zIndex: 1
+                                                                    } : {
+                                                                        fontSize: `${comp.tableBodySize || 14}px`, color: comp.tableBodyColor || '#444444',
+                                                                        fontWeight: comp.tableBodyWeight || 'normal', textAlign: comp.tableBodyAlign || 'left', border: borderStyle
+                                                                    };
+
+                                                                    if (isActive) cellStyle.fontWeight = '900';
+
+                                                                    const cleanColName = String(col).trim();
+                                                                    const isImageCol = imgCols.includes(cleanColName);
+
+                                                                    let cellText = row[col] !== undefined && row[col] !== null ? String(row[col]).trim() : '';
+                                                                    if (cellText.startsWith("'") || cellText.startsWith('"')) cellText = cellText.substring(1);
+
+                                                                    let extractedImgUrl = '';
+                                                                    let extractedText = cellText;
+                                                                    if (isImageCol) {
+                                                                        const urlMatch = cellText.match(/(https?:\/\/[^\s]+)/i);
+                                                                        if (urlMatch) {
+                                                                            extractedImgUrl = urlMatch[0];
+                                                                            extractedText = cellText.replace(extractedImgUrl, '').trim();
+                                                                        }
+                                                                    }
+
+                                                                    const customWidth = colWidths[cIdx] || undefined;
+                                                                    cellStyle.width = customWidth; cellStyle.minWidth = customWidth; cellStyle.maxWidth = customWidth;
+                                                                    cellStyle.whiteSpace = 'normal'; cellStyle.wordBreak = 'break-word';
+
+                                                                    let flexJustify = 'flex-start';
+                                                                    if (cellStyle.textAlign === 'center') flexJustify = 'center';
+                                                                    if (cellStyle.textAlign === 'right') flexJustify = 'flex-end';
+
+                                                                    return (
+                                                                        <td key={cIdx} style={cellStyle}>
+                                                                            {isImageCol && extractedImgUrl ? (
+                                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: flexJustify, gap: '8px', width: '100%' }}>
+                                                                                    <img src={extractedImgUrl} alt="圖" style={{ height: '45px', width: 'auto', maxWidth: '100px', objectFit: 'contain', borderRadius: '4px', flexShrink: 0 }} />
+                                                                                    {extractedText && <span style={{ textAlign: 'left' }}>{extractedText}</span>}
+                                                                                </div>
+                                                                            ) : (
+                                                                                cellText
+                                                                            )}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
                                 );
                             })()}
                         </div>
                     )}
+                    {/* 🌟 淘汰賽程樹狀圖 渲染區 */}
+                    {comp.type === 'bracket' && (() => {
+                        // 1. 檢查是否綁定完畢
+                        if (!comp.roundColumn || !comp.posColumn || !comp.teamAColumn || !comp.teamBColumn) {
+                            return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定<br />賽程階段、位置編號與隊伍欄位</p></div>;
+                        }
+
+                        // 2. 根據 Round (賽程階段) 把資料分群
+                        const roundsData = {};
+                        filteredData.forEach(row => {
+                            const roundName = row[comp.roundColumn];
+                            const pos = parseInt(row[comp.posColumn]);
+                            if (roundName && !isNaN(pos)) {
+                                if (!roundsData[roundName]) roundsData[roundName] = [];
+                                roundsData[roundName].push({ ...row, pos });
+                            }
+                        });
+
+                        // 3. 智慧排序：比賽最多的排在最左邊 (例如：8強有4場排第一，四強有2場排第二...)
+                        const sortedRounds = Object.keys(roundsData).map(rName => ({
+                            name: rName,
+                            matches: roundsData[rName].sort((a, b) => a.pos - b.pos) // 確保 1號連2號, 3號連4號
+                        })).sort((a, b) => b.matches.length - a.matches.length);
+
+                        // 🌟 絕對防當機版：安全獲取變數，若無則預設為 desktop
+                        // 安全防當機變數
+                        const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
+                        const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
+                        const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
+
+                        const bracketDir = isMobileView ? 'horizontal' : (comp.chartOrientation || 'vertical');
+                        const maxMatches = Math.max(...sortedRounds.map(r => r.matches.length));
+
+                        // 🌟 新佈局：為了讓標籤在左側
+                        const labelColStyle = {
+                            width: bracketDir === 'vertical' ? '120px' : 'auto', // 直向模式 fixed 寬
+                            display: 'flex',
+                            flexDirection: bracketDir === 'vertical' ? 'column-reverse' : 'row',
+                            gap: bracketDir === 'vertical' ? '30px' : '0', // 與 main column gap 一致
+                            boxSizing: 'border-box',
+                            paddingRight: bracketDir === 'vertical' ? '15px' : '0',
+                            borderRight: bracketDir === 'vertical' ? '1px solid #eee' : 'none',
+                            flexShrink: 0,
+                        };
+                        const mainStyle = {
+                            flex: 1,
+                            display: 'flex',
+                            width: bracketDir === 'vertical' ? '100%' : '100%',
+                            overflowX: bracketDir === 'vertical' ? 'hidden' : 'auto', // 橫向不捲動
+                        }
+
+                        return (
+                            <div className="bracket-main-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
+                                {/* 🌟 左側：賽程階段標籤 */}
+                                {bracketDir === 'vertical' && (
+                                    <div className="bracket-label-column" style={labelColStyle}>
+                                        {sortedRounds.map((round, rIdx) => (
+                                            <div key={rIdx} className="bracket-label-item" style={{
+                                                flex: 1, // Equally space labels in reverse col
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '1rem',
+                                                fontWeight: '900',
+                                                color: comp.themeColor || '#086788',
+                                                position: 'relative',
+                                            }}>
+                                                {/* 將文字拆分並上下堆疊 */}
+                                                <div style={{
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                }}>{round.name}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* 🌟 右側：比賽樹狀圖 (保持原樣，除標題移除外) */}
+                                <div className="bracket-wrapper-wrapper" style={mainStyle}>
+                                    <div className={`bracket-wrapper is-${bracketDir}`}>
+                                        {sortedRounds.map((round, rIdx) => {
+                                            const isLastRound = rIdx === sortedRounds.length - 1;
+                                            const matchPairs = [];
+                                            for (let i = 0; i < round.matches.length; i += 2) {
+                                                matchPairs.push(round.matches.slice(i, i + 2));
+                                            }
+
+                                            return (
+                                                <div key={rIdx} className="bracket-round">
+                                                    {/* 🌟 舊標題與藍線移除，不干擾排版 */}
+                                                    {bracketDir !== 'vertical' && (
+                                                        <h4 className="bracket-round-title" style={{ color: comp.themeColor || '#086788', borderBottom: `2px solid ${comp.themeColor || '#086788'}` }}>
+                                                            {round.name}
+                                                        </h4>
+                                                    )}
+
+                                                    <div className="bracket-round-matches">
+                                                        {matchPairs.map((pair, pIdx) => (
+                                                            <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`}>
+                                                                {pair.map((match, mIdx) => {
+                                                                    const scoreA = parseFloat(match[comp.scoreAColumn]);
+                                                                    const scoreB = parseFloat(match[comp.scoreBColumn]);
+                                                                    const hasScore = !isNaN(scoreA) && !isNaN(scoreB);
+                                                                    const winnerA = hasScore && scoreA > scoreB;
+                                                                    const winnerB = hasScore && scoreB > scoreA;
+
+                                                                    // 魔法計算：強制每一輪的方塊，都跟第一輪的方塊「一模一樣寬」和「一模一樣高」！
+                                                                    const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 100}%` : '100%';
+                                                                    const boxHeightPercent = bracketDir === 'horizontal' ? `${(round.matches.length / maxMatches) * 100}%` : 'auto';
+
+                                                                    return (
+                                                                        <div key={mIdx} className="bracket-match-wrapper">
+                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: boxHeightPercent, border: `2px solid ${comp.themeColor || '#eee'}` }}>
+                                                                                {comp.timeColumn && match[comp.timeColumn] && (
+                                                                                    <div className="bracket-time">{match[comp.timeColumn]}</div>
+                                                                                )}
+                                                                                <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{ color: winnerA ? (comp.themeColor || '#E67E22') : '' }}>
+                                                                                    <span>{match[comp.teamAColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score">{hasScore ? scoreA : '-'}</span>
+                                                                                </div>
+                                                                                <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{ color: winnerB ? (comp.themeColor || '#E67E22') : '' }}>
+                                                                                    <span>{match[comp.teamBColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score">{hasScore ? scoreB : '-'}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                     {comp.type === 'carousel' && (
                         <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
@@ -2617,6 +3018,8 @@
             const saveToRecent = (id, title) => { /* 留空防呆 */ };
 
             const [viewMode, setViewMode] = useState('builder');
+            // 🌟 RWD 編輯器模式切換 (預設為 desktop)
+            const [editorBreakpoint, setEditorBreakpoint] = React.useState('desktop');
             const [previewDevice, setPreviewDevice] = useState('desktop');
             const [activeTab, setActiveTab] = useState('basic');
             const [isInitialLoading, setIsInitialLoading] = useState(urlId ? true : false);
@@ -2683,7 +3086,7 @@
                                             listenMode: c.listenMode || null, listenAll: c.listenAll !== false, customListenCols: c.customListenCols || [],
                                             tableBodySize: c.tableBodySize || 14, tableBodyColor: c.tableBodyColor || '#444444', tableBodyWeight: c.tableBodyWeight || 'normal', tableBodyAlign: c.tableBodyAlign || 'left',
                                             tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left',
-                                            tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent', tableImageCols: c.tableImageCols || '',
+                                            tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent', tableTabCol: c.tableTabCol || '', tableImageCols: c.tableImageCols || '',
                                             tableColWidths: c.tableColWidths || '',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff',
@@ -2798,7 +3201,21 @@
 
             const addBlock = (type, title, defaultW, defaultH) => {
                 const newId = 'comp_' + Date.now();
-                setBlocks(prev => [...prev, { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' }]);
+                const baseComp = { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' };
+
+                // 🏆 給賽程圖塞入專屬記憶體
+                if (type === 'bracket') {
+                    baseComp.bracketScale = 8;
+                    baseComp.roundColumn = '';
+                    baseComp.posColumn = '';
+                    baseComp.teamAColumn = '';
+                    baseComp.scoreAColumn = '';
+                    baseComp.scoreBColumn = '';
+                    baseComp.teamBColumn = '';
+                    baseComp.timeColumn = '';
+                }
+
+                setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
             };
 
@@ -2826,6 +3243,15 @@
                 components: blocks.map(b => ({
                     id: b.i,
                     type: b.type,
+                    x: b.x,
+                    y: b.y,
+                    w: b.w,
+                    h: b.h,
+                    // 🌟 必須把手機版的座標也存進去 JSON！
+                    mobile_x: b.mobile_x,
+                    mobile_y: b.mobile_y,
+                    mobile_w: b.mobile_w,
+                    mobile_h: b.mobile_h,
                     title: b.title,
                     dataSourceId: b.dataSourceId || (sheetSources.length > 0 ? sheetSources[0].id : ''),
                     showTitle: b.showTitle !== false,
@@ -2914,6 +3340,7 @@
                     tableBorderEnable: b.tableBorderEnable || false,
                     tableBorderColor: b.tableBorderColor || '#dddddd',
                     tableBorderWidth: b.tableBorderWidth || 1,
+                    tableTabCol: b.tableTabCol || '',
                     tableImageCols: b.tableImageCols || '',
                     tableColWidths: b.tableColWidths || '',
 
@@ -2960,6 +3387,16 @@
                     mapColorLogic: b.mapColorLogic || 'absolute',
                     mapAutoZoom: b.mapAutoZoom !== false,
 
+                    // 🌟 賽程圖專屬存檔欄位
+                    bracketScale: b.bracketScale || 8,
+                    roundColumn: b.roundColumn || '',
+                    posColumn: b.posColumn || '',
+                    teamAColumn: b.teamAColumn || '',
+                    scoreAColumn: b.scoreAColumn || '',
+                    scoreBColumn: b.scoreBColumn || '',
+                    teamBColumn: b.teamBColumn || '',
+                    timeColumn: b.timeColumn || '',
+
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -2976,6 +3413,18 @@
                 });
             };
             const handleEditorFilterChange = (column, value) => {
+                setFilters(prev => {
+                    const newFilters = { ...prev, [column]: value };
+                    finalJSON.components.forEach((dComp) => {
+                        if ((dComp.type === 'dropdown' || (dComp.type === 'timeline' && dComp.enableFilter)) && dComp.categoryColumn && dComp.categoryColumn !== column) {
+                            const listensToThisCol = dComp.listenAll !== false || (dComp.customListenCols && dComp.customListenCols.includes(column));
+                            if (listensToThisCol && prev[column] !== value) newFilters[dComp.categoryColumn] = '';
+                        }
+                    });
+                    return newFilters;
+                });
+            };
+            const handlePreviewFilterChange = (column, value) => {
                 setFilters(prev => {
                     const newFilters = { ...prev, [column]: value };
                     finalJSON.components.forEach((dComp) => {
@@ -3188,30 +3637,40 @@
 
             return (
                 <div>
-                    <div className="top-nav">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            <button onClick={() => {
-                                if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) window.location.href = '?';
-                            }} style={{ background: '#f5f5f5', border: '1px solid #ccc', color: '#333', fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'} onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
-                                🏠 回大廳
-                            </button>
-                            <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                            {viewMode === 'preview' && (
-                                <div className="device-toggle">
-                                    <button className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>💻 電腦版</button>
-                                    <button className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>📱 手機版</button>
-                                </div>
-                            )}
-                            <div className="mode-toggle">
-                                <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
-                                <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <div className="top-nav">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <button onClick={() => {
+                                    if (window.confirm('您確定要返回大廳嗎？\n\n⚠️ 提醒您：若尚未點擊「🚀 發布儀表板」，剛剛修改的進度將會遺失喔！')) window.location.href = '?';
+                                }} style={{ background: '#f5f5f5', border: '1px solid #ccc', color: '#333', fontSize: '0.95rem', cursor: 'pointer', padding: '8px 15px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', transition: '0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = '#e0e0e0'} onMouseOut={(e) => e.currentTarget.style.background = '#f5f5f5'}>
+                                    🏠 回大廳
+                                </button>
+                                <h2 style={{ margin: 0, color: '#086788' }}>儀表板生成器 (Builder)</h2>
                             </div>
-                            <button className="publish-btn" onClick={handlePublish} disabled={isPublishing}>
-                                {isPublishing ? '發布存檔中...' : '🚀 發布儀表板'}
-                            </button>
+
+                            <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                                {/* 編輯模式下的 RWD 切換 */}
+                                {viewMode === 'builder' && (
+                                    <div className="device-toggle">
+                                        <button className={editorBreakpoint === 'desktop' ? 'active' : ''} onClick={() => { setEditorBreakpoint('desktop'); setTimeout(() => window.dispatchEvent(new Event('resize')), 50); }}>💻 電腦版</button>
+                                        <button className={editorBreakpoint === 'mobile' ? 'active' : ''} onClick={() => { setEditorBreakpoint('mobile'); setTimeout(() => window.dispatchEvent(new Event('resize')), 50); }}>📱 手機版</button>
+                                    </div>
+                                )}
+                                {/* 預覽模式下的 RWD 切換 */}
+                                {viewMode === 'preview' && (
+                                    <div className="device-toggle">
+                                        <button className={previewDevice === 'desktop' ? 'active' : ''} onClick={() => setPreviewDevice('desktop')}>💻 電腦版</button>
+                                        <button className={previewDevice === 'mobile' ? 'active' : ''} onClick={() => setPreviewDevice('mobile')}>📱 手機版</button>
+                                    </div>
+                                )}
+                                <div className="mode-toggle">
+                                    <button className={viewMode === 'builder' ? 'active' : ''} onClick={() => setViewMode('builder')}>✏️ 編輯排版</button>
+                                    <button className={viewMode === 'preview' ? 'active' : ''} onClick={() => setViewMode('preview')}>👁️ 真實預覽</button>
+                                </div>
+                                <button className="publish-btn" onClick={handlePublish} disabled={isPublishing}>
+                                    {isPublishing ? '發布存檔中...' : '🚀 發布儀表板'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -3236,53 +3695,110 @@
                                 <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
                                 <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊長條圖</button>
                                 <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
+                                <button className="add-btn chart-btn" onClick={() => addBlock('bracket', '🏆 淘汰賽程圖', 12, 10)} style={{ background: '#f39c12', color: 'white' }}>+ 賽程樹狀圖</button>
                                 <button className="add-btn" onClick={() => addBlock('choroplethMap', '🗺️ 台灣熱力圖', 12, 10)} style={{ background: '#1ABC9C' }}>+ 熱力地圖</button>
                             </div>
 
                             {/* 🌟 修正：強制隱藏水平捲軸，並套用漸層背景 */}
-                            <div className="canvas-area" style={{ background: globalBgStyle, overflowX: 'hidden' }}>
-                                {/* 🌟 修正：加入 boxSizing 解決邊框撐破畫布的 Bug，並將背景改透明讓漸層透出來 */}
-                                <div className="grid-bg" style={{ background: 'transparent', minHeight: '100%', boxSizing: 'border-box', border: '2px dashed rgba(0,0,0,0.15)' }} onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
+                            <div className="canvas-area" style={{ background: globalBgStyle, overflowX: 'hidden', display: 'flex', justifyContent: 'center' }}>
+
+                                {/* 🌟 畫布外框：根據 editorBreakpoint 動態縮小！ */}
+                                <div className="grid-bg" style={{
+                                    background: 'transparent',
+                                    minHeight: '100%',
+                                    boxSizing: 'border-box',
+                                    border: '2px dashed rgba(0,0,0,0.15)',
+                                    width: editorBreakpoint === 'mobile' ? '375px' : '100%', // 📱 手機版畫布寬度！
+                                    transition: 'width 0.3s ease-in-out', // 加上縮放動畫
+                                    boxShadow: editorBreakpoint === 'mobile' ? '0 0 20px rgba(0,0,0,0.1)' : 'none',
+                                    margin: editorBreakpoint === 'mobile' ? '0 auto' : '0',
+                                    position: 'relative'
+                                }} onMouseDown={(e) => { if (!e.target.closest('.grid-item')) setSelectedBlockId(null); }}>
+
+                                    {/* 💡 在畫布上貼個小標籤，提醒現在是手機版 */}
+                                    {editorBreakpoint === 'mobile' && (
+                                        <div style={{ position: 'absolute', top: '-30px', left: '50%', transform: 'translateX(-50%)', background: '#333', color: '#fff', padding: '2px 10px', borderRadius: '10px', fontSize: '12px', zIndex: 10 }}>
+                                            📱 手機版排版預覽 (375px)
+                                        </div>
+                                    )}
+
                                     <ResponsiveRGL
-                                        layout={blocks}
-                                        cols={12}
+                                        key={editorBreakpoint} // 🌟 關鍵：切換模式時強迫重新繪製，解決不聽話的問題
+                                        breakpoint={editorBreakpoint} // 🌟 關鍵：強制指定目前要用電腦還是手機版佈局
+                                        breakpoints={{ desktop: 768, mobile: 0 }}
+                                        cols={{ desktop: 12, mobile: 12 }}
+                                        layouts={{
+                                            // 🌟 確保傳進去的每一項都是純數字，絕不允許 NaN 存在
+                                            desktop: blocks.map(b => ({
+                                                i: String(b.i),
+                                                x: Number(b.x) || 0,
+                                                y: Number(b.y) || 0,
+                                                w: Number(b.w) || 12,
+                                                h: Number(b.h) || 4
+                                            })),
+                                            mobile: blocks.map(b => ({
+                                                i: String(b.i),
+                                                x: Number(b.mobile_x ?? b.x) || 0,
+                                                y: Number(b.mobile_y ?? b.y) || 0,
+                                                w: Number(b.mobile_w ?? 12) || 12,
+                                                h: Number(b.mobile_h ?? b.h) || 4
+                                            }))
+                                        }}
                                         rowHeight={30}
                                         margin={[15, 15]}
-                                        onLayoutChange={handleLayoutChange}
+                                        onLayoutChange={(currentLayout, allLayouts) => {
+                                            const updatedBlocks = blocks.map(b => {
+                                                const bid = String(b.i);
+                                                // 根據當前模式從對應的佈局中抓資料
+                                                const dt = (allLayouts.desktop || []).find(l => l.i === bid);
+                                                const mb = (allLayouts.mobile || []).find(l => l.i === bid);
+                                                const curr = currentLayout.find(l => l.i === bid);
+
+                                                return {
+                                                    ...b,
+                                                    // 電腦版存檔：如果是電腦模式就更新，否則維持原樣
+                                                    x: editorBreakpoint === 'desktop' ? (curr?.x ?? b.x) : (dt?.x ?? b.x),
+                                                    y: editorBreakpoint === 'desktop' ? (curr?.y ?? b.y) : (dt?.y ?? b.y),
+                                                    w: editorBreakpoint === 'desktop' ? (curr?.w ?? b.w) : (dt?.w ?? b.w),
+                                                    h: editorBreakpoint === 'desktop' ? (curr?.h ?? b.h) : (dt?.h ?? b.h),
+                                                    // 手機版存檔
+                                                    mobile_x: editorBreakpoint === 'mobile' ? (curr?.x ?? b.mobile_x) : (mb?.x ?? b.mobile_x ?? b.x),
+                                                    mobile_y: editorBreakpoint === 'mobile' ? (curr?.y ?? b.mobile_y) : (mb?.y ?? b.mobile_y ?? b.y),
+                                                    mobile_w: editorBreakpoint === 'mobile' ? (curr?.w ?? b.mobile_w) : (mb?.w ?? b.mobile_w ?? 12),
+                                                    mobile_h: editorBreakpoint === 'mobile' ? (curr?.h ?? b.mobile_h) : (mb?.h ?? b.mobile_h ?? b.h),
+                                                };
+                                            });
+                                            setBlocks(updatedBlocks);
+                                        }}
                                         draggableCancel=".delete-btn, select, button, input, a, .timeline-item, .custom-html-legend div, .carousel-arrow, .carousel-dot"
                                         resizeHandles={['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne']}
                                         style={{ minHeight: '100%' }}
                                     >
                                         {blocks.map(block => {
-                                            const compJSON = finalJSON.components.find(c => c.id === block.i); // 將編輯積木轉換成標準格式給圖表讀取
+                                            const compJSON = finalJSON.components.find(c => c.id === block.i);
+                                            // 🌟 修正：size-badge 顯示邏輯，徹底消滅 NaN 文字
+                                            const currentW = editorBreakpoint === 'mobile' ? (block.mobile_w ?? 12) : (block.w ?? 12);
+                                            const safeW = isNaN(Number(currentW)) ? 12 : Number(currentW);
+
                                             return (
-                                                <div key={block.i}>
+                                                <div key={String(block.i)}>
                                                     <div className={`grid-item ${selectedBlockId === block.i ? 'selected' : ''}`} onMouseDown={() => setSelectedBlockId(block.i)}>
                                                         <button className="delete-btn" onMouseDown={(e) => { e.stopPropagation(); removeBlock(block.i); }}>✕</button>
-
-                                                        {/* 🌟 替身術：拖曳時才會顯示的骨架 */}
                                                         <div className="drag-placeholder">
                                                             <span style={{ fontSize: '1.2rem' }}>{block.title || '(無標題)'}</span>
                                                             <div className="type-badge">{block.type}</div>
                                                         </div>
-
-                                                        {/* 🌟 WYSIWYG 真實圖表 */}
                                                         <div className="actual-chart">
-                                                            <ChartComponent
-                                                                comp={compJSON}
-                                                                rawData={dataMap[compJSON.dataSourceId] || []}
-                                                                filteredData={getFilteredDataForComp(compJSON)}
-                                                                aggregateData={aggregateData}
-                                                                filters={filters}
-                                                                onFilterChange={handleEditorFilterChange}
-                                                                missingDropdowns={getEditorMissingDropdowns(compJSON)}
-                                                                isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
-                                                                aggregateStackedData={aggregateStackedData}
-                                                                isEditing={true}
-                                                            />
+                                                            {compJSON && <ChartComponent
+                                                                comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
+                                                                aggregateData={aggregateData} filters={filters} onFilterChange={handleEditorFilterChange} missingDropdowns={getEditorMissingDropdowns(compJSON)}
+                                                                isDropdownDisabled={checkEditorDropdownDisabled(compJSON)} aggregateStackedData={aggregateStackedData}
+                                                                isEditing={true} editorBreakpoint={editorBreakpoint} previewDevice={previewDevice} /* 🌟 在這裡把包裹送進去 */
+                                                            />}
                                                         </div>
-
-                                                        <div className="size-badge">{block.w} / 12 格</div>
+                                                        <div className="size-badge">
+                                                            {safeW} / 12 格
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
@@ -3437,6 +3953,78 @@
 
                                             {activeTab === 'data' && (
                                                 <div className="panel-content">
+                                                    {/* 🏆 賽程樹狀圖專屬設定面板 */}
+                                                    {currentSelectedBlock.type === 'bracket' && (
+                                                        <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '15px' }}>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🏆 賽事規模設定</h4>
+                                                            <div className="form-group">
+                                                                <label>選擇賽程表規模</label>
+                                                                <select value={currentSelectedBlock.bracketScale || 8} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'bracketScale', Number(e.target.value))}>
+                                                                    <option value={4}>4 強賽 (共 3 場)</option>
+                                                                    <option value={8}>8 強賽 (共 7 場)</option>
+                                                                    <option value={16}>16 強賽 (共 15 場)</option>
+                                                                    <option value={32}>32 強賽 (共 31 場)</option>
+                                                                </select>
+                                                                <div className="form-group" style={{ marginTop: '10px' }}>
+                                                                    <label>電腦版排版方向</label>
+                                                                    <select value={currentSelectedBlock.chartOrientation || 'vertical'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'chartOrientation', e.target.value)}>
+                                                                        <option value="vertical">直向發展 (下到上，冠軍在頂部)</option>
+                                                                        <option value="horizontal">橫向發展 (左到右)</option>
+                                                                    </select>
+                                                                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 為了避免方塊在窄螢幕過度擠壓，手機版將自動強制變為「橫向發展」。</div>
+                                                                </div>
+                                                            </div>
+
+                                                            <hr style={{ border: 'none', borderTop: '2px dashed #ccc', margin: '20px 0' }} />
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📊 綁定資料表欄位</h4>
+                                                            <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: '10px' }}>請確實綁定以下欄位，系統才能畫出正確的晉級連線。</p>
+
+                                                            <div className="form-group"><label>賽程階段 (Round) 必填</label><select value={currentSelectedBlock.roundColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'roundColumn', e.target.value)}><option value="">-- 選擇欄位 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                            <div className="form-group"><label>位置編號 (Order) 必填</label><select value={currentSelectedBlock.posColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'posColumn', e.target.value)}><option value="">-- 選擇欄位 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>隊伍 A</label><select value={currentSelectedBlock.teamAColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'teamAColumn', e.target.value)}><option value="">-- 請選擇 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>得分 A</label><select value={currentSelectedBlock.scoreAColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'scoreAColumn', e.target.value)}><option value="">-- 請選擇 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                            </div>
+
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>隊伍 B</label><select value={currentSelectedBlock.teamBColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'teamBColumn', e.target.value)}><option value="">-- 請選擇 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}><label>得分 B</label><select value={currentSelectedBlock.scoreBColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'scoreBColumn', e.target.value)}><option value="">-- 請選擇 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                            </div>
+
+                                                            <div className="form-group" style={{ marginTop: '10px' }}><label>時間/備註 (選填)</label><select value={currentSelectedBlock.timeColumn || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'timeColumn', e.target.value)}><option value="">-- 無 --</option>{availableColumns.map(col => <option key={col} value={col}>{col}</option>)}</select></div>
+                                                        </div>
+                                                    )}
+                                                    {/* 🗺️ 地圖專屬：邊界資料設定 (從樣式搬過來的) */}
+                                                    {currentSelectedBlock.type === 'choroplethMap' && (
+                                                        <div style={{ background: '#f0f7fa', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #bce0ed' }}>
+                                                            <div className="form-group" style={{ marginBottom: '15px' }}>
+                                                                <label style={{ fontWeight: 'bold', color: '#086788' }}>🗺️ 自訂地圖邊界資料 (GeoJSON/TopoJSON網址)</label>
+                                                                <input type="text" value={currentSelectedBlock.mapUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapUrl', e.target.value)} placeholder="https://..." />
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>預設為台灣縣市地圖。若需更改，請填入合法的 GeoJSON/TopoJSON 網址。</div>
+                                                            </div>
+
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontWeight: 'bold', color: '#086788' }}>📂 或上傳本地圖資測試 (支援 TopoJSON / GeoJSON)</label>
+                                                                <input type="file" accept=".json,.geojson,.topojson" onChange={(e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (file) {
+                                                                        const reader = new FileReader();
+                                                                        reader.onload = (evt) => {
+                                                                            try {
+                                                                                const json = JSON.parse(evt.target.result);
+                                                                                updateBlockProperty(currentSelectedBlock.i, 'mapGeojson', json);
+                                                                            } catch (err) {
+                                                                                alert('檔案解析失敗，請確認是否為合法的 JSON 格式。');
+                                                                            }
+                                                                        };
+                                                                        reader.readAsText(file);
+                                                                    }
+                                                                }} />
+                                                                <div style={{ fontSize: '0.8rem', color: '#d9534f', marginTop: '5px', fontWeight: 'bold' }}>⚠️ 警告：本地圖資僅供測試預覽！正式發布請務必使用上方網址！</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     {/* 🗄️ 選擇資料來源 */}
                                                     {currentSelectedBlock.type !== 'button' && sheetSources.length > 0 && (
@@ -3774,6 +4362,15 @@
                                                                     <label>📏 自訂欄位寬度 (依序列出，用逗號分隔)</label>
                                                                     <input type="text" value={currentSelectedBlock.tableColWidths || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableColWidths', e.target.value)} placeholder="例如：80px, 120px, auto, 15%" />
                                                                     <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 留空則自動均分。auto 代表自動彈性，px/rem/% 代表固定寬度。</div>
+                                                                </div>
+                                                                {/* 🌟 需求 5：表格分頁設定 */}
+                                                                <div className="form-group" style={{ marginBottom: '10px', paddingTop: '10px', borderTop: '1px dashed #ccc' }}>
+                                                                    <label>📑 自動分頁群組欄位 (如：比賽日期、縣市)</label>
+                                                                    <select value={currentSelectedBlock.tableTabCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableTabCol', e.target.value)}>
+                                                                        <option value="">不使用分頁 (顯示全部)</option>
+                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                    </select>
+                                                                    <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 選擇後，表格上方會自動產生分頁按鈕，點擊可切換顯示內容。</div>
                                                                 </div>
                                                             </div>
                                                             {/* 1. 表格內文樣式 */}
@@ -4308,41 +4905,6 @@
                                                     )}
                                                     {currentSelectedBlock.type === 'choroplethMap' && (
                                                         <>
-                                                            <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📍 外部圖資設定 (進階)</h4>
-                                                            <div className="form-group" style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', border: '1px solid #e9ecef', marginBottom: '20px' }}>
-                                                                <div className="form-group" style={{ marginBottom: '10px' }}>
-                                                                    <label>TopoJSON 網址 (留空則使用 2015 版台灣縣市圖)</label>
-                                                                    <input type="text" value={currentSelectedBlock.mapTopoUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapTopoUrl', e.target.value)} placeholder="https://..." />
-                                                                </div>
-                                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                    <label>圖資屬性鍵值 (預設為 COUNTYNAME)</label>
-                                                                    <input type="text" value={currentSelectedBlock.mapFeatureKey || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapFeatureKey', e.target.value)} placeholder="例如：TOWNNAME 或 name" />
-                                                                    <span style={{ fontSize: '0.8rem', color: '#888', marginTop: '5px' }}>這是用來與你的 Google Sheet 進行名字比對的欄位。</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="form-group" style={{ marginTop: '10px', marginBottom: 0, borderTop: '1px dashed #ccc', paddingTop: '10px' }}>
-                                                                <label>📁 或上傳本地圖資測試 (支援 TopoJSON / GeoJSON)</label>
-                                                                <input type="file" accept=".json" onChange={(e) => {
-                                                                    const file = e.target.files[0];
-                                                                    if (!file) return;
-                                                                    const reader = new FileReader();
-                                                                    reader.onload = (evt) => {
-                                                                        try {
-                                                                            const json = JSON.parse(evt.target.result);
-                                                                            updateBlockProperty(currentSelectedBlock.i, 'customTopoJson', json);
-                                                                            alert('✅ 本地地圖檔案載入成功！');
-                                                                        } catch (err) {
-                                                                            alert('❌ 解析失敗，請確認檔案是否為合法的 JSON。');
-                                                                        }
-                                                                    };
-                                                                    reader.readAsText(file);
-                                                                }} style={{ padding: '5px 0', border: 'none' }} />
-                                                                <span style={{ fontSize: '0.8rem', color: '#E74C3C', fontWeight: 'bold' }}>⚠️ 警告：本地圖資僅供測試預覽！若檔案過大，點擊「發布」時將會導致存檔失敗。正式發布請務必使用上方網址！</span>
-
-                                                                {currentSelectedBlock.customTopoJson && (
-                                                                    <button onClick={() => updateBlockProperty(currentSelectedBlock.i, 'customTopoJson', null)} style={{ marginTop: '5px', padding: '5px', background: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>清除本地圖資</button>
-                                                                )}
-                                                            </div>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🗺️ 地圖色階與極值設定</h4>
                                                             <div style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', marginBottom: '20px' }}>
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -4698,75 +5260,55 @@
                     )}
 
                     {viewMode === 'preview' && (
-                        <div className="builder-container" style={{ justifyContent: 'center', height: 'auto', background: '#e8e8e8', padding: '40px 20px', borderRadius: '12px' }}>
-                            <div className={`preview-wrapper ${previewDevice}`}>
-                                <div className="preview-container" style={{ background: globalBgStyle }}>
-
-                                    {/* 📰 預覽頁首 */}
-                                    <div className="news-header">
-                                        <div style={{ flex: 1, textAlign: globalMeta.titleAlign || 'left' }}>
-                                            <h2 className="news-title" style={{ color: globalMeta.titleColor || '#222', fontSize: globalMeta.titleFontSize || '1.8rem', fontWeight: globalMeta.titleFontWeight || '900', fontFamily: globalMeta.titleFontFamily || 'inherit', margin: 0 }}>
-                                                {globalMeta.title}
-                                            </h2>
-                                        </div>
-                                        {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'top-right' && (
-                                            <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px`, marginLeft: '15px' }} />
-                                        )}
-                                    </div>
-
-                                    {/* 🧹 清除篩選按鈕 */}
-                                    {Object.values(filters).some(v => v) && (
-                                        <button className="reset-filter-btn" onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
-                                    )}
-
-                                    {/* 📊 圖表網格直接使用編輯器的新引擎渲染！ */}
-                                    <div className="preview-grid">
-                                        {/* 🌟 核心修正：將預覽模式的陣列也加上正確的 Y 座標排序 */}
-                                        {[...finalJSON.components].sort((a, b) => {
-                                            const aY = a.layout?.y || 0; const aX = a.layout?.x || 0;
-                                            const bY = b.layout?.y || 0; const bX = b.layout?.x || 0;
-                                            return aY === bY ? aX - bX : aY - bY;
-                                        }).map(compJSON => (
-                                            <ChartComponent
-                                                key={compJSON.id}
-                                                comp={compJSON}
-                                                rawData={dataMap[compJSON.dataSourceId] || []}
-                                                filteredData={getFilteredDataForComp(compJSON)}
-                                                aggregateData={aggregateData}
-                                                filters={filters}
-                                                onFilterChange={handleEditorFilterChange}
-                                                missingDropdowns={getEditorMissingDropdowns(compJSON)}
-                                                isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
-                                                aggregateStackedData={aggregateStackedData}
-                                                isEditing={false}
-                                            />
-                                        ))}
-                                    </div>
-
-                                    {/* 📄 預覽頁尾 */}
-                                    {(globalMeta.lastUpdated || (globalMeta.dataSources && globalMeta.dataSources.some(s => s.name)) || (globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right')) && (
-                                        <div className="news-footer">
-                                            <div className="news-footer-left">
-                                                {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
-                                                {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
-                                                        {globalMeta.dataSources.some(s => s.name) && <span>資料來源：</span>}
-                                                        {globalMeta.dataSources.filter(s => s.name).map((source, idx, arr) => (
-                                                            <span key={idx}>
-                                                                {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.name}</a> : <span>{source.name}</span>}
-                                                                {idx < arr.length - 1 && '、'}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
+                        <div className="preview-mode" style={{ background: globalBgStyle, padding: '20px', minHeight: '100vh', overflowX: 'hidden' }}>
+                            {/* 模擬手機或電腦的容器 */}
+                            <div style={{
+                                width: previewDevice === 'mobile' ? '375px' : '100%',
+                                margin: '0 auto',
+                                transition: 'width 0.3s ease',
+                                background: 'white',
+                                boxShadow: previewDevice === 'mobile' ? '0 0 50px rgba(0,0,0,0.2)' : 'none',
+                                minHeight: '100vh'
+                            }}>
+                                <ResponsiveRGL
+                                    // 🌟 關鍵 1：強迫預覽引擎根據切換的裝置，讀取正確的座標
+                                    breakpoint={previewDevice}
+                                    breakpoints={{ desktop: 768, mobile: 0 }}
+                                    cols={{ desktop: 12, mobile: 12 }}
+                                    layouts={{
+                                        desktop: blocks.map(b => ({ i: String(b.i), x: b.x, y: b.y, w: b.w, h: b.h })),
+                                        mobile: blocks.map(b => ({
+                                            i: String(b.i),
+                                            x: b.mobile_x ?? b.x,
+                                            y: b.mobile_y ?? b.y,
+                                            w: b.mobile_w ?? 12, // 手機版沒設過預設滿版
+                                            h: b.mobile_h ?? b.h
+                                        }))
+                                    }}
+                                    rowHeight={30}
+                                    margin={[15, 15]}
+                                    isDraggable={false} // 預覽模式不能拖拽
+                                    isResizable={false} // 預覽模式不能縮放
+                                    style={{ minHeight: '100%' }}
+                                >
+                                    {blocks.map(block => {
+                                        const compJSON = finalJSON.components.find(c => c.id === block.i);
+                                        return (
+                                            <div key={String(block.i)}>
+                                                <ChartComponent
+                                                    comp={compJSON}
+                                                    rawData={dataMap[compJSON.dataSourceId] || []}
+                                                    filteredData={getFilteredDataForComp(compJSON)}
+                                                    aggregateData={aggregateData}
+                                                    filters={filters}
+                                                    onFilterChange={handlePreviewFilterChange}
+                                                    aggregateStackedData={aggregateStackedData}
+                                                    isEditing={false} editorBreakpoint={editorBreakpoint} previewDevice={previewDevice} /* 🌟 在這裡把包裹送進去 */
+                                                />
                                             </div>
-                                            {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
-                                                <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px` }} />
-                                            )}
-                                        </div>
-                                    )}
-
-                                </div>
+                                        );
+                                    })}
+                                </ResponsiveRGL>
                             </div>
                         </div>
                     )}
