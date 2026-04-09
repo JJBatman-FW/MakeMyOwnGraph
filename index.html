@@ -3029,7 +3029,9 @@
                                                                                         fontFamily: matchFontFamily,
                                                                                         borderBottom: bracketDir === 'vertical' ? 'none' : `1px solid ${matchBorderC}`,
                                                                                         borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
-                                                                                        flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', boxSizing: 'border-box'
+                                                                                        flex: 1, display: 'flex', justifyContent: bracketDir === 'vertical' ? 'center' : 'space-between',
+                                                                                        alignItems: 'center',
+                                                                                        gap: bracketDir === 'vertical' ? '8px' : '0', padding: '8px 10px', boxSizing: 'border-box'
                                                                                     }}>
                                                                                         {/* 🌟 破解魔法：直接將 fontSize 和 fontWeight 綁定在文字的 span 上 */}
                                                                                         <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{match[comp.teamAColumn] || 'TBD'}</span>
@@ -3041,7 +3043,9 @@
                                                                                         background: winnerB ? winnerBg : 'transparent',
                                                                                         color: winnerB ? winnerFontC : matchFontC,
                                                                                         fontFamily: matchFontFamily,
-                                                                                        flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', boxSizing: 'border-box'
+                                                                                        flex: 1, display: 'flex', justifyContent: bracketDir === 'vertical' ? 'center' : 'space-between',
+                                                                                        alignItems: 'center',
+                                                                                        gap: bracketDir === 'vertical' ? '8px' : '0', padding: '8px 10px', boxSizing: 'border-box'
                                                                                     }}>
                                                                                         <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{match[comp.teamBColumn] || 'TBD'}</span>
                                                                                         <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{hasScore ? scoreB : '-'}</span>
