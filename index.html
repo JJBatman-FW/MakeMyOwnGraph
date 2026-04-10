@@ -891,6 +891,19 @@
                 aspect-ratio: 1 / 1;
                 min-height: 300px;
             }
+
+            .carousel-img-dynamic {
+                height: var(--img-height-mobile) !important;
+                width: var(--img-width-mobile) !important;
+            }
+
+            /* 假設你的外層積木 class 叫做 .block-wrapper 或 .react-grid-item */
+            .你的積木外層容器_CLASS名稱 {
+                height: auto !important;
+                /* 🌟 關鍵魔法 1：不要鎖死高度，讓裡面的內容把框框撐高！ */
+                margin-bottom: 20px;
+                /* 🌟 關鍵魔法 2：確保積木跟積木之間有安全的社交距離 */
+            }
         }
 
         .preview-wrapper.mobile .chart-scroll-area.is-horizontal {
@@ -1053,13 +1066,6 @@
         .carousel-img-dynamic {
             height: var(--img-height-desktop);
             width: var(--img-width-desktop);
-        }
-
-        @media (max-width: 768px) {
-            .carousel-img-dynamic {
-                height: var(--img-height-mobile) !important;
-                width: var(--img-width-mobile) !important;
-            }
         }
 
         .preview-wrapper.mobile .carousel-img-dynamic {
@@ -3108,7 +3114,7 @@
                         );
                     })()}
                     {comp.type === 'carousel' && (
-                        <div className="carousel-container" style={{ '--primary': comp.themeColor || '#086788' }}>
+                        <div className="carousel-container" style={{ height: '100%', width: '100%', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' /* 新增這行 */ }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在右側資料面板綁定欄位</p>
                             ) : (
@@ -3728,21 +3734,42 @@
 
             const handlePublish = async () => {
                 setIsPublishing(true);
+
+                // 🌟 終極淨化魔法：轉成文字再轉回物件，這個過程會讓所有 undefined 的屬性瞬間蒸發！
+                const cleanJSON = JSON.parse(JSON.stringify(finalJSON));
+
                 try {
                     if (publishedId && window.updateToFirebase) {
-                        await window.updateToFirebase(publishedId, finalJSON);
+                        // 🌟 這裡改成送出 cleanJSON
+                        await window.updateToFirebase(publishedId, cleanJSON);
                         saveToRecent(publishedId, globalMeta.title);
                         setShowPublishModal(true);
                     } else if (window.publishToFirebase) {
-                        const newId = await window.publishToFirebase(finalJSON);
+                        // 🌟 這裡也改成送出 cleanJSON
+                        const newId = await window.publishToFirebase(cleanJSON);
                         setPublishedId(newId);
                         saveToRecent(newId, globalMeta.title);
                         window.history.replaceState(null, '', `?id=${newId}`);
                         setShowPublishModal(true);
                     } else { alert("⚠️ Firebase 尚未載入完成，請稍候重試！"); }
-                } catch (error) { alert("❌ 發布失敗！詳細錯誤：" + error.message); } finally { setIsPublishing(false); }
-            };
+                } catch (error) {
+                    console.error("發布失敗詳細資訊: ", error);
 
+                    // 🌟 錯誤翻譯蒟蒻：如果 Firebase 還是抱怨 undefined (通常加了淨化器就不會發生了)
+                    if (error.message && error.message.includes('Unsupported field value: undefined')) {
+                        alert(
+                            "⚠️ 存檔失敗：偵測到積木設定不完整。\n\n" +
+                            "💡 解決建議：\n" +
+                            "這通常是因為系統更新了新功能，但舊的圖表沒有抓到預設值。\n" +
+                            "請點擊畫布上的「表格」或「賽程圖」，在右側面板隨意切換一下任何設定（例如開關一下合併儲存格、換個顏色再換回來），讓系統重新讀取設定後，再次點擊發布即可！"
+                        );
+                    }
+                    // 其他未知的錯誤
+                    else {
+                        alert("⚠️ 存檔失敗，請檢查網路連線或聯絡系統管理員。\n錯誤代碼：" + error.message);
+                    }
+                };
+            }
             const handleCopy = () => {
                 // 🌟 修正：移除了重複的 https://
                 const iframeCode = `<iframe \n  src="https://jjbatman-fw.github.io/MakeMyOwnGraph/index.html?id=${publishedId}&mode=view" \n  width="100%" \n  height="800px" \n  frameborder="0" \n  scrolling="no"\n></iframe>`;
@@ -3998,7 +4025,6 @@
                                             📱 手機版排版預覽 (375px)
                                         </div>
                                     )}
-
                                     <ResponsiveRGL
                                         key={editorBreakpoint} // 🌟 關鍵：切換模式時強迫重新繪製，解決不聽話的問題
                                         breakpoint={editorBreakpoint} // 🌟 關鍵：強制指定目前要用電腦還是手機版佈局
@@ -4081,6 +4107,7 @@
                                             );
                                         })}
                                     </ResponsiveRGL>
+
                                 </div>
                             </div>
 
@@ -5634,17 +5661,42 @@
 
                     {viewMode === 'preview' && (
                         <div className="preview-mode" style={{ background: globalBgStyle, padding: '20px', minHeight: '100vh', overflowX: 'hidden' }}>
-                            {/* 模擬手機或電腦的容器 */}
-                            <div style={{
+
+                            {/* 🌟 拔除原本多餘的白底容器，讓背景透明，寬度隨裝置切換 */}
+                            <div className="preview-container" style={{
+                                background: 'transparent',
+                                boxShadow: 'none',
+                                padding: 0,
                                 width: previewDevice === 'mobile' ? '375px' : '100%',
+                                maxWidth: previewDevice === 'mobile' ? '375px' : '1200px',
                                 margin: '0 auto',
-                                transition: 'width 0.3s ease',
-                                background: 'white',
-                                boxShadow: previewDevice === 'mobile' ? '0 0 50px rgba(0,0,0,0.2)' : 'none',
-                                minHeight: '100vh'
+                                transition: 'width 0.3s ease'
                             }}>
+
+                                {/* 📰 完美移植 1：發布版的頁首 (標題 + 藍色底線 + 頂部浮水印) */}
+                                <div className="news-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '3px solid #086788', paddingBottom: '15px', marginBottom: '25px' }}>
+                                    <div style={{ flex: 1, textAlign: globalMeta.titleAlign || 'left' }}>
+                                        <h2 className="news-title" style={{ color: globalMeta.titleColor || '#222', fontSize: globalMeta.titleFontSize || '1.8rem', fontWeight: globalMeta.titleFontWeight || '900', fontFamily: globalMeta.titleFontFamily || 'inherit', margin: 0 }}>
+                                            {globalMeta.title}
+                                        </h2>
+                                    </div>
+                                    {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'top-right' && (
+                                        <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px`, marginLeft: '15px', objectFit: 'contain' }} />
+                                    )}
+                                </div>
+
+                                {/* 🧹 重整資料按鈕與過濾器 */}
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginBottom: '15px', flexWrap: 'wrap' }}>
+                                    <button className="reset-filter-btn" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '5px', background: isFetching ? '#e0e0e0' : '#e8f4f8', color: '#086788', borderColor: '#bce0ed', fontWeight: 'bold', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', border: '1px solid' }} onClick={() => fetchSheetColumns(true)} disabled={isFetching}>
+                                        {isFetching ? '⏳ 資料讀取中...' : '🔄 重新讀取最新資料'}
+                                    </button>
+                                    {Object.values(filters).some(v => v) && (
+                                        <button className="reset-filter-btn" style={{ margin: 0, padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ccc', background: '#eee', color: '#555' }} onClick={() => setFilters({})}>↺ 清除所有篩選與重新開始</button>
+                                    )}
+                                </div>
+
+                                {/* 📊 圖表積木網格 */}
                                 <ResponsiveRGL
-                                    // 🌟 關鍵 1：強迫預覽引擎根據切換的裝置，讀取正確的座標
                                     breakpoint={previewDevice}
                                     breakpoints={{ desktop: 768, mobile: 0 }}
                                     cols={{ desktop: 12, mobile: 12 }}
@@ -5652,36 +5704,57 @@
                                         desktop: blocks.map(b => ({ i: String(b.i), x: b.x, y: b.y, w: b.w, h: b.h })),
                                         mobile: blocks.map(b => ({
                                             i: String(b.i),
-                                            x: b.mobile_x ?? b.x,
-                                            y: b.mobile_y ?? b.y,
-                                            w: b.mobile_w ?? 12, // 手機版沒設過預設滿版
-                                            h: b.mobile_h ?? b.h
+                                            x: Number(b.mobile_x ?? b.x) || 0,
+                                            y: Number(b.mobile_y ?? b.y) || 0,
+                                            w: Number(b.mobile_w ?? 12) || 12,
+                                            h: Number(b.mobile_h ?? b.h) || 4
                                         }))
                                     }}
                                     rowHeight={30}
                                     margin={[15, 15]}
-                                    isDraggable={false} // 預覽模式不能拖拽
-                                    isResizable={false} // 預覽模式不能縮放
-                                    style={{ minHeight: '100%' }}
+                                    isDraggable={false}
+                                    isResizable={false}
+                                    style={{ minHeight: '10px' }}
                                 >
                                     {blocks.map(block => {
                                         const compJSON = finalJSON.components.find(c => c.id === block.i);
+                                        if (!compJSON) return null;
                                         return (
                                             <div key={String(block.i)}>
                                                 <ChartComponent
-                                                    comp={compJSON}
-                                                    rawData={dataMap[compJSON.dataSourceId] || []}
-                                                    filteredData={getFilteredDataForComp(compJSON)}
-                                                    aggregateData={aggregateData}
-                                                    filters={filters}
-                                                    onFilterChange={handlePreviewFilterChange}
-                                                    aggregateStackedData={aggregateStackedData}
-                                                    isEditing={false} editorBreakpoint={editorBreakpoint} previewDevice={previewDevice} /* 🌟 在這裡把包裹送進去 */
+                                                    comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
+                                                    aggregateData={aggregateData} filters={filters} onFilterChange={handlePreviewFilterChange}
+                                                    missingDropdowns={getEditorMissingDropdowns(compJSON)} isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
+                                                    aggregateStackedData={aggregateStackedData} isEditing={false} editorBreakpoint={editorBreakpoint} previewDevice={previewDevice}
                                                 />
                                             </div>
                                         );
                                     })}
                                 </ResponsiveRGL>
+
+                                {/* 📄 完美移植 2：發布版的頁尾 (更新時間 + 來源 + 底部浮水印) */}
+                                {(globalMeta.lastUpdated || (globalMeta.dataSources && globalMeta.dataSources.some(s => s.name)) || (globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right')) && (
+                                    <div className="news-footer" style={{ marginTop: '30px', paddingTop: '15px', borderTop: '1px dashed #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.85rem', color: '#888' }}>
+                                        <div className="news-footer-left" style={{ display: 'flex', flexDirection: 'column', gap: '5px', textAlign: 'left' }}>
+                                            {globalMeta.lastUpdated && <div>🕒 更新時間：{globalMeta.lastUpdated}</div>}
+                                            {globalMeta.dataSources && globalMeta.dataSources.length > 0 && (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                                                    {globalMeta.dataSources.some(s => s.name) && <span>資料來源：</span>}
+                                                    {globalMeta.dataSources.filter(s => s.name).map((source, idx, arr) => (
+                                                        <span key={idx}>
+                                                            {source.url ? <a href={source.url} target="_blank" rel="noreferrer" style={{ color: '#086788', textDecoration: 'none', fontWeight: 'bold' }}>{source.name}</a> : <span>{source.name}</span>}
+                                                            {idx < arr.length - 1 && '、'}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {globalMeta.watermarkUrl && globalMeta.watermarkPosition === 'bottom-right' && (
+                                            <img src={globalMeta.watermarkUrl} alt="Watermark" className="news-watermark" style={{ height: `${globalMeta.watermarkSize || 40}px`, objectFit: 'contain' }} />
+                                        )}
+                                    </div>
+                                )}
+
                             </div>
                         </div>
                     )}
