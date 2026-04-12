@@ -2322,7 +2322,8 @@
                 overflow: 'hidden', boxSizing: 'border-box',
                 padding: '15px',
                 display: 'flex', flexDirection: 'column',
-                justifyContent: comp.showTitle !== false ? 'flex-start' : 'center',
+                // 🌟 修正：按鈕元件強制垂直置中，不跟隨標題開關擠壓
+                justifyContent: (comp.showTitle !== false && comp.type !== 'button') ? 'flex-start' : 'center',
                 alignItems: 'stretch', minWidth: 0, width: '100%', height: '100%',
                 // 🌟 核心修正：依照積木類型給予合理的保底高度
                 minHeight: `${Math.max(minHeightThreshold, finalH * 40)}px`,
@@ -2594,6 +2595,7 @@
                         );
                     })()}
 
+                    {/* 🔘 動作按鈕 */}
                     {comp.type === 'button' && (() => {
                         // 計算圓角
                         let borderRadius = '8px'; // round (預設)
@@ -2607,7 +2609,17 @@
 
                         return (
                             <div className="custom-btn-wrapper" style={{ width: '100%', height: '100%', padding: '10px 0', textAlign: 'center' }}>
-                                <a href={comp.buttonUrl || '#'} target="_blank" rel="noreferrer" className="custom-btn"
+                                <a
+                                    href={isEditing ? undefined : (comp.buttonUrl || undefined)}
+                                    target={isEditing ? undefined : "_blank"}
+                                    rel="noreferrer"
+                                    className="custom-btn"
+                                    onClick={(e) => {
+                                        // 🌟 雙重防護：編輯模式下，或是沒填網址時，絕對禁止跳轉！
+                                        if (isEditing || !comp.buttonUrl) {
+                                            e.preventDefault();
+                                        }
+                                    }}
                                     style={{
                                         background: comp.themeColor || '#086788',
                                         color: comp.buttonTextColor || '#ffffff',
@@ -3984,23 +3996,26 @@
                                 <h3 style={{ marginTop: 0, marginBottom: '5px' }}>🛠️ 積木工具</h3>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '10px', marginBottom: '5px' }}>🎛️ 控制器</div>
-                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 2)} style={{ background: '#F0C808', color: '#333' }}>+ 選單</button>
-                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 2)} style={{ background: '#2ECC71', color: '#000' }}>+ 外部按鈕</button>
+                                {/* 🌟 下拉選單：從 2 提高到 3，保證標題與選單並存 */}
+                                <button className="add-btn" onClick={() => addBlock('dropdown', '下拉選單', 12, 3)} style={{ background: '#F0C808', color: '#333' }}>+ 選單</button>
+                                {/* 🌟 動作按鈕：從 2 提高到 3 */}
+                                <button className="add-btn" onClick={() => addBlock('button', '🔗 動作按鈕', 4, 3)} style={{ background: '#2ECC71', color: '#000' }}>+ 外部按鈕</button>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📇 卡片</div>
-                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 3)} style={{ background: '#34495E' }}>+ 純文字</button>
-                                <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 4, 3)}>+ 數據卡片</button>
-                                <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 6)} style={{ background: '#3498DB' }}>+ 圖文卡片</button>
-                                <button className="add-btn" onClick={() => addBlock('table', '📑 數據明細表', 12, 8)} style={{ background: '#7F8C8D' }}>+ 表格</button>
+                                <button className="add-btn" onClick={() => addBlock('textCard', '📝 文字區塊', 12, 4)} style={{ background: '#34495E' }}>+ 純文字</button>
+                                <button className="add-btn" onClick={() => addBlock('metricCard', '🔢 數據卡片', 6, 4)}>+ 數據卡片</button>
+                                <button className="add-btn" onClick={() => addBlock('carousel', '🎠 內容輪播', 6, 8)} style={{ background: '#3498DB' }}>+ 圖文卡片</button>
+                                <button className="add-btn" onClick={() => addBlock('table', '📑 數據明細表', 12, 10)} style={{ background: '#7F8C8D' }}>+ 表格</button>
 
                                 <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#999', marginTop: '15px', marginBottom: '5px' }}>📊 圖表</div>
-                                <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 5)}>+ 長條圖</button>
-                                <button className="add-btn" onClick={() => addBlock('pieChart', '圓餅圖', 6, 5)}>+ 圓餅圖</button>
-                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 5)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
-                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 8)} style={{ background: '#E67E22' }}>+ 堆疊長條圖</button>
-                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 10)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
-                                <button className="add-btn chart-btn" onClick={() => addBlock('bracket', '🏆 淘汰賽程圖', 12, 10)} style={{ background: '#f39c12', color: 'white' }}>+ 賽程樹狀圖</button>
-                                <button className="add-btn" onClick={() => addBlock('choroplethMap', '🗺️ 台灣熱力圖', 12, 10)} style={{ background: '#1ABC9C' }}>+ 熱力地圖</button>
+                                {/* 🌟 圖表類：統一從 5 提高到 7，讓繪圖區更寬敞 */}
+                                <button className="add-btn" onClick={() => addBlock('barChart', '長條圖', 6, 7)}>+ 長條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('stackedBarChart', '堆疊直條圖', 12, 10)} >+ 堆疊長條圖</button>
+                                <button className="add-btn" onClick={() => addBlock('pieChart', '圓餅圖', 6, 7)} style={{ background: '#E67E22' }}>+ 圓餅圖</button>
+                                <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 7)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
+                                <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 12)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
+                                <button className="add-btn chart-btn" onClick={() => addBlock('bracket', '🏆 淘汰賽程圖', 12, 12)} style={{ background: '#f39c12', color: 'white' }}>+ 賽程樹狀圖</button>
+                                <button className="add-btn" onClick={() => addBlock('choroplethMap', '🗺️ 台灣熱力圖', 12, 12)} style={{ background: '#1ABC9C' }}>+ 熱力地圖</button>
                             </div>
 
                             {/* 🌟 修正：強制隱藏水平捲軸，並套用漸層背景 */}
@@ -4010,6 +4025,8 @@
                                 <div className="grid-bg" style={{
                                     background: 'transparent',
                                     minHeight: '100%',
+                                    height: 'max-content', /* 🌟 魔法 1：確保它被內容彈性撐高 */
+                                    paddingBottom: '100px', /* 🌟 魔法 2：永遠在底部保留 100px 的呼吸空間，不怕積木踩線 */
                                     boxSizing: 'border-box',
                                     border: '2px dashed rgba(0,0,0,0.15)',
                                     width: editorBreakpoint === 'mobile' ? '375px' : '100%', // 📱 手機版畫布寬度！
@@ -4125,13 +4142,24 @@
 
                                             {activeTab === 'basic' && (
                                                 <div className="panel-content">
-                                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                                                        <input type="checkbox" id="toggleTitle" checked={currentSelectedBlock.showTitle !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showTitle', e.target.checked)} />
-                                                        <label htmlFor="toggleTitle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>顯示積木主標題</label>
-                                                    </div>
-                                                    {currentSelectedBlock.showTitle !== false && (
-                                                        <div className="form-group" style={{ marginTop: '-5px' }}>
-                                                            <input type="text" value={currentSelectedBlock.title || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)} placeholder="請輸入標題 (例如：本月營收)" />
+                                                    {/* 🌟 只有非按鈕類型的積木才顯示「顯示主標題」勾選框 */}
+                                                    {currentSelectedBlock.type !== 'button' && (
+                                                        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                                                            <input type="checkbox" id="toggleTitle" checked={currentSelectedBlock.showTitle !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'showTitle', e.target.checked)} />
+                                                            <label htmlFor="toggleTitle" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold' }}>顯示積木主標題</label>
+                                                        </div>
+                                                    )}
+
+                                                    {/* 🌟 按鈕強制顯示輸入框，其他積木則視勾選狀態顯示 */}
+                                                    {(currentSelectedBlock.showTitle !== false || currentSelectedBlock.type === 'button') && (
+                                                        <div className="form-group" style={{ marginTop: currentSelectedBlock.type === 'button' ? '0' : '-5px' }}>
+                                                            <label>{currentSelectedBlock.type === 'button' ? '🔘 按鈕文字' : '標題內容'}</label>
+                                                            <input
+                                                                type="text"
+                                                                value={currentSelectedBlock.title || ''}
+                                                                onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'title', e.target.value)}
+                                                                placeholder={currentSelectedBlock.type === 'button' ? "例如：點我查看更多" : "請輸入標題"}
+                                                            />
                                                         </div>
                                                     )}
                                                     <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
@@ -4341,7 +4369,7 @@
 
                                                             {/* 🔌 互動連動設定 (全域/自訂) */}
                                                             <div className="form-group" style={{ background: '#e8f4f8', padding: '12px', borderRadius: '8px', border: '1px solid #bce0ed', marginTop: '15px', marginBottom: 0 }}>
-                                                                <h4 style={{ margin: 0, color: '#086788', marginBottom: '10px' }}>🔌 互動連動設定 (監聽對象)</h4>
+                                                                <h4 style={{ margin: 0, color: '#086788', marginBottom: '10px' }}>🔌 互動連動設定</h4>
 
                                                                 {(() => {
                                                                     // 計算當前的 radio 狀態
@@ -4352,7 +4380,7 @@
                                                                             <div style={{ display: 'flex', gap: '15px', marginBottom: listenMode === 'custom' ? '10px' : '0' }}>
                                                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
                                                                                     <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'all'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'all'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', true); }} />
-                                                                                    監聽全部
+                                                                                    全部
                                                                                 </label>
                                                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
                                                                                     <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'custom'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'custom'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', false); }} />
@@ -4360,7 +4388,7 @@
                                                                                 </label>
                                                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', color: '#E74C3C', fontWeight: 'bold' }}>
                                                                                     <input type="radio" name={`listenMode_${currentSelectedBlock.i}`} checked={listenMode === 'none'} onChange={() => { updateBlockProperty(currentSelectedBlock.i, 'listenMode', 'none'); updateBlockProperty(currentSelectedBlock.i, 'listenAll', false); updateBlockProperty(currentSelectedBlock.i, 'customListenCols', []); }} />
-                                                                                    不監聽 (獨立)
+                                                                                    不互動
                                                                                 </label>
                                                                             </div>
                                                                             {listenMode === 'custom' && (
@@ -4553,14 +4581,22 @@
                                                                             <input type="checkbox" id="enableTableFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
                                                                             <label htmlFor="enableTableFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>🖱️ 啟用列點擊連動 (主從架構)</label>
                                                                         </div>
-                                                                        {currentSelectedBlock.enableFilter && (
-                                                                            <div className="form-group" style={{ marginTop: '10px', marginBottom: 0 }}>
-                                                                                <label style={{ color: '#856404' }}>選擇連動鑰匙欄位 (如案號、人名)</label>
-                                                                                <select value={currentSelectedBlock.categoryCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                                    <option value="">請選擇...</option>
-                                                                                    {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                                </select>
-                                                                                <div style={{ fontSize: '0.8rem', color: '#856404', marginTop: '5px' }}>💡 其他積木若監聽此欄位，點擊表格行即可即時切換內容。</div>
+                                                                        {currentSelectedBlock.type === 'table' && (
+                                                                            <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', marginTop: '15px' }}>
+                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: currentSelectedBlock.enableFilter ? '10px' : '0' }}>
+                                                                                    <input type="checkbox" id="enableTableFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
+                                                                                    <label htmlFor="enableTableFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>🖱️ 啟用列點擊連動 (主從架構)</label>
+                                                                                </div>
+                                                                                {currentSelectedBlock.enableFilter && (
+                                                                                    <div className="form-group" style={{ marginTop: '10px', marginBottom: 0 }}>
+                                                                                        <label style={{ color: '#856404' }}>選擇連動鑰匙欄位 (如案號、人名)</label>
+                                                                                        <select value={currentSelectedBlock.categoryCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
+                                                                                            <option value="">請選擇...</option>
+                                                                                            {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                                        </select>
+                                                                                        <div style={{ fontSize: '0.8rem', color: '#856404', marginTop: '5px' }}>💡 其他積木若監聽此欄位，點擊表格行即可即時切換內容。</div>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
                                                                         )}
                                                                     </div>
@@ -5432,7 +5468,7 @@
                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>🎨 畫布與標題設定</h4>
                                             <div className="form-group" style={{ background: '#f0f8fa', padding: '15px', borderRadius: '8px', border: '1px solid #cce4ec', marginBottom: '15px' }}>
                                                 <div style={{ marginBottom: '10px' }}>
-                                                    <label>畫布 (全域背景) 填色模式</label>
+                                                    <label>畫布填色模式</label>
                                                     <select value={globalMeta.canvasBgType || 'solid'} onChange={(e) => updateGlobalMeta('canvasBgType', e.target.value)} style={{ width: '100%', marginTop: '5px' }}>
                                                         <option value="solid">單一純色</option>
                                                         <option value="gradient">漸層色彩 (Linear)</option>
@@ -5501,7 +5537,7 @@
                                             </div>
 
                                             <div className="form-group" style={{ marginTop: '10px' }}>
-                                                <label>最後更新時間 (顯示於左下角)</label>
+                                                <label>最後更新時間 </label>
                                                 <input type="text" value={globalMeta.lastUpdated} onChange={(e) => updateGlobalMeta('lastUpdated', e.target.value)} placeholder="例如：2023/03/27 22:23" />
                                             </div>
                                             <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>⚡ 即時自動更新 (開票模式)</h4>
