@@ -2339,14 +2339,20 @@
                     <div className="preview-card" style={gridStyle}>
                         {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
                             <h3 className="preview-card-title" style={{
-                                marginTop: 0, marginBottom: '15px', width: '100%', flexShrink: 0,
+                                marginTop: 0,
+                                width: '100%',
+                                flexShrink: 0,
+                                // 👇 完美接通自訂樣式 👇
                                 color: comp.cardTitleColor || '#333333',
                                 fontSize: comp.cardTitleSize || '1.1rem',
                                 fontWeight: comp.cardTitleWeight || 'bold',
                                 textAlign: comp.cardTitleAlign || 'left',
                                 borderBottom: comp.cardTitleBorder !== false ? '2px solid #eee' : 'none',
-                                paddingBottom: comp.cardTitleBorder !== false ? '10px' : '0'
-                            }}>{comp.title}</h3>
+                                paddingBottom: comp.cardTitleBorder !== false ? '10px' : '0',
+                                marginBottom: comp.cardTitleBorder !== false ? '15px' : '5px'
+                            }}>
+                                {comp.title}
+                            </h3>
                         )}
                         <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>請先於選單選擇「{missingDropdowns[0]}」<br />以載入資料</div>
                     </div>
@@ -2461,7 +2467,21 @@
             return (
                 <div className="preview-card" style={gridStyle}>
                     {comp.showTitle !== false && comp.title && comp.type !== 'button' && (
-                        <h3 className="preview-card-title" style={{ marginTop: 0, marginBottom: '15px', textAlign: 'center', width: '100%', fontSize: '1.25rem', flexShrink: 0 }}>{comp.title}</h3>
+                        <h3 className="preview-card-title" style={{
+                            marginTop: 0,
+                            width: '100%',
+                            flexShrink: 0,
+                            // 👇 完美接通自訂樣式 👇
+                            color: comp.cardTitleColor || '#333333',
+                            fontSize: comp.cardTitleSize || '1.1rem',
+                            fontWeight: comp.cardTitleWeight || 'bold',
+                            textAlign: comp.cardTitleAlign || 'left',
+                            borderBottom: comp.cardTitleBorder !== false ? '2px solid #eee' : 'none',
+                            paddingBottom: comp.cardTitleBorder !== false ? '10px' : '0',
+                            marginBottom: comp.cardTitleBorder !== false ? '15px' : '5px'
+                        }}>
+                            {comp.title}
+                        </h3>
                     )}
 
                     {(comp.type === 'metricCard' || comp.type === 'textCard') && (
@@ -4575,31 +4595,25 @@
                                                                             {currentSelectedBlock.type !== 'table' && <option value="category_asc">依名稱排序</option>}
                                                                         </select>
                                                                     </div>
-                                                                    {/* 🌟 需求 4：表格點擊連動設定 */}
-                                                                    <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', marginTop: '15px' }}>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: currentSelectedBlock.enableFilter ? '10px' : '0' }}>
-                                                                            <input type="checkbox" id="enableTableFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
-                                                                            <label htmlFor="enableTableFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>🖱️ 啟用列點擊連動 (主從架構)</label>
-                                                                        </div>
-                                                                        {currentSelectedBlock.type === 'table' && (
-                                                                            <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', marginTop: '15px' }}>
-                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: currentSelectedBlock.enableFilter ? '10px' : '0' }}>
-                                                                                    <input type="checkbox" id="enableTableFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
-                                                                                    <label htmlFor="enableTableFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>🖱️ 啟用列點擊連動 (主從架構)</label>
-                                                                                </div>
-                                                                                {currentSelectedBlock.enableFilter && (
-                                                                                    <div className="form-group" style={{ marginTop: '10px', marginBottom: 0 }}>
-                                                                                        <label style={{ color: '#856404' }}>選擇連動鑰匙欄位 (如案號、人名)</label>
-                                                                                        <select value={currentSelectedBlock.categoryCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
-                                                                                            <option value="">請選擇...</option>
-                                                                                            {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
-                                                                                        </select>
-                                                                                        <div style={{ fontSize: '0.8rem', color: '#856404', marginTop: '5px' }}>💡 其他積木若監聽此欄位，點擊表格行即可即時切換內容。</div>
-                                                                                    </div>
-                                                                                )}
+                                                                    {/* 🌟 需求 4：表格點擊連動設定 (只給表格用！) */}
+                                                                    {currentSelectedBlock.type === 'table' && (
+                                                                        <div className="form-group" style={{ background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', marginTop: '15px' }}>
+                                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: currentSelectedBlock.enableFilter ? '10px' : '0' }}>
+                                                                                <input type="checkbox" id="enableTableFilter" checked={currentSelectedBlock.enableFilter || false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'enableFilter', e.target.checked)} />
+                                                                                <label htmlFor="enableTableFilter" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#856404' }}>🖱️ 啟用列點擊連動 (主從架構)</label>
                                                                             </div>
-                                                                        )}
-                                                                    </div>
+                                                                            {currentSelectedBlock.enableFilter && (
+                                                                                <div className="form-group" style={{ marginTop: '10px', marginBottom: 0 }}>
+                                                                                    <label style={{ color: '#856404' }}>選擇連動鑰匙欄位 (如案號、人名)</label>
+                                                                                    <select value={currentSelectedBlock.categoryCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'categoryCol', e.target.value)}>
+                                                                                        <option value="">請選擇...</option>
+                                                                                        {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                                    </select>
+                                                                                    <div style={{ fontSize: '0.8rem', color: '#856404', marginTop: '5px' }}>💡 其他積木若監聽此欄位，點擊表格行即可即時切換內容。</div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
 
                                                             )}
