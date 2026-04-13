@@ -3287,6 +3287,22 @@
             const [isPublishing, setIsPublishing] = useState(false);
             const [showPublishModal, setShowPublishModal] = useState(false);
             const [publishedId, setPublishedId] = useState('');
+            // 🌟 格式範例的狀態開關
+            const [showFormatModal, setShowFormatModal] = useState(false);
+
+            // 🌟 編輯救星：各種積木的完美資料表範例字典
+            const formatExamples = {
+                barChart: { title: '長條圖 / 堆疊圖 / 折線圖', desc: '適用於各類數值比較與趨勢圖。第一欄放分類，後面可放多個數值欄位做比較。', headers: ['分類欄位 (如：縣市/月份)', '數值A (如：營收)', '數值B (如：成本)'], rows: [['台北市', '5000', '3000'], ['高雄市', '4200', '2800']] },
+                pieChart: { title: '圓餅圖', desc: '適用於顯示各分類佔整體的比例。', headers: ['分類欄位 (如：項目)', '數值欄位 (如：金額)'], rows: [['人事費', '15000'], ['業務費', '8500']] },
+                timeline: { title: '時間軸', desc: '依照時間先後順序排列事件。', headers: ['日期欄位', '大標題', '附屬說明 (選填)', '連結 (選填)'], rows: [['2024/01/01', '專案啟動', '開始進行第一階段開發', 'https://...'], ['2024/02/15', '測試版本發布', '', '']] },
+                bracket: { title: '賽程樹狀圖', desc: '⚠️ 最嚴格的積木！必須要有這 6 個對應欄位，才能畫出對戰組合。', headers: ['賽程階段 (Round)', '位置 (Order)', '隊伍A', '得分A', '隊伍B', '得分B', '時間(選填)'], rows: [['8強賽', '1', '台灣', '3', '日本', '2', '12:00'], ['8強賽', '2', '韓國', '1', '古巴', '0', '14:00'], ['4強賽', '1', '台灣', '待定', '韓國', '待定', '明日']] },
+                choroplethMap: { title: '熱力地圖', desc: '第一欄必須能對應地圖的區域名稱 (如臺北市、新北市)。', headers: ['地理區域 (如：縣市)', '數值A (如：得票數)', '數值B (選填)'], rows: [['臺北市', '570000', '430000'], ['新北市', '620000', '580000']] },
+                table: { title: '數據明細表', desc: '直接將試算表內容轉換為網頁表格。若有圖片網址會自動轉為圖片。', headers: ['分頁群組 (選填)', '欄位 1 (如：姓名)', '欄位 2 (如：職稱)', '圖片網址 (選填)'], rows: [['企劃部', '王小明', '經理', 'https://...'], ['設計部', '李小華', '總監', 'https://...']] },
+                metricCard: { title: '數據卡片', desc: '自動加總數值，或計算資料筆數。', headers: ['分類欄位 (選填)', '數值欄位'], rows: [['第一季', '1500000'], ['第二季', '2300000']] },
+                textCard: { title: '純文字區塊', desc: '顯示最後一筆最新的文字內容。', headers: ['分類欄位 (選填)', '文字內容'], rows: [['最新公告', '系統將於明日進行維護...']] },
+                dropdown: { title: '下拉選單 / 標籤按鈕', desc: '抓取該欄位「所有不重複的值」作為按鈕選項。', headers: ['過濾目標欄位 (如：年份)'], rows: [['2023'], ['2024'], ['2024']] },
+                button: { title: '外部動作按鈕', desc: '純排版按鈕，不需綁定資料表。', headers: ['無'], rows: [] }
+            };
 
             const [blocks, setBlocks] = useState([
                 { i: 'comp_default', x: 0, y: 0, w: 4, h: 3, type: 'metricCard', title: '預算總計', dataSourceId: sheetSources[0].id, categoryCol: '', valueCol: '', aggregation: 'sum', themeColor: '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: '900', textAlign: 'center' }
@@ -3800,8 +3816,11 @@
                     else {
                         alert("⚠️ 存檔失敗，請檢查網路連線或聯絡系統管理員。\n錯誤代碼：" + error.message);
                     }
-                };
-            }
+                } finally {
+                    // 👇 🌟 核心修復：無論存檔成功還是失敗，最後一定要把「發布中」的狀態解除！
+                    setIsPublishing(false);
+                }
+            };
             const handleCopy = () => {
                 // 🌟 修正：移除了重複的 https://
                 const iframeCode = `<iframe \n  src="https://jjbatman-fw.github.io/MakeMyOwnGraph/index.html?id=${publishedId}&mode=view" \n  width="100%" \n  height="800px" \n  frameborder="0" \n  scrolling="no"\n></iframe>`;
@@ -4305,6 +4324,19 @@
 
                                             {activeTab === 'data' && (
                                                 <div className="panel-content">
+
+                                                    {/* 👇 新增：超貼心的格式範例求救區塊 👇 */}
+                                                    {currentSelectedBlock.type !== 'button' && (
+                                                        <div style={{ background: '#e8f4f8', padding: '12px', borderRadius: '8px', border: '1px solid #bce0ed', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 2px 5px rgba(8,103,136,0.1)' }}>
+                                                            <div>
+                                                                <div style={{ fontWeight: 'bold', color: '#086788', fontSize: '0.85rem' }}>不知道資料怎麼整理？</div>
+                                                                <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '4px', lineHeight: '1.4' }}>點擊查看「{currentSelectedBlock.title || currentSelectedBlock.type}」的表單範例</div>
+                                                            </div>
+                                                            <button onClick={() => setShowFormatModal(true)} style={{ alignSelf: 'flex-start', background: '#fff', color: '#086788', border: '1px solid #086788', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', transition: '0.2s' }} onMouseOver={(e) => { e.currentTarget.style.background = '#086788'; e.currentTarget.style.color = '#fff'; }} onMouseOut={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#086788'; }}>
+                                                                💡 查看範例
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     {/* 🏆 賽程樹狀圖專屬設定面板 */}
                                                     {currentSelectedBlock.type === 'bracket' && (
                                                         <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #eee', marginBottom: '15px' }}>
@@ -5629,7 +5661,7 @@
                                                 {isFetching ? "讀取中..." : "📥 讀取所有表單欄位"}
                                             </button>
 
-                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🔗 頁尾來源連結設定</h4>
+                                            <h4 style={{ marginTop: '30px', marginBottom: '10px', color: '#086788' }}>🔗資料來源</h4>
                                             {(globalMeta.dataSources || []).map((source, index) => (
                                                 <div key={index} style={{ background: '#f9f9f9', padding: '10px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #eee' }}>
                                                     <div className="form-group" style={{ marginBottom: '10px' }}>
@@ -5808,7 +5840,80 @@
                             </div>
                         </div>
                     )}
+                    {/* 👇 新增：格式範例的彈出視窗 👇 */}
+                    {showFormatModal && currentSelectedBlock && (() => {
+                        const exType = currentSelectedBlock.type === 'stackedBarChart' ? 'barChart' : currentSelectedBlock.type;
+                        const ex = formatExamples[exType] || formatExamples.barChart;
+                        return (
+                            <div className="modal-overlay" onClick={() => setShowFormatModal(false)}>
+                                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '700px', padding: '30px' }}>
+                                    <button className="close-modal-btn" onClick={() => setShowFormatModal(false)}>✕</button>
 
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', paddingRight: '20px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                                            <h2 style={{ color: '#086788', margin: 0, fontSize: '1.4rem' }}>
+                                                💡 {ex.title} - 格式範例
+                                            </h2>
+                                            {/* 👇 複製表格魔法按鈕 👇 */}
+                                            <button
+                                                onClick={(e) => {
+                                                    const headerText = ex.headers.join('\t');
+                                                    const rowsText = ex.rows.map(row => row.join('\t')).join('\n');
+                                                    navigator.clipboard.writeText(`${headerText}\n${rowsText}`);
+
+                                                    const btn = e.currentTarget;
+                                                    const originalHtml = btn.innerHTML;
+                                                    btn.innerHTML = '✅ 已複製！';
+                                                    btn.style.background = '#2ECC71';
+                                                    btn.style.color = '#fff';
+                                                    btn.style.borderColor = '#2ECC71';
+
+                                                    setTimeout(() => {
+                                                        btn.innerHTML = originalHtml;
+                                                        btn.style.background = '#fff';
+                                                        btn.style.color = '#086788';
+                                                        btn.style.borderColor = '#086788';
+                                                    }, 2000);
+                                                }}
+                                                style={{ background: '#fff', color: '#086788', border: '1px solid #086788', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition: 'all 0.2s', flexShrink: 0 }}
+                                            >
+                                                📋 複製內容
+                                            </button>
+                                        </div>
+                                        <p style={{ color: '#555', lineHeight: '1.6', margin: 0, fontSize: '0.95rem' }}>{ex.desc}</p>
+                                    </div>
+
+                                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                                        <table className="custom-table" style={{ width: '100%', minWidth: '500px', margin: 0 }}>
+                                            <thead>
+                                                <tr>
+                                                    {ex.headers.map((h, i) => <th key={i} style={{ background: '#f5f5f5', color: '#333', borderBottom: '2px solid #ccc', padding: '12px 15px' }}>{h}</th>)}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ex.rows.map((row, i) => (
+                                                    <tr key={i}>
+                                                        {row.map((cell, j) => <td key={j} style={{ color: '#444', padding: '10px 15px', borderBottom: '1px solid #eee' }}>{cell}</td>)}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ marginTop: '20px', background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', fontSize: '0.9rem', color: '#856404', lineHeight: '1.6' }}>
+                                        <div style={{ fontWeight: '900', fontSize: '1rem', color: '#d35400', marginBottom: '8px' }}>
+                                            🚨 必看！資料防坑黃金定律：
+                                        </div>
+                                        <ol style={{ margin: '0', paddingLeft: '22px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <li><strong>【格式純文字】</strong>請全選 Google Sheet，將格式設為<strong>「純文字 (Plain Text)」</strong>，避免 Google API 自動吃掉資料。</li>
+                                            <li><strong>【數值要乾淨】</strong>準備畫圖的「數值欄位」<strong>只能填數字</strong> (可含小數/負號)。若無資料請填 <code>0</code> 或留白，千萬別填「未定」或「-」。</li>
+                                            <li><strong>【表頭避純數】</strong>第一列的欄位名稱 (表頭) <strong>請勿只填純數字</strong> (如 <code>2024</code> 會出錯，請改成 <code>2024年</code>)。</li>
+                                            <li><strong>【欄位可自訂】</strong>上方表格的表頭名稱僅供參考，您可以自由命名，只要在右側面板綁定正確即可！</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
                     {showPublishModal && (
                         <div className="modal-overlay">
                             <div className="modal-content">
