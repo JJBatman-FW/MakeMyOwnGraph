@@ -2725,9 +2725,16 @@
                                 if (comp.tableTabCol) {
                                     const tabSet = new Set(displayData.map(row => String(row[comp.tableTabCol] || '').trim()).filter(Boolean));
                                     uniqueTabs = Array.from(tabSet);
+
+                                    // 🌟 魔法 1：如果開啟了顯示「全部」，就把「全部」強制塞到陣列最前面
+                                    if (comp.tableTabShowAll !== false) {
+                                        uniqueTabs = ['全部', ...uniqueTabs];
+                                    }
+
                                     currentActiveTab = localTableTabs[comp.i] || (uniqueTabs.length > 0 ? uniqueTabs[0] : '');
 
-                                    if (currentActiveTab) {
+                                    // 🌟 魔法 2：如果當前選中的不是「全部」，才執行過濾，否則就顯示完整資料！
+                                    if (currentActiveTab && currentActiveTab !== '全部') {
                                         displayData = displayData.filter(row => String(row[comp.tableTabCol] || '').trim() === currentActiveTab);
                                     }
                                 }
@@ -3341,7 +3348,7 @@
                                             listenMode: c.listenMode || null, listenAll: c.listenAll !== false, customListenCols: c.customListenCols || [],
                                             tableBodySize: c.tableBodySize || 14, tableBodyColor: c.tableBodyColor || '#444444', tableBodyWeight: c.tableBodyWeight || 'normal', tableBodyAlign: c.tableBodyAlign || 'left',
                                             tableHeaderEnable: c.tableHeaderEnable || false, tableHeaderSize: c.tableHeaderSize || 14, tableHeaderColor: c.tableHeaderColor || '#ffffff', tableHeaderBg: c.tableHeaderBg || '#086788', tableHeaderWeight: c.tableHeaderWeight || 'bold', tableHeaderAlign: c.tableHeaderAlign || 'left', autoMergeCells: c.autoMergeCells || false, mergeCols: c.mergeCols || '',
-                                            tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent', tableTabCol: c.tableTabCol || '', tableImageCols: c.tableImageCols || '',
+                                            tableColEnable: c.tableColEnable || false, tableColSize: c.tableColSize || 14, tableColColor: c.tableColColor || '#444444', tableColWeight: c.tableColWeight || 'bold', tableColAlign: c.tableColAlign || 'left', tableColBg: c.tableColBg || 'transparent', tableTabCol: c.tableTabCol || '', tableTabShowAll: c.tableTabShowAll !== false, tableImageCols: c.tableImageCols || '',
                                             tableColWidths: c.tableColWidths || '',
                                             tableBorderEnable: c.tableBorderEnable || false, tableBorderColor: c.tableBorderColor || '#dddddd', tableBorderWidth: c.tableBorderWidth || 1,
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff',
@@ -3651,6 +3658,7 @@
                     tableBorderColor: b.tableBorderColor || '#dddddd',
                     tableBorderWidth: b.tableBorderWidth || 1,
                     tableTabCol: b.tableTabCol || '',
+                    tableTabShowAll: b.tableTabShowAll !== false,
                     tableImageCols: b.tableImageCols || '',
                     tableColWidths: b.tableColWidths || '',
                     autoMergeCells: b.autoMergeCells || false,
@@ -4776,6 +4784,14 @@
                                                                         {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                     </select>
                                                                     <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>💡 選擇後，表格上方會自動產生分頁按鈕，點擊可切換顯示內容。</div>
+
+                                                                    {/* 👇 新增：顯示全部按鈕的開關 👇 */}
+                                                                    {currentSelectedBlock.tableTabCol && (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px', background: '#fff', padding: '8px', borderRadius: '6px', border: '1px solid #eee' }}>
+                                                                            <input type="checkbox" id="tableTabShowAll" checked={currentSelectedBlock.tableTabShowAll !== false} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'tableTabShowAll', e.target.checked)} />
+                                                                            <label htmlFor="tableTabShowAll" style={{ margin: 0, cursor: 'pointer', fontWeight: 'bold', color: '#086788' }}>顯示「全部」分頁按鈕</label>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                             {/* 1. 表格內文樣式 */}
