@@ -2731,7 +2731,13 @@
                                         uniqueTabs = ['全部', ...uniqueTabs];
                                     }
 
-                                    currentActiveTab = localTableTabs[comp.i] || (uniqueTabs.length > 0 ? uniqueTabs[0] : '');
+                                    // 👇 🌟 終極修復：檢查記憶體裡的標籤，是不是已經被關閉或消失了？
+                                    let savedTab = localTableTabs[comp.i];
+                                    if (savedTab && !uniqueTabs.includes(savedTab)) {
+                                        savedTab = ''; // 如果「全部」被關掉，或者資料改變導致原本的標籤不見了，就重置記憶！
+                                    }
+
+                                    currentActiveTab = savedTab || (uniqueTabs.length > 0 ? uniqueTabs[0] : '');
 
                                     // 🌟 魔法 2：如果當前選中的不是「全部」，才執行過濾，否則就顯示完整資料！
                                     if (currentActiveTab && currentActiveTab !== '全部') {
