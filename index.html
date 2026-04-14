@@ -3415,26 +3415,46 @@
                         })}
 
                         {graphLayout.edges.map(edge => {
-                            if (!edge.label || !edge.points || edge.points.length === 0) return null;
+                            if (!edge.label) return null;
+
+                            // 抓取線段中點
                             const midIndex = Math.floor(edge.points.length / 2);
                             const midPoint = edge.points[midIndex];
+
+                            // 準備好全域預設值
+                            const globalOffsetX = config.flowStyleEdgeLabelOffsetX || 0;
+                            const globalOffsetY = config.flowStyleEdgeLabelOffsetY || 0;
+                            const globalWidth = config.flowStyleEdgeLabelWidth || 120;
+
+                            // 查字典看看這條線有沒有被「獨立微調」過
+                            const overrides = config.flowEdgeOverrides || {};
+                            const edgeSetting = overrides[edge.id] || {};
+
+                            // 決定最終要套用的數值
+                            const finalOffsetX = edgeSetting.offsetX !== undefined ? edgeSetting.offsetX : globalOffsetX;
+                            const finalOffsetY = edgeSetting.offsetY !== undefined ? edgeSetting.offsetY : globalOffsetY;
+                            const finalWidth = edgeSetting.width !== undefined ? edgeSetting.width : globalWidth;
 
                             return (
                                 <div key={`${edge.id}-label`} style={{
                                     position: 'absolute',
-                                    left: midPoint.x,
-                                    top: midPoint.y,
-                                    transform: 'translate(10px, -50%)',
-                                    background: '#ffffff',
+                                    left: midPoint.x + finalOffsetX,
+                                    top: midPoint.y + finalOffsetY,
+                                    transform: 'translate(-50%, -50%)',
+                                    background: 'rgba(255, 255, 255, 0.95)',
                                     border: '1px solid #ddd',
-                                    padding: '2px 8px',
-                                    borderRadius: '12px',
+                                    padding: '4px 8px',
+                                    borderRadius: '8px',
                                     fontSize: '0.8rem',
                                     fontWeight: 'bold',
                                     color: '#555',
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     zIndex: 5,
-                                    whiteSpace: 'nowrap'
+                                    width: `${finalWidth}px`,  // 👈 精準套用寬度
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    textAlign: 'center',
+                                    lineHeight: '1.4'
                                 }}>
                                     {edge.label}
                                 </div>
@@ -3663,6 +3683,11 @@
                                             flowStyleTitleSize: c.flowStyleTitleSize || '1.1rem',
                                             flowStyleTitleWeight: c.flowStyleTitleWeight || 'bold',
                                             flowStyleDescSize: c.flowStyleDescSize || '0.85rem',
+                                            flowStyleEdgeLabelWidth: c.flowStyleEdgeLabelWidth || 120,
+                                            flowStyleEdgeLabelOffsetX: c.flowStyleEdgeLabelOffsetX || 0,
+                                            flowStyleEdgeLabelOffsetY: c.flowStyleEdgeLabelOffsetY || 0,
+                                            flowEdgeOverrides: c.flowEdgeOverrides || {},
+                                            editingEdgeId: c.editingEdgeId || '',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -3817,6 +3842,8 @@
                     baseComp.dataSheetYCols = [];    // 節點名稱
                     baseComp.flowEdgeFromCol = '';   // 連線起點
                     baseComp.flowEdgeToCol = '';     // 連線終點
+                    baseComp.flowEdgeOverrides = {};
+                    baseComp.editingEdgeId = '';
                 }
                 setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
@@ -4044,6 +4071,11 @@
                     flowStyleTitleSize: b.flowStyleTitleSize || '1.1rem',
                     flowStyleTitleWeight: b.flowStyleTitleWeight || 'bold',
                     flowStyleDescSize: b.flowStyleDescSize || '0.85rem',
+                    flowStyleEdgeLabelWidth: b.flowStyleEdgeLabelWidth || 120,
+                    flowStyleEdgeLabelOffsetX: b.flowStyleEdgeLabelOffsetX || 0,
+                    flowStyleEdgeLabelOffsetY: b.flowStyleEdgeLabelOffsetY || 0,
+                    flowEdgeOverrides: b.flowEdgeOverrides || {},
+                    editingEdgeId: b.editingEdgeId || '',
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -5153,12 +5185,82 @@
                                                                 </div>
                                                             </div>
 
-                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 連線樣式設定</h4>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 連線與標籤設定</h4>
                                                             <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
-                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+
+                                                                <div className="form-group" style={{ marginBottom: '15px' }}>
                                                                     <label>連線顏色</label>
                                                                     <input type="color" value={currentSelectedBlock.flowStyleLineColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleLineColor', e.target.value)} />
                                                                 </div>
+
+                                                                <hr style={{ border: 'none', borderTop: '1px dashed #ccc', margin: '15px 0' }} />
+
+                                                                {/* 🌟 核心：選擇要編輯的標籤 */}
+                                                                <div className="form-group" style={{ background: '#fff3cd', padding: '10px', borderRadius: '6px', border: '1px solid #ffeeba', marginBottom: '15px' }}>
+                                                                    <label style={{ color: '#856404', fontWeight: 'bold' }}>🎯 選擇要微調的標籤</label>
+                                                                    <select value={currentSelectedBlock.editingEdgeId || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'editingEdgeId', e.target.value)}>
+                                                                        <option value="">-- 全域預設設定 (套用至所有標籤) --</option>
+                                                                        {/* 從真實資料裡抓出所有的連線 */}
+                                                                        {(dataMap[currentSelectedBlock.dataSheetEdges] || []).map((edge, idx) => {
+                                                                            const fromId = String(edge[currentSelectedBlock.flowEdgeFromCol] || '').trim();
+                                                                            const toId = String(edge[currentSelectedBlock.flowEdgeToCol] || '').trim();
+                                                                            const label = edge[currentSelectedBlock.flowEdgeLabelCol] || '';
+                                                                            if (!fromId || !toId || !label) return null;
+                                                                            const edgeId = `${fromId}-${toId}`; // 這是 Dagre 引擎的 ID 格式
+                                                                            return <option key={idx} value={edgeId}>{label}</option>;
+                                                                        })}
+                                                                    </select>
+                                                                </div>
+
+                                                                {(() => {
+                                                                    // 判斷現在是在改全域，還是改特定標籤
+                                                                    const editingId = currentSelectedBlock.editingEdgeId;
+                                                                    const isGlobal = !editingId;
+                                                                    const overrides = currentSelectedBlock.flowEdgeOverrides || {};
+                                                                    const currentSettings = isGlobal ? currentSelectedBlock : (overrides[editingId] || {});
+
+                                                                    // 專屬的更新函式
+                                                                    const handleSettingChange = (key, value) => {
+                                                                        if (isGlobal) {
+                                                                            // 改全域設定，原始名稱要加上 flowStyle 前綴
+                                                                            const globalKey = key === 'width' ? 'flowStyleEdgeLabelWidth' : (key === 'offsetX' ? 'flowStyleEdgeLabelOffsetX' : 'flowStyleEdgeLabelOffsetY');
+                                                                            updateBlockProperty(currentSelectedBlock.i, globalKey, value);
+                                                                        } else {
+                                                                            // 改個別標籤，存入字典
+                                                                            const newOverrides = { ...overrides };
+                                                                            if (!newOverrides[editingId]) newOverrides[editingId] = {};
+                                                                            newOverrides[editingId][key] = value;
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'flowEdgeOverrides', newOverrides);
+                                                                        }
+                                                                    };
+
+                                                                    // 讀取目前輸入框該顯示的值
+                                                                    const displayWidth = currentSettings.width !== undefined ? currentSettings.width : (isGlobal ? 120 : '');
+                                                                    const displayOffsetX = currentSettings.offsetX !== undefined ? currentSettings.offsetX : (isGlobal ? 0 : '');
+                                                                    const displayOffsetY = currentSettings.offsetY !== undefined ? currentSettings.offsetY : (isGlobal ? 0 : '');
+
+                                                                    return (
+                                                                        <>
+                                                                            <div className="form-group" style={{ marginBottom: '10px' }}>
+                                                                                <label>{isGlobal ? '預設' : '專屬'}標籤固定寬度 (px)</label>
+                                                                                <input type="number" value={displayWidth} onChange={(e) => handleSettingChange('width', e.target.value === '' ? undefined : parseInt(e.target.value))} placeholder={isGlobal ? "120" : "預設值"} />
+                                                                            </div>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>X 軸微調 (左右)</label>
+                                                                                    <input type="number" value={displayOffsetX} onChange={(e) => handleSettingChange('offsetX', e.target.value === '' ? undefined : parseInt(e.target.value))} placeholder="正右, 負左" />
+                                                                                </div>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>Y 軸微調 (上下)</label>
+                                                                                    <input type="number" value={displayOffsetY} onChange={(e) => handleSettingChange('offsetY', e.target.value === '' ? undefined : parseInt(e.target.value))} placeholder="正下, 負上" />
+                                                                                </div>
+                                                                            </div>
+                                                                            {!isGlobal && (
+                                                                                <div style={{ fontSize: '0.8rem', color: '#086788', marginTop: '10px' }}>💡 刪除輸入框內容即可恢復全域預設值。</div>
+                                                                            )}
+                                                                        </>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </>
                                                     )}
