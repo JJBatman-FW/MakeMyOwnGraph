@@ -2408,23 +2408,45 @@
                 }
 
                 if (comp.type === 'textCard') {
-                    if (!comp.valueColumn) return <p style={{ color: '#999' }}>請至右側綁定「文字欄位」</p>;
+                    if (!comp.multiValueCols || comp.multiValueCols.length === 0) return <p style={{ color: '#999' }}>請至右側綁定資料欄位</p>;
+                    if (!filteredData || filteredData.length === 0) return <p style={{ color: '#999' }}>此條件下無對應資料</p>;
 
-                    // 文字區塊如果沒有資料，顯示無文字
-                    if (!filteredData || filteredData.length === 0) {
-                        return <p style={{ color: '#999' }}>此條件下無對應文字</p>;
-                    }
-
-                    const textContent = filteredData[filteredData.length - 1][comp.valueColumn] || ' (無文字內容) ';
-                    const align = comp.textAlign === 'left' ? 'flex-start' : (comp.textAlign === 'right' ? 'flex-end' : 'center');
+                    const row = filteredData[filteredData.length - 1]; // 抓取最後一筆資料
+                    const titleText = comp.textTitleCol ? row[comp.textTitleCol] : '';
                     return (
-                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, display: 'flex', alignItems: 'center', justifyContent: align, width: '100%' }}>
-                            <p className="text-card-content" style={{ fontSize: comp.fontSize || '1.2rem', fontWeight: comp.fontWeight || 'normal', textAlign: comp.textAlign || 'left', color: comp.themeColor || '#333333', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{textContent}</p>
+                        <div className="text-content" style={{ overflowY: 'auto', maxHeight: '100%', flex: 1, width: '100%', padding: '5px' }}>
+                            {/* 渲染標題 */}
+                            {titleText && (
+                                <h2 style={{
+                                    color: comp.textTitleColor || '#222',
+                                    fontSize: comp.textTitleSize || '1.5rem',
+                                    fontWeight: comp.textTitleWeight || '900',
+                                    textAlign: comp.textAlign || 'left',
+                                    margin: '0 0 10px 0',
+                                    lineHeight: '1.3'
+                                }}>{titleText}</h2>
+                            )}
+
+                            {/* 渲染多個內文欄位，用換行隔開 */}
+                            {comp.multiValueCols.map((col, idx) => (
+                                <p key={idx} style={{
+                                    fontSize: comp.textContentSize || '1rem',
+                                    color: comp.textContentColor || '#333',
+                                    fontWeight: comp.textContentWeight || 'normal',
+                                    textAlign: comp.textAlign || 'left',
+                                    lineHeight: comp.textContentLineHeight || 1.6,
+                                    margin: '0 0 8px 0',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word'
+                                }}>
+                                    {row[col] || ''}
+                                </p>
+                            ))}
                         </div>
                     );
-                }
-                return null;
-            };
+                };
+                return null; // 👈 當找不到符合的卡片類型時回傳空
+            }; // 👈 補上這行，確保 renderMetricOrText 函式正確結束！
 
             const renderHtmlLegend = (labels, datasets) => {
                 if (comp.type !== 'pieChart' || comp.legendPosition === 'none' || labels.length === 0) return null;
@@ -3009,218 +3031,174 @@
                         // 獲取安全變數
                         const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
                         const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
-                        const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
+                        const isMobileDevice = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
 
-                        const bracketDir = isMobileView ? 'horizontal' : (comp.chartOrientation || 'vertical');
-                        const maxMatches = Math.max(...sortedRounds.map(r => r.matches.length));
-
-                        // 🌟 提取標籤樣式
-                        const labelColor = comp.roundLabelColor || '#086788';
-                        const labelFontSize = comp.roundLabelFontSize || '1.1rem';
-                        const labelFontWeight = comp.roundLabelFontWeight || '900';
-                        const labelFontFamily = comp.roundLabelFontFamily || 'inherit';
-                        const labelBorderW = comp.roundLabelBorderWidth !== undefined ? comp.roundLabelBorderWidth : 2;
-                        const labelBorderC = comp.roundLabelBorderColor || '#086788';
-
-                        // 🌟 提取方格樣式
-                        const matchBg = comp.matchBgColor || '#ffffff';
-                        const matchBorderC = comp.matchBorderColor || '#eeeeee';
-                        const matchBorderW = comp.matchBorderWidth !== undefined ? comp.matchBorderWidth : 2;
-                        const matchFontC = comp.matchFontColor || '#333333';
-                        const matchFontSize = comp.matchFontSize || '0.85rem';
-                        const matchFontWeight = comp.matchFontWeight || '500';
-                        const matchFontFamily = comp.matchFontFamily || 'inherit';
-                        // 🌟 新增：提取贏家高亮樣式
-                        const winnerBg = comp.winnerBgColor || '#fffcf0';
-                        const winnerFontC = comp.winnerFontColor || '#086788';
-                        const winnerFontW = comp.winnerFontWeight || '900';
-
-                        // 左側標籤佈局設定 (直向時使用右框線當底線)
-                        const labelColStyle = {
-                            width: bracketDir === 'vertical' ? '120px' : 'auto',
-                            display: 'flex', flexDirection: bracketDir === 'vertical' ? 'column-reverse' : 'row',
-                            gap: bracketDir === 'vertical' ? '30px' : '0', boxSizing: 'border-box',
-                            paddingRight: bracketDir === 'vertical' ? '15px' : '0',
-                            borderRight: bracketDir === 'vertical' ? `${labelBorderW}px solid ${labelBorderC}` : 'none',
-                            flexShrink: 0,
-                        };
-
-                        const mainStyle = { flex: 1, display: 'flex', width: '100%', overflowX: bracketDir === 'vertical' ? 'hidden' : 'auto' };
+                        // 決定最終要套用的版型
+                        const activeLayout = isMobileDevice ? (comp.carouselLayoutMobile || 'top') : (comp.carouselLayout || 'top');
+                        const isSideBySide = activeLayout === 'left' || activeLayout === 'right';
 
                         return (
-                            <div className="bracket-main-container" style={{ display: 'flex', width: '100%', height: '100%' }}>
+                            <div className="carousel-slide" style={{
+                                flexDirection: activeLayout === 'left' ? 'row' : (activeLayout === 'right' ? 'row-reverse' : (activeLayout === 'bottom' ? 'column-reverse' : 'column')),
+                                gap: isSideBySide ? '20px' : '0'
+                            }}>
+                                {filteredData[currentSlide] && (
+                                    <>
+                                        {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (() => {
+                                            const imgHeightDesktop = comp.imageHeight || 160;
+                                            const imgHeightMobile = comp.imageHeightMobile || comp.imageHeight || 160;
 
-                                {/* 🌟 手機版 (直向)：左側標籤 */}
-                                {bracketDir === 'vertical' && (
-                                    <div className="bracket-label-column" style={labelColStyle}>
-                                        {sortedRounds.map((round, rIdx) => (
-                                            <div key={rIdx} className="bracket-label-item" style={{
-                                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily, position: 'relative'
-                                            }}>
-                                                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{round.name}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* 🌟 賽程主體 */}
-                                <div className="bracket-wrapper-wrapper" style={mainStyle}>
-                                    <div className={`bracket-wrapper is-${bracketDir}`}>
-                                        {sortedRounds.map((round, rIdx) => {
-                                            const isLastRound = rIdx === sortedRounds.length - 1;
-                                            const matchPairs = [];
-                                            for (let i = 0; i < round.matches.length; i += 2) matchPairs.push(round.matches.slice(i, i + 2));
+                                            // 智慧寬度魔法
+                                            const imgWidthDesktop = comp.imageShape === 'circle' ? `${imgHeightDesktop}px` : (isSideBySide && !isMobileDevice ? '45%' : '100%');
+                                            const imgWidthMobile = comp.imageShape === 'circle' ? `${imgHeightMobile}px` : (isSideBySide && isMobileDevice ? '45%' : '100%');
 
                                             return (
-                                                <div key={rIdx} className="bracket-round">
-
-                                                    {/* 🌟 電腦版 (橫向)：上方標籤 */}
-                                                    {bracketDir !== 'vertical' && (
-                                                        <h4 className="bracket-round-title" style={{
-                                                            color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily,
-                                                            borderBottom: `${labelBorderW}px solid ${labelBorderC}`
-                                                        }}>
-                                                            {round.name}
-                                                        </h4>
-                                                    )}
-
-                                                    <div className="bracket-round-matches">
-                                                        {matchPairs.map((pair, pIdx) => (
-                                                            <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`}>
-                                                                {pair.map((match, mIdx) => {
-                                                                    const scoreA = parseFloat(match[comp.scoreAColumn]);
-                                                                    const scoreB = parseFloat(match[comp.scoreBColumn]);
-                                                                    const hasScore = !isNaN(scoreA) && !isNaN(scoreB);
-                                                                    const winnerA = hasScore && scoreA > scoreB;
-                                                                    const winnerB = hasScore && scoreB > scoreA;
-
-                                                                    // 🌟 改變比例：把 100% 縮小成 85%，縫隙就自然跑出來了！
-                                                                    const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 85}%` : '100%';
-                                                                    const boxHeightPercent = bracketDir === 'horizontal' ? `${(round.matches.length / maxMatches) * 100}%` : 'auto';
-
-                                                                    return (
-                                                                        // 🌟 魔法 1：直向模式時設定 stretch，讓同一排的所有方格自動撐到最高的那格一樣高！
-                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: bracketDir === 'vertical' ? 'stretch' : 'center' }}>
-
-                                                                            {/* 外層方格：直向時 height 設為 100% 填滿拉伸的高度 */}
-                                                                            <div className="bracket-match" style={{ width: boxWidthPercent, height: bracketDir === 'vertical' ? '100%' : boxHeightPercent, background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}` }}>
-                                                                                {comp.timeColumn && match[comp.timeColumn] && (
-                                                                                    <div className="bracket-time">{match[comp.timeColumn]}</div>
-                                                                                )}
-
-                                                                                <div style={{ display: 'flex', flexDirection: bracketDir === 'vertical' ? 'row' : 'column', flex: 1, width: '100%' }}>
-
-                                                                                    {/* 隊伍 A */}
-                                                                                    <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{
-                                                                                        background: winnerA ? winnerBg : 'transparent',
-                                                                                        color: winnerA ? winnerFontC : matchFontC,
-                                                                                        fontFamily: matchFontFamily,
-                                                                                        borderBottom: bracketDir === 'vertical' ? 'none' : `1px solid ${matchBorderC}`,
-                                                                                        borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
-                                                                                        flex: 1, display: 'flex', justifyContent: bracketDir === 'vertical' ? 'center' : 'space-between',
-                                                                                        alignItems: 'center',
-                                                                                        gap: bracketDir === 'vertical' ? '8px' : '0', padding: '8px 10px', boxSizing: 'border-box'
-                                                                                    }}>
-                                                                                        {/* 🌟 破解魔法：直接將 fontSize 和 fontWeight 綁定在文字的 span 上 */}
-                                                                                        <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{match[comp.teamAColumn] || 'TBD'}</span>
-                                                                                        <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{hasScore ? scoreA : '-'}</span>
-                                                                                    </div>
-
-                                                                                    {/* 隊伍 B */}
-                                                                                    <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{
-                                                                                        background: winnerB ? winnerBg : 'transparent',
-                                                                                        color: winnerB ? winnerFontC : matchFontC,
-                                                                                        fontFamily: matchFontFamily,
-                                                                                        flex: 1, display: 'flex', justifyContent: bracketDir === 'vertical' ? 'center' : 'space-between',
-                                                                                        alignItems: 'center',
-                                                                                        gap: bracketDir === 'vertical' ? '8px' : '0', padding: '8px 10px', boxSizing: 'border-box'
-                                                                                    }}>
-                                                                                        <span style={{ wordBreak: 'break-all', marginRight: '5px', fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{match[comp.teamBColumn] || 'TBD'}</span>
-                                                                                        <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerB ? winnerFontW : matchFontWeight }}>{hasScore ? scoreB : '-'}</span>
-                                                                                    </div>
-
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
+                                                <img
+                                                    src={filteredData[currentSlide][comp.imageColumn]}
+                                                    alt="slide"
+                                                    className="carousel-img carousel-img-dynamic"
+                                                    style={{
+                                                        '--img-height-desktop': `${imgHeightDesktop}px`,
+                                                        '--img-height-mobile': `${imgHeightMobile}px`,
+                                                        '--img-width-desktop': imgWidthDesktop,
+                                                        '--img-width-mobile': imgWidthMobile,
+                                                        objectFit: comp.imageFit || 'contain',
+                                                        objectPosition: comp.imagePosition || 'center',
+                                                        borderRadius: comp.imageShape === 'circle' ? '50%' : '8px',
+                                                        // 依照「最終決定」的版型來設定外距
+                                                        marginBottom: isSideBySide || activeLayout === 'bottom' ? '0' : '15px',
+                                                        marginTop: activeLayout === 'bottom' ? '15px' : '0',
+                                                        boxShadow: comp.imageShape === 'circle' ? '0 4px 10px rgba(0,0,0,0.1)' : 'none',
+                                                        flexShrink: 0
+                                                    }}
+                                                />
                                             );
-                                        })}
-                                    </div>
-                                </div>
+                                        })()}
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', justifyContent: 'center' }}>
+                                            {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
+                                                <h3 style={{
+                                                    color: comp.titleColor || comp.themeColor || '#333',
+                                                    fontSize: comp.titleSize || comp.fontSize || '1.3rem',
+                                                    fontWeight: comp.titleWeight || comp.fontWeight || 'bold',
+                                                    // 依照「最終決定」的版型來設定對齊
+                                                    textAlign: comp.titleAlign || comp.textAlign || (isSideBySide ? 'left' : 'center'),
+                                                    fontFamily: comp.titleFontFamily || 'inherit',
+                                                    margin: '0 0 10px 0',
+                                                    width: '100%'
+                                                }}>
+                                                    {filteredData[currentSlide][comp.categoryColumn]}
+                                                </h3>
+                                            )}
+                                            {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
+                                                <p style={{
+                                                    color: comp.descColor || '#666',
+                                                    fontSize: comp.descSize || '1rem',
+                                                    fontWeight: comp.descWeight || 'normal',
+                                                    textAlign: comp.descAlign || comp.textAlign || (isSideBySide ? 'left' : 'center'),
+                                                    fontFamily: comp.descFontFamily || 'inherit',
+                                                    whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6',
+                                                    width: '100%'
+                                                }}>
+                                                    {filteredData[currentSlide][comp.valueColumn]}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         );
                     })()}
                     {comp.type === 'carousel' && (
-                        <div className="carousel-container" style={{ height: '100%', width: '100%', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' /* 新增這行 */ }}>
+                        <div className="carousel-container" style={{ height: '100%', width: '100%', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden' }}>
                             {(!comp.categoryColumn && !comp.valueColumn && !comp.imageColumn) ? (
                                 <p style={{ color: '#999', textAlign: 'center', marginTop: '20px' }}>請在右側資料面板綁定欄位</p>
                             ) : (
                                 <>
-                                    <div className="carousel-slide">
-                                        {filteredData[currentSlide] && (
-                                            <>
-                                                {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (() => {
-                                                    // 🌟 計算雙裝置的長寬 (如果是圓形，寬度要等於高度)
-                                                    const imgHeightDesktop = comp.imageHeight || 160;
-                                                    const imgHeightMobile = comp.imageHeightMobile || comp.imageHeight || 160;
-                                                    const imgWidthDesktop = comp.imageShape === 'circle' ? `${imgHeightDesktop}px` : '100%';
-                                                    const imgWidthMobile = comp.imageShape === 'circle' ? `${imgHeightMobile}px` : '100%';
+                                    {/* 🌟 偵測目前觀看的裝置，決定要套用哪一組排版設定 */}
+                                    {(() => {
+                                        // 判斷目前是電腦版還是手機版 (同時支援編輯器視角與真實預覽)
+                                        const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
+                                        const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
+                                        const isMobileDevice = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
 
-                                                    return (
-                                                        <img
-                                                            src={filteredData[currentSlide][comp.imageColumn]}
-                                                            alt="slide"
-                                                            className="carousel-img carousel-img-dynamic"
-                                                            style={{
-                                                                '--img-height-desktop': `${imgHeightDesktop}px`,
-                                                                '--img-height-mobile': `${imgHeightMobile}px`,
-                                                                '--img-width-desktop': imgWidthDesktop,
-                                                                '--img-width-mobile': imgWidthMobile,
-                                                                objectFit: comp.imageFit || 'contain',
-                                                                objectPosition: comp.imagePosition || 'center',
-                                                                borderRadius: comp.imageShape === 'circle' ? '50%' : '8px',
-                                                                marginBottom: '15px',
-                                                                boxShadow: comp.imageShape === 'circle' ? '0 4px 10px rgba(0,0,0,0.1)' : 'none',
-                                                                flexShrink: 0
-                                                            }}
-                                                        />
-                                                    );
-                                                })()}
-                                                {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
-                                                    <h3 style={{
-                                                        color: comp.titleColor || comp.themeColor || '#333',
-                                                        fontSize: comp.titleSize || comp.fontSize || '1.3rem',
-                                                        fontWeight: comp.titleWeight || comp.fontWeight || 'bold',
-                                                        textAlign: comp.titleAlign || comp.textAlign || 'center',
-                                                        fontFamily: comp.titleFontFamily || 'inherit',
-                                                        margin: '0 0 10px 0',
-                                                        width: '100%'
-                                                    }}>
-                                                        {filteredData[currentSlide][comp.categoryColumn]}
-                                                    </h3>
+                                        // 決定最終要套用的版型
+                                        const activeLayout = isMobileDevice ? (comp.carouselLayoutMobile || 'top') : (comp.carouselLayout || 'top');
+                                        const isSideBySide = activeLayout === 'left' || activeLayout === 'right';
+
+                                        return (
+                                            <div className="carousel-slide" style={{
+                                                flexDirection: activeLayout === 'left' ? 'row' : (activeLayout === 'right' ? 'row-reverse' : (activeLayout === 'bottom' ? 'column-reverse' : 'column')),
+                                                gap: isSideBySide ? '20px' : '0'
+                                            }}>
+                                                {filteredData[currentSlide] && (
+                                                    <>
+                                                        {comp.imageColumn && filteredData[currentSlide][comp.imageColumn] && (() => {
+                                                            const imgHeightDesktop = comp.imageHeight || 160;
+                                                            const imgHeightMobile = comp.imageHeightMobile || comp.imageHeight || 160;
+
+                                                            // 智慧寬度魔法
+                                                            const imgWidthDesktop = comp.imageShape === 'circle' ? `${imgHeightDesktop}px` : (isSideBySide && !isMobileDevice ? '45%' : '100%');
+                                                            const imgWidthMobile = comp.imageShape === 'circle' ? `${imgHeightMobile}px` : (isSideBySide && isMobileDevice ? '45%' : '100%');
+
+                                                            return (
+                                                                <img
+                                                                    src={filteredData[currentSlide][comp.imageColumn]}
+                                                                    alt="slide"
+                                                                    className="carousel-img carousel-img-dynamic"
+                                                                    style={{
+                                                                        '--img-height-desktop': `${imgHeightDesktop}px`,
+                                                                        '--img-height-mobile': `${imgHeightMobile}px`,
+                                                                        '--img-width-desktop': imgWidthDesktop,
+                                                                        '--img-width-mobile': imgWidthMobile,
+                                                                        objectFit: comp.imageFit || 'contain',
+                                                                        objectPosition: comp.imagePosition || 'center',
+                                                                        borderRadius: comp.imageShape === 'circle' ? '50%' : '8px',
+                                                                        // 依照「最終決定」的版型來設定外距
+                                                                        marginBottom: isSideBySide || activeLayout === 'bottom' ? '0' : '15px',
+                                                                        marginTop: activeLayout === 'bottom' ? '15px' : '0',
+                                                                        boxShadow: comp.imageShape === 'circle' ? '0 4px 10px rgba(0,0,0,0.1)' : 'none',
+                                                                        flexShrink: 0
+                                                                    }}
+                                                                />
+                                                            );
+                                                        })()}
+
+                                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', justifyContent: 'center' }}>
+                                                            {comp.categoryColumn && filteredData[currentSlide][comp.categoryColumn] && (
+                                                                <h3 style={{
+                                                                    color: comp.titleColor || comp.themeColor || '#333',
+                                                                    fontSize: comp.titleSize || comp.fontSize || '1.3rem',
+                                                                    fontWeight: comp.titleWeight || comp.fontWeight || 'bold',
+                                                                    // 依照「最終決定」的版型來設定對齊
+                                                                    textAlign: comp.titleAlign || comp.textAlign || (isSideBySide ? 'left' : 'center'),
+                                                                    fontFamily: comp.titleFontFamily || 'inherit',
+                                                                    margin: '0 0 10px 0',
+                                                                    width: '100%'
+                                                                }}>
+                                                                    {filteredData[currentSlide][comp.categoryColumn]}
+                                                                </h3>
+                                                            )}
+                                                            {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
+                                                                <p style={{
+                                                                    color: comp.descColor || '#666',
+                                                                    fontSize: comp.descSize || '1rem',
+                                                                    fontWeight: comp.descWeight || 'normal',
+                                                                    textAlign: comp.descAlign || comp.textAlign || (isSideBySide ? 'left' : 'center'),
+                                                                    fontFamily: comp.descFontFamily || 'inherit',
+                                                                    whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6',
+                                                                    width: '100%'
+                                                                }}>
+                                                                    {filteredData[currentSlide][comp.valueColumn]}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </>
                                                 )}
-                                                {comp.valueColumn && filteredData[currentSlide][comp.valueColumn] && (
-                                                    <p style={{
-                                                        color: comp.descColor || '#666',
-                                                        fontSize: comp.descSize || '1rem',
-                                                        fontWeight: comp.descWeight || 'normal',
-                                                        textAlign: comp.descAlign || comp.textAlign || 'center',
-                                                        fontFamily: comp.descFontFamily || 'inherit',
-                                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, lineHeight: '1.6',
-                                                        width: '100%'
-                                                    }}>
-                                                        {filteredData[currentSlide][comp.valueColumn]}
-                                                    </p>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
+                                            </div>
+                                        );
+                                    })()}
+
                                     {filteredData.length > 1 && (
                                         <>
                                             <div className="carousel-nav">
@@ -3627,9 +3605,24 @@
                                             showDataLabels: c.showDataLabels || false, dataLabelType: c.dataLabelType || 'percentage', dataLabelColor: c.dataLabelColor || '#ffffff',
                                             pieCustomColors: Array.isArray(c.pieCustomColors) ? c.pieCustomColors : [],
 
+                                            textTitleCol: c.textTitleCol || '',
+                                            // 這裡 reuse 原有的 multiValueCols，但專門給 textCard 用
+                                            textTitleColor: c.textTitleColor || '#222222',
+                                            textTitleSize: c.textTitleSize || '1.5rem',
+                                            textTitleWeight: c.textTitleWeight || '900',
+                                            textTitleAlign: c.textTitleAlign || 'left',
+                                            textContentColor: c.textContentColor || '#333333',
+                                            textContentSize: c.textContentSize || '1rem',
+                                            textContentWeight: c.textContentWeight || 'normal',
+                                            textContentAlign: c.textContentAlign || 'left',
+                                            textContentLineHeight: c.textContentLineHeight || 1.6,
+
                                             // 🌟 記憶恢復關鍵：確保 customColors 等進階參數被正確載入
                                             customColors: Array.isArray(c.customColors) ? c.customColors : [],
 
+                                            carouselLayout: c.carouselLayout || 'top',
+                                            carouselLayoutMobile: c.carouselLayoutMobile || 'top',
+                                            imageHeight: c.imageHeight || null, // 🌟 加了 null 保護
                                             imageHeight: c.imageHeight || null, imageHeightMobile: c.imageHeightMobile || null, imageFit: c.imageFit || 'contain', imagePosition: c.imagePosition || 'center', imageShape: c.imageShape || 'rect', titleAlign: c.titleAlign || 'center', descAlign: c.descAlign || 'center', titleFontFamily: c.titleFontFamily || '', descFontFamily: c.descFontFamily || '', enableFilter: c.enableFilter || false,
                                             cardBgType: c.cardBgType || 'solid', cardBgColor1: c.cardBgColor1 || '#ffffff', cardBgColor2: c.cardBgColor2 || '#f0f0f0', cardBgAngle: c.cardBgAngle !== undefined ? c.cardBgAngle : 180,
                                             cardBorderWidth: c.cardBorderWidth !== undefined ? c.cardBorderWidth : 1, cardBorderColor: c.cardBorderColor || '#eeeeee', cardBorderRadius: c.cardBorderRadius !== undefined ? c.cardBorderRadius : 12,
@@ -3833,6 +3826,17 @@
                     baseComp.teamLayout = 'column'; // 預設上下排列
                 }
 
+                if (type === 'textCard') {
+                    baseComp.textTitleCol = '';
+                    baseComp.multiValueCols = ['']; // 預設一個內文欄位
+                    baseComp.textTitleColor = '#222222';
+                    baseComp.textTitleSize = '1.5rem';
+                    baseComp.textTitleWeight = '900';
+                    baseComp.textContentColor = '#333333';
+                    baseComp.textContentSize = '1rem';
+                    baseComp.textContentLineHeight = 1.6;
+                }
+
                 if (type === 'table') {
                     baseComp.mergeCols = ''; // 預設為空 (全合併)
                 }
@@ -3863,6 +3867,10 @@
                     baseComp.editingEdgeId = '';
                     baseComp.flowNodeOverrides = {};
                     baseComp.editingNodeId = '';
+                }
+                if (type === 'carousel') {
+                    baseComp.carouselLayout = 'top';
+                    baseComp.carouselLayoutMobile = 'top'; // 📱 手機版預設也是上圖下文
                 }
                 setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
@@ -3907,7 +3915,7 @@
                     legendPosition: b.legendPosition || 'top',
 
                     categoryColumn: b.categoryCol || null,
-                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table' || b.type === 'choroplethMap') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
+                    multiValueCols: (b.type === 'barChart' || b.type === 'stackedBarChart' || b.type === 'lineChart' || b.type === 'table' || b.type === 'choroplethMap' || b.type === 'textCard') ? (b.multiValueCols || b.stackValueCols || [b.valueCol, b.compareValueCol].filter(Boolean)) : [],
                     valueColumn: (b.type !== 'barChart' && b.type !== 'stackedBarChart' && b.type !== 'lineChart') ? (b.valueCol || null) : null,
                     compareValueColumn: b.compareValueCol || null,
                     imageColumn: b.imageCol || null,
@@ -3929,6 +3937,19 @@
                     axisLabelColor: b.axisLabelColor || '#666666',
                     axisGridColor: b.axisGridColor || '#e0e0e0',
                     axisLabelSize: b.axisLabelSize || '12',
+
+                    // 純文字卡片進階屬性
+                    textTitleCol: b.textTitleCol || '',
+                    // 這裡 reuse 原有的 multiValueCols，但專門給 textCard 用
+                    textTitleColor: b.textTitleColor || '#222222',
+                    textTitleSize: b.textTitleSize || '1.5rem',
+                    textTitleWeight: b.textTitleWeight || '900',
+                    textTitleAlign: b.textTitleAlign || 'left',
+                    textContentColor: b.textContentColor || '#333333',
+                    textContentSize: b.textContentSize || '1rem',
+                    textContentWeight: b.textContentWeight || 'normal',
+                    textContentAlign: b.textContentAlign || 'left',
+                    textContentLineHeight: b.textContentLineHeight || 1.6,
 
                     timeWidthPercent: b.timeWidthPercent || 20,
                     timelineGap: b.timelineGap || 20,
@@ -3996,6 +4017,10 @@
                     autoMergeCells: b.autoMergeCells || false,
                     mergeCols: b.mergeCols || '',
 
+                    // 🌟 輪播圖文卡片專屬
+                    carouselLayout: b.carouselLayout || 'top',
+                    carouselLayoutMobile: b.carouselLayoutMobile || 'top',
+                    imageHeight: b.imageHeight || null, // 🌟 加了 null 保護
                     imageHeight: b.imageHeight || null, // 🌟 加了 null 保護
                     imageHeightMobile: b.imageHeightMobile || null, // 🌟 加了 null 保護
                     imageFit: b.imageFit || 'contain',
@@ -5003,14 +5028,12 @@
                                                                     }}>+ 添加數值欄位</button>
                                                                 </div>
                                                             ) : (
-                                                                /* 其他積木的單一 Y 軸 / 內文欄位 (排除 dropdown) */
-                                                                currentSelectedBlock.type !== 'dropdown' && (
+                                                                currentSelectedBlock.type !== 'dropdown' && currentSelectedBlock.type !== 'textCard' && (
                                                                     <div className="form-group">
                                                                         <label>
                                                                             <label>
-                                                                                {currentSelectedBlock.type === 'textCard' ? '文字來源欄位' :
-                                                                                    currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' :
-                                                                                        currentSelectedBlock.type === 'choroplethMap' ? '熱力數值欄位 (決定漸層深淺)' : '數值欄位 (Y軸)'}
+                                                                                {currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'carousel' ? '事件內文欄位' :
+                                                                                    currentSelectedBlock.type === 'choroplethMap' ? '熱力數值欄位 (決定漸層深淺)' : '數值欄位 (Y軸)'}
                                                                             </label>
                                                                         </label>
                                                                         <select value={currentSelectedBlock.valueCol} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'valueCol', e.target.value)}>
@@ -5030,6 +5053,42 @@
                                                                         {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
                                                                     </select>
                                                                 </div>
+                                                            )}
+                                                            {/* 📝 純文字卡片資料綁定 */}
+                                                            {currentSelectedBlock.type === 'textCard' && (
+                                                                <>
+                                                                    <div className="form-group">
+                                                                        <label>🏆 選定標題欄位 (選填)</label>
+                                                                        <select value={currentSelectedBlock.textTitleCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textTitleCol', e.target.value)}>
+                                                                            <option value="">-- 不顯示標題 --</option>
+                                                                            {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                        </select>
+                                                                    </div>
+
+                                                                    <div className="form-group" style={{ marginTop: '15px' }}>
+                                                                        <label>📄 內文欄位 (可多選，依序排列)</label>
+                                                                        {(currentSelectedBlock.multiValueCols || ['']).map((col, index) => (
+                                                                            <div key={index} style={{ display: 'flex', gap: '5px', marginBottom: '8px' }}>
+                                                                                <select value={col} style={{ flex: 1 }} onChange={(e) => {
+                                                                                    const newCols = [...(currentSelectedBlock.multiValueCols || [])];
+                                                                                    newCols[index] = e.target.value;
+                                                                                    updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
+                                                                                }}>
+                                                                                    <option value="">-- 選擇欄位 --</option>
+                                                                                    {availableColumns.map(availableCol => <option key={availableCol} value={availableCol}>{availableCol}</option>)}
+                                                                                </select>
+                                                                                <button onClick={() => {
+                                                                                    const newCols = (currentSelectedBlock.multiValueCols || []).filter((_, i) => i !== index);
+                                                                                    updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', newCols);
+                                                                                }} style={{ padding: '5px' }}>✕</button>
+                                                                            </div>
+                                                                        ))}
+                                                                        <button className="reset-filter-btn" style={{ margin: 0, width: '100%' }} onClick={() => {
+                                                                            const updatedCols = [...(currentSelectedBlock.multiValueCols || []), ''];
+                                                                            updateBlockProperty(currentSelectedBlock.i, 'multiValueCols', updatedCols);
+                                                                        }}>+ 添加更多內文欄位</button>
+                                                                    </div>
+                                                                </>
                                                             )}
 
                                                             {/* 🔗 時間軸專屬：超連結 */}
@@ -5869,6 +5928,31 @@
 
                                                             {/* 圖片設定區 */}
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🖼️ 圖片尺寸與裁切</h4>
+                                                            {/* 🌟 圖文排列方向 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔲 圖文排列方向</h4>
+                                                            <div style={{ background: '#fff', padding: '15px', borderRadius: '6px', border: '1px solid #ddd', marginBottom: '20px' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>💻 電腦版排版</label>
+                                                                        <select value={currentSelectedBlock.carouselLayout || 'top'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'carouselLayout', e.target.value)}>
+                                                                            <option value="top">圖片在上，文字在下</option>
+                                                                            <option value="bottom">圖片在下，文字在上</option>
+                                                                            <option value="left">圖片在左，文字在右</option>
+                                                                            <option value="right">圖片在右，文字在左</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>📱 手機版排版</label>
+                                                                        <select value={currentSelectedBlock.carouselLayoutMobile || 'top'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'carouselLayoutMobile', e.target.value)}>
+                                                                            <option value="top">圖片在上，文字在下</option>
+                                                                            <option value="bottom">圖片在下，文字在上</option>
+                                                                            <option value="left">圖片在左，文字在右</option>
+                                                                            <option value="right">圖片在右，文字在左</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '10px' }}>💡 建議手機版使用「圖片在上」，避免空間過度擠壓。</div>
+                                                            </div>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
                                                                 <div className="form-group" style={{ marginBottom: 0 }}>
                                                                     <label>圖片外框形狀</label>
@@ -6103,9 +6187,32 @@
                                                             </div>
                                                         </>
                                                     )}
+                                                    {currentSelectedBlock.type === 'textCard' && (
+                                                        <>
+                                                            {/* 🏆 標題樣式區 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🏆 標題樣式</h4>
+                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                <div className="form-group"><label>文字顏色</label><input type="color" value={currentSelectedBlock.textTitleColor || '#222222'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textTitleColor', e.target.value)} /></div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                                    <div className="form-group"><label>大小</label><select value={currentSelectedBlock.textTitleSize || '1.5rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textTitleSize', e.target.value)}><option value="1.2rem">小</option><option value="1.5rem">中</option><option value="2rem">大</option></select></div>
+                                                                    <div className="form-group"><label>粗細</label><select value={currentSelectedBlock.textTitleWeight || '900'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textTitleWeight', e.target.value)}><option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option></select></div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* 📄 內文樣式區 */}
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📄 內文樣式</h4>
+                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                                                                <div className="form-group"><label>文字顏色</label><input type="color" value={currentSelectedBlock.textContentColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textContentColor', e.target.value)} /></div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '10px' }}>
+                                                                    <div className="form-group"><label>大小</label><select value={currentSelectedBlock.textContentSize || '1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textContentSize', e.target.value)}><option value="0.9rem">小</option><option value="1rem">標準</option><option value="1.2rem">大</option></select></div>
+                                                                    <div className="form-group"><label>行高</label><input type="number" step="0.1" value={currentSelectedBlock.textContentLineHeight || 1.6} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'textContentLineHeight', parseFloat(e.target.value))} /></div>
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     {/* 🌟 文字相關共用排版 */}
-                                                    {(currentSelectedBlock.type === 'textCard' || currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'carousel') && (
+                                                    {(currentSelectedBlock.type === 'timeline' || currentSelectedBlock.type === 'metricCard' || currentSelectedBlock.type === 'carousel') && (
                                                         <>
                                                             <h4 style={{ marginTop: '20px', marginBottom: '10px', color: '#086788' }}>📝 文字樣式設定</h4>
                                                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
