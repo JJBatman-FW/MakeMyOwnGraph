@@ -15,6 +15,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <script src="https://unpkg.com/topojson-client@3"></script>
     <script src="https://unpkg.com/chartjs-chart-geo@4"></script>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dagre-d3/0.6.4/dagre-d3.min.js"></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/css/styles.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-resizable/3.0.5/css/styles.min.css" />
@@ -1742,10 +1744,6 @@
                 });
             };
 
-
-            const datasets = Object.keys(datasetsMap).map(label => ({ label: label, data: datasetsMap[label] }));
-            return { categories, datasets };
-
             if (loading) return <div className="preview-container"><h3 style={{ textAlign: 'center' }}>資料載入中，請稍候...</h3></div>;
             if (error) return <div className="preview-container"><h3 style={{ color: 'red', textAlign: 'center' }}>{error}</h3></div>;
 
@@ -1774,7 +1772,7 @@
 
                     <div className="preview-grid">
                         {sortedComponents.map(comp => (
-                            <ChartComponent
+                            <ChartComponent dataMap={dataMap}
                                 key={comp.id} comp={comp}
                                 rawData={dataMap[comp.dataSourceId] || []}
                                 filteredData={getFilteredDataForComp(comp)}
@@ -1814,7 +1812,7 @@
         }
 
         // 🌟 修正：接收 editorBreakpoint 與 previewDevice，才不會 ReferenceError 當機
-        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData, isEditing, editorBreakpoint, previewDevice }) {
+        function ChartComponent({ comp, rawData, filteredData, aggregateData, filters, onFilterChange, missingDropdowns, isDropdownDisabled, aggregateStackedData, isEditing, editorBreakpoint, previewDevice, dataMap }) {
             const [localTableTabs, setLocalTableTabs] = React.useState({});
             const isChartVisible = !missingDropdowns || missingDropdowns.length === 0;
             const canvasRef = useRef(null);
@@ -2314,7 +2312,7 @@
                 : `${comp.cardShadowX || 0}px ${comp.cardShadowY !== undefined ? comp.cardShadowY : 2}px ${comp.cardShadowBlur !== undefined ? comp.cardShadowBlur : 8}px ${hexToRgba(comp.cardShadowColor || '#000000', (comp.cardShadowOpacity !== undefined ? comp.cardShadowOpacity : 4) / 100)}`;
 
             // 🌟 智慧判斷：圖表需要大保底高度防壓扁，但選單、按鈕、文字卡片不需要！
-            const minHeightThreshold = ['dropdown', 'button', 'metricCard', 'textCard'].includes(comp.type) ? 0 : 250;
+            const minHeightThreshold = ['dropdown', 'button', 'metricCard', 'textCard', 'flowchart'].includes(comp.type) ? 0 : 250;
 
             const gridStyle = {
                 gridColumn: colX !== 'auto' ? `${colX} / span ${colWidth}` : `span ${colWidth}`,
@@ -3238,10 +3236,220 @@
                             )}
                         </div>
                     )}
+                    {/* ======= 流程圖 (Flowchart) ======= */}
+                    {(comp.type === 'flowchart') && (
+                        (!comp.dataSheetXCol || !(comp.dataSheetYCols || [])[0] || !comp.dataSheetEdges || !comp.flowEdgeFromCol || !comp.flowEdgeToCol) ? (
+                            <div className="waiting-placeholder" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <p style={{ color: '#999', textAlign: 'center', lineHeight: '1.5' }}>請在右側面板完整綁定<br />「節點資料表」與「連線資料表」欄位</p>
+                            </div>
+                        ) : (
+                            <FlowchartComponent
+                                nodesData={filteredData}
+                                edgesData={dataMap[comp.dataSheetEdges] || []}
+                                config={comp}
+                                isEditing={isEditing}
+                                // 👇 🌟 核心防護：把裝置切換的訊號傳遞進去！
+                                editorBreakpoint={editorBreakpoint}
+                                previewDevice={previewDevice}
+                            />
+                        )
+                    )}
                 </div>
             );
-        }
 
+        }
+        const FlowchartComponent = ({ nodesData, edgesData, config, isEditing, editorBreakpoint, previewDevice }) => {
+            const containerRef = useRef(null);
+            const wrapperRef = useRef(null);
+            const [graphLayout, setGraphLayout] = useState(null);
+
+            useEffect(() => {
+                if (!window.dagreD3 || !window.d3 || !nodesData || !edgesData) return;
+
+                try {
+                    const dagre = window.dagreD3.dagre;
+                    const g = new dagre.graphlib.Graph();
+                    g.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 70 });
+                    g.setDefaultEdgeLabel(() => ({}));
+
+                    nodesData.forEach(node => {
+                        const nodeId = String(node[config.dataSheetXCol] || '').trim();
+                        const nodeName = String(node[(config.dataSheetYCols || [])[0]] || '').trim();
+                        if (!nodeId || !nodeName) return;
+
+                        const shape = node[config.flowNodeShapeCol] === '圓形' ? 'circle' : 'rect';
+                        const desc = node[config.flowNodeDescCol] || '';
+
+                        const nodeWidth = config.flowStyleNodeWidth || 160;
+                        const isCircle = shape === 'circle';
+
+                        const nodeHeight = isCircle ? nodeWidth : (desc ? 90 : 60);
+
+                        g.setNode(nodeId, { width: nodeWidth, height: nodeHeight, data: node });
+                    });
+
+                    edgesData.forEach(edge => {
+                        const fromId = String(edge[config.flowEdgeFromCol] || '').trim();
+                        const toId = String(edge[config.flowEdgeToCol] || '').trim();
+                        if (fromId && toId && g.hasNode(fromId) && g.hasNode(toId)) {
+                            g.setEdge(fromId, toId, { label: edge[config.flowEdgeLabelCol] || '' });
+                        }
+                    });
+
+                    dagre.layout(g);
+
+                    const nodes = g.nodes().map(v => ({ id: v, ...g.node(v) }));
+                    const edges = g.edges().map(e => ({ id: `${e.v}-${e.w}`, ...g.edge(e) }));
+
+                    setGraphLayout({ nodes, edges, size: { width: g.graph().width, height: g.graph().height } });
+                } catch (err) {
+                    console.error("流程圖計算失敗:", err);
+                }
+            }, [nodesData, edgesData, config]);
+
+            useEffect(() => {
+                if (!containerRef.current || !wrapperRef.current || !graphLayout || !window.d3) return;
+
+                const container = d3.select(containerRef.current);
+                const wrapper = d3.select(wrapperRef.current);
+
+                const resizeAndCenter = () => {
+                    const containerW = containerRef.current.clientWidth;
+                    const containerH = containerRef.current.clientHeight;
+                    const graphW = graphLayout.size.width;
+                    const graphH = graphLayout.size.height;
+
+                    if (!containerW || !containerH || !graphW || !graphH) return;
+
+                    const padding = 60;
+                    const scaleX = (containerW - padding) / graphW;
+                    const scaleY = (containerH - padding) / graphH;
+                    const zoomScale = Math.min(scaleX, scaleY, 1);
+
+                    const xOffset = (containerW - graphW * zoomScale) / 2;
+                    const yOffset = (containerH - graphH * zoomScale) / 2;
+
+                    const zoom = d3.zoom().on("zoom", () => {
+                        wrapper.style("transform", `translate(${d3.event.transform.x}px, ${d3.event.transform.y}px) scale(${d3.event.transform.k})`);
+                    });
+
+                    container.call(zoom);
+                    container.call(zoom.transform, d3.zoomIdentity.translate(xOffset, yOffset).scale(zoomScale));
+                };
+
+                requestAnimationFrame(resizeAndCenter);
+
+                const resizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeAndCenter));
+                resizeObserver.observe(containerRef.current);
+
+                return () => resizeObserver.disconnect();
+            }, [graphLayout, editorBreakpoint, previewDevice]);
+
+            if (!graphLayout) return <div style={{ flex: 1, minHeight: '400px' }} />;
+
+            const lineGenerator = window.d3.line().x(d => d.x).y(d => d.y).curve(window.d3.curveBasis);
+
+            return (
+                <div ref={containerRef} className="flowchart-wrapper" style={{ flex: 1, width: '100%', minHeight: '400px', position: 'relative', overflow: 'hidden', background: 'transparent' }}>
+                    <div ref={wrapperRef} style={{ transformOrigin: '0 0', position: 'absolute', top: 0, left: 0, width: graphLayout.size.width, height: graphLayout.size.height }}>
+
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+                            <defs>
+                                <marker id={`arrow_${config.i}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                    <path d="M 0 0 L 10 5 L 0 10 z" fill={config.flowStyleLineColor || '#666666'} />
+                                </marker>
+                            </defs>
+                            {graphLayout.edges.map(edge => (
+                                <path key={edge.id} d={lineGenerator(edge.points)} fill="none" stroke={config.flowStyleLineColor || '#666666'} strokeWidth="2" markerEnd={`url(#arrow_${config.i})`} />
+                            ))}
+                        </svg>
+
+                        {graphLayout.nodes.map(node => {
+                            const data = node.data;
+                            const shape = data[config.flowNodeShapeCol] === '圓形' ? 'circle' : 'rect';
+                            const isCircle = shape === 'circle';
+
+                            const titleSize = config.flowStyleTitleSize || '1.1rem';
+                            const titleWeight = config.flowStyleTitleWeight || 'bold';
+                            const descSize = config.flowStyleDescSize || '0.85rem';
+
+                            const bg = data[config.flowNodeBgCol] || config.flowStyleDefaultNodeBg || '#ffffff';
+                            const color = data[config.flowNodeColorCol] || config.flowStyleDefaultNodeColor || '#333333';
+                            const borderW = config.flowStyleNodeBorderWidth !== undefined ? config.flowStyleNodeBorderWidth : 1.5;
+                            const borderC = config.flowStyleNodeBorderColor || '#cccccc';
+                            const radius = config.flowStyleNodeBorderRadius !== undefined ? config.flowStyleNodeBorderRadius : 8;
+
+                            const desc = data[config.flowNodeDescCol] || '';
+
+                            return (
+                                <div key={node.id} style={{
+                                    position: 'absolute',
+                                    left: node.x - node.width / 2,
+                                    top: node.y - node.height / 2,
+                                    width: node.width,
+                                    height: node.height,
+                                    background: bg,
+                                    border: `${borderW}px solid ${borderC}`,
+                                    borderRadius: isCircle ? '50%' : `${radius}px`,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '10px 15px',
+                                    boxSizing: 'border-box',
+                                    textAlign: 'center',
+                                    color: color,
+                                    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                                    zIndex: 10
+                                }}>
+                                    <div style={{ fontWeight: titleWeight, fontSize: titleSize, lineHeight: 1.3, margin: 0, wordBreak: 'break-word' }}>
+                                        {data[(config.dataSheetYCols || [])[0]] || ''}
+                                    </div>
+                                    {desc && (
+                                        <div style={{ fontSize: descSize, lineHeight: 1.4, marginTop: '6px', opacity: 0.9, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                                            {desc}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+
+                        {graphLayout.edges.map(edge => {
+                            if (!edge.label || !edge.points || edge.points.length === 0) return null;
+                            const midIndex = Math.floor(edge.points.length / 2);
+                            const midPoint = edge.points[midIndex];
+
+                            return (
+                                <div key={`${edge.id}-label`} style={{
+                                    position: 'absolute',
+                                    left: midPoint.x,
+                                    top: midPoint.y,
+                                    transform: 'translate(10px, -50%)',
+                                    background: '#ffffff',
+                                    border: '1px solid #ddd',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 'bold',
+                                    color: '#555',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    zIndex: 5,
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {edge.label}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {isEditing && (
+                        <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '5px' }}>
+                            <div style={{ fontSize: '0.8rem', color: '#999', background: 'rgba(255,255,255,0.8)', padding: '4px 8px', borderRadius: '4px', border: '1px solid #eee', pointerEvents: 'none' }}>💡 滑鼠可拖曳、滾輪可縮放</div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
         function DashboardApp() {
             const params = new URLSearchParams(window.location.search);
             const urlId = params.get('id');
@@ -3314,7 +3522,31 @@
                 metricCard: { title: '數據卡片', desc: '自動加總數值，或計算資料筆數。', headers: ['分類欄位 (選填)', '數值欄位'], rows: [['第一季', '1500000'], ['第二季', '2300000']] },
                 textCard: { title: '純文字區塊', desc: '顯示最後一筆最新的文字內容。', headers: ['分類欄位 (選填)', '文字內容'], rows: [['最新公告', '系統將於明日進行維護...']] },
                 dropdown: { title: '下拉選單 / 標籤按鈕', desc: '抓取該欄位「所有不重複的值」作為按鈕選項。', headers: ['過濾目標欄位 (如：年份)'], rows: [['2023'], ['2024'], ['2024']] },
-                button: { title: '外部動作按鈕', desc: '純排版按鈕，不需綁定資料表。', headers: ['無'], rows: [] }
+                button: { title: '外部動作按鈕', desc: '純排版按鈕，不需綁定資料表。', headers: ['無'], rows: [] },
+                // 🌟 新增的流程圖範例 (多表格模式)
+                flowchart: {
+                    title: '圖文決策流程圖',
+                    desc: '⚠️ 流程圖必須準備「兩張」資料表：一張定義「節點 (方塊)」，另一張定義「連線 (箭頭)」。\n💡 點擊「複製內容」會將兩張表一併複製，請分別貼到 Google Sheet 的兩個不同分頁中！',
+                    tables: [
+                        {
+                            title: '表 1：流程節點表 (Nodes)',
+                            headers: ['節點ID', '節點名稱', '形狀 (圓形/矩形)', '描述文字 (選填)', '背景顏色 (選填)', '字體顏色 (選填)'],
+                            rows: [
+                                ['n1', '行政院提覆議', '矩形', '行政院認為窒礙難行...', '#086788', '#ffffff'],
+                                ['n2', '立法院', '矩形', '15天內表決覆議案', '#ffffff', '#333333'],
+                                ['n3', '修法失效', '圓形', '贊成維持原決議未達1/2', '#f9f9f9', '#333333']
+                            ]
+                        },
+                        {
+                            title: '表 2：流程連線表 (Edges)',
+                            headers: ['從ID (出發點)', '到ID (目標點)', '連線標籤 (選填)'],
+                            rows: [
+                                ['n1', 'n2', ''],
+                                ['n2', 'n3', '通過覆議']
+                            ]
+                        }
+                    ]
+                }
             };
 
             const [blocks, setBlocks] = useState([
@@ -3407,6 +3639,30 @@
                                             winnerFontColor: c.winnerFontColor || '#086788',
                                             winnerFontWeight: c.winnerFontWeight || '900',
                                             teamLayout: c.teamLayout || 'column',
+
+                                            // 🌟 流程圖 (Flowchart) 屬性讀取
+                                            dataSheetNodes: c.dataSheetNodes || '',
+                                            dataSheetEdges: c.dataSheetEdges || '',
+                                            dataSheetXCol: c.dataSheetXCol || '',
+                                            dataSheetYCols: c.dataSheetYCols || [],
+                                            flowEdgeFromCol: c.flowEdgeFromCol || '',
+                                            flowEdgeToCol: c.flowEdgeToCol || '',
+                                            flowNodeShapeCol: c.flowNodeShapeCol || '',
+                                            flowNodeDescCol: c.flowNodeDescCol || '',
+                                            flowNodeBgCol: c.flowNodeBgCol || '',
+                                            flowNodeColorCol: c.flowNodeColorCol || '',
+                                            flowEdgeLabelCol: c.flowEdgeLabelCol || '',
+                                            flowStyleNodeBorderRadius: c.flowStyleNodeBorderRadius || 8,
+                                            flowStyleNodeWidth: c.flowStyleNodeWidth || 160,
+                                            flowStyleLineType: c.flowStyleLineType || 'straight',
+                                            flowStyleLineColor: c.flowStyleLineColor || '#666',
+                                            flowStyleDefaultNodeBg: c.flowStyleDefaultNodeBg || '#ffffff',
+                                            flowStyleDefaultNodeColor: c.flowStyleDefaultNodeColor || '#333333',
+                                            flowStyleNodeBorderWidth: c.flowStyleNodeBorderWidth !== undefined ? c.flowStyleNodeBorderWidth : 1.5,
+                                            flowStyleNodeBorderColor: c.flowStyleNodeBorderColor || '#cccccc',
+                                            flowStyleTitleSize: c.flowStyleTitleSize || '1.1rem',
+                                            flowStyleTitleWeight: c.flowStyleTitleWeight || 'bold',
+                                            flowStyleDescSize: c.flowStyleDescSize || '0.85rem',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -3507,7 +3763,7 @@
 
             const addBlock = (type, title, defaultW, defaultH) => {
                 const newId = 'comp_' + Date.now();
-                const baseComp = { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center' };
+                const baseComp = { i: newId, dataSourceId: sheetSources.length > 0 ? sheetSources[0].id : '', x: 0, y: Infinity, w: defaultW, h: defaultH, type: type, title: title, categoryCol: '', valueCol: '', aggregation: type === 'textCard' ? 'first' : 'sum', chartOrientation: 'vertical', themeColor: type === 'textCard' ? '#333333' : '#086788', compareValueCol: '', stackValueCols: [], isPercentageStacked: false, fontSize: '', fontFamily: '', fontWeight: type === 'textCard' ? 'normal' : '900', textAlign: type === 'textCard' ? 'left' : 'center', titleSize: '1.25rem' };
 
                 // 🏆 給賽程圖塞入專屬記憶體
                 if (type === 'bracket') {
@@ -3537,6 +3793,30 @@
 
                 if (type === 'table') {
                     baseComp.mergeCols = ''; // 預設為空 (全合併)
+                }
+                if (type === 'flowchart') {
+                    baseComp.dataSheetNodes = '';     // 節點資料表
+                    baseComp.dataSheetEdges = '';     // 連線資料表
+                    baseComp.flowNodeShapeCol = '';   // 節點形狀欄位
+                    baseComp.flowNodeDescCol = '';    // 描述文字欄位
+                    baseComp.flowNodeBgCol = '';      // 背景顏色欄位
+                    baseComp.flowNodeColorCol = '';   // 字體顏色欄位
+                    baseComp.flowEdgeLabelCol = '';   // 連線標籤欄位
+
+                    baseComp.flowStyleNodeBorderRadius = 8;     // 預設圓角
+                    baseComp.flowStyleLineType = 'straight';    // 預設直線
+                    baseComp.flowStyleLineColor = '#666666';    // 預設線條顏色
+                    baseComp.flowStyleDefaultNodeBg = '#ffffff'; // 預設節點背景
+                    baseComp.flowStyleDefaultNodeColor = '#333333'; // 預設節點文字
+                    baseComp.flowStyleNodeBorderWidth = 1.5;    // 邊框粗細
+                    baseComp.flowStyleNodeBorderColor = '#cccccc'; // 邊框顏色
+                    baseComp.flowStyleTitleSize = '1.1rem';     // 標題大小
+                    baseComp.flowStyleTitleWeight = 'bold';     // 標題粗細
+                    baseComp.flowStyleDescSize = '0.85rem';     // 描述大小
+                    baseComp.dataSheetXCol = '';     // 節點 ID
+                    baseComp.dataSheetYCols = [];    // 節點名稱
+                    baseComp.flowEdgeFromCol = '';   // 連線起點
+                    baseComp.flowEdgeToCol = '';     // 連線終點
                 }
                 setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
@@ -3742,6 +4022,28 @@
                     winnerFontWeight: b.winnerFontWeight || '900',
                     teamLayout: b.teamLayout || 'column',
 
+                    dataSheetNodes: b.dataSheetNodes || '',
+                    dataSheetEdges: b.dataSheetEdges || '',
+                    dataSheetXCol: b.dataSheetXCol || '',
+                    dataSheetYCols: b.dataSheetYCols || [],
+                    flowEdgeFromCol: b.flowEdgeFromCol || '',
+                    flowEdgeToCol: b.flowEdgeToCol || '',
+                    flowNodeShapeCol: b.flowNodeShapeCol || '',
+                    flowNodeDescCol: b.flowNodeDescCol || '',
+                    flowNodeBgCol: b.flowNodeBgCol || '',
+                    flowNodeColorCol: b.flowNodeColorCol || '',
+                    flowEdgeLabelCol: b.flowEdgeLabelCol || '',
+                    flowStyleNodeBorderRadius: b.flowStyleNodeBorderRadius || 8,
+                    flowStyleNodeWidth: b.flowStyleNodeWidth || 160,
+                    flowStyleLineType: b.flowStyleLineType || 'straight',
+                    flowStyleLineColor: b.flowStyleLineColor || '#666',
+                    flowStyleDefaultNodeBg: b.flowStyleDefaultNodeBg || '#ffffff',
+                    flowStyleDefaultNodeColor: b.flowStyleDefaultNodeColor || '#333333',
+                    flowStyleNodeBorderWidth: b.flowStyleNodeBorderWidth !== undefined ? b.flowStyleNodeBorderWidth : 1.5,
+                    flowStyleNodeBorderColor: b.flowStyleNodeBorderColor || '#cccccc',
+                    flowStyleTitleSize: b.flowStyleTitleSize || '1.1rem',
+                    flowStyleTitleWeight: b.flowStyleTitleWeight || 'bold',
+                    flowStyleDescSize: b.flowStyleDescSize || '0.85rem',
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -3960,7 +4262,7 @@
                                     const bY = b.layout?.y || 0; const bX = b.layout?.x || 0;
                                     return aY === bY ? aX - bX : aY - bY;
                                 }).map(compJSON => (
-                                    <ChartComponent
+                                    <ChartComponent dataMap={dataMap}
                                         key={compJSON.id} comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
                                         aggregateData={aggregateData} filters={filters} onFilterChange={handleEditorFilterChange}
                                         missingDropdowns={getEditorMissingDropdowns(compJSON)} isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
@@ -4068,6 +4370,7 @@
                                 <button className="add-btn" onClick={() => addBlock('lineChart', '時間軸趨勢', 8, 7)} style={{ background: '#E74C3C' }}>+ 折線圖</button>
                                 <button className="add-btn" onClick={() => addBlock('timeline', '📅 新聞時間軸', 12, 12)} style={{ background: '#8E44AD' }}>+ 時間軸</button>
                                 <button className="add-btn chart-btn" onClick={() => addBlock('bracket', '🏆 淘汰賽程圖', 12, 12)} style={{ background: '#f39c12', color: 'white' }}>+ 賽程樹狀圖</button>
+                                <button className="add-btn chart-btn" onClick={() => addBlock('flowchart', '🛠️ 圖文流程圖', 12, 10)} style={{ background: '#795548', color: 'white' }}>+ 流程圖</button>
                                 <button className="add-btn" onClick={() => addBlock('choroplethMap', '🗺️ 台灣熱力圖', 12, 12)} style={{ background: '#1ABC9C' }}>+ 熱力地圖</button>
                             </div>
 
@@ -4162,7 +4465,7 @@
                                                             <div className="type-badge">{block.type}</div>
                                                         </div>
                                                         <div className="actual-chart">
-                                                            {compJSON && <ChartComponent
+                                                            {compJSON && <ChartComponent dataMap={dataMap}
                                                                 comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
                                                                 aggregateData={aggregateData} filters={filters} onFilterChange={handleEditorFilterChange} missingDropdowns={getEditorMissingDropdowns(compJSON)}
                                                                 isDropdownDisabled={checkEditorDropdownDisabled(compJSON)} aggregateStackedData={aggregateStackedData}
@@ -4424,6 +4727,7 @@
                                                         </div>
                                                     )}
 
+
                                                     {/* 🗄️ 選擇資料來源 */}
                                                     {currentSelectedBlock.type !== 'button' && sheetSources.length > 0 && (
                                                         <div className="form-group" style={{ background: '#f0f8fa', padding: '10px', borderRadius: '6px', border: '1px solid #cce4ec', marginBottom: '15px' }}>
@@ -4483,6 +4787,93 @@
                                                                         </>
                                                                     );
                                                                 })()}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {/* ======= 🛠️ 流程圖 (Flowchart) 資料與連線頁籤 ======= */}
+                                                    {currentSelectedBlock.type === 'flowchart' && activeTab === 'data' && (
+                                                        <div className="panel-content">
+
+                                                            {/* 求救區塊 (方案一的魔法) */}
+                                                            <div style={{ background: '#e8f4f8', padding: '12px 15px', borderRadius: '8px', border: '1px solid #bce0ed', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 5px rgba(8,103,136,0.1)' }}>
+                                                                <div>
+                                                                    <div style={{ fontWeight: 'bold', color: '#086788', fontSize: '0.9rem' }}>不知道流程圖怎麼整理資料？</div>
+                                                                    <div style={{ fontSize: '0.75rem', color: '#555', marginTop: '4px' }}>點擊查看「圖文決策流程圖」的資料格式範例</div>
+                                                                </div>
+                                                                <button onClick={() => setShowFormatModal(true)} style={{ background: '#fff', color: '#086788', border: '2px solid #086788', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', whiteSpace: 'nowrap', transition: '0.2s' }} onMouseOver={(e) => { e.currentTarget.style.background = '#086788'; e.currentTarget.style.color = '#fff'; }} onMouseOut={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#086788'; }}>
+                                                                    💡 查看範例
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="panel-group-title">🗄️ 資料來源綁定</div>
+                                                            <div className="form-group">
+                                                                <label>選擇「流程節點」資料表 (Sheet)</label>
+                                                                {/* 🌟 修正：正確綁定 dataSourceId */}
+                                                                <select value={currentDataSourceId} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataSourceId', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {sheetSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>選擇「流程連線」資料表 (Sheet)</label>
+                                                                <select value={currentSelectedBlock.dataSheetEdges || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataSheetEdges', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {sheetSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="panel-group-title" style={{ marginTop: '20px' }}>📦 節點欄位綁定</div>
+                                                            <div className="form-group">
+                                                                <label>對應「節點ID (作為分類)」欄位</label>
+                                                                <select value={currentSelectedBlock.dataSheetXCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataSheetXCol', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>對應「節點名稱」欄位 (顯示於圖內)</label>
+                                                                <select value={(currentSelectedBlock.dataSheetYCols || [])[0] || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'dataSheetYCols', [e.target.value])}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>對應「節點形狀 (圓形/矩形)」欄位</label>
+                                                                <select value={currentSelectedBlock.flowNodeShapeCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowNodeShapeCol', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>對應「描述文字」欄位 (可多行)</label>
+                                                                <select value={currentSelectedBlock.flowNodeDescCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowNodeDescCol', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {availableColumns.map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="panel-group-title" style={{ marginTop: '20px' }}>📦 連線欄位綁定 (必須使用「連線表」欄位)</div>
+                                                            <div className="form-group">
+                                                                <label>對應「從 ID (出發點)」欄位</label>
+                                                                {/* 🌟 修正：讀取連線表的欄位，而不是節點表的欄位 */}
+                                                                <select value={currentSelectedBlock.flowEdgeFromCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowEdgeFromCol', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {(columnsMap[currentSelectedBlock.dataSheetEdges] || []).map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>對應「到 ID (目標點)」欄位</label>
+                                                                <select value={currentSelectedBlock.flowEdgeToCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowEdgeToCol', e.target.value)}>
+                                                                    <option value="">請選擇...</option>
+                                                                    {(columnsMap[currentSelectedBlock.dataSheetEdges] || []).map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group">
+                                                                <label>對應「連線標籤」欄位 (選填)</label>
+                                                                <select value={currentSelectedBlock.flowEdgeLabelCol || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowEdgeLabelCol', e.target.value)}>
+                                                                    <option value="">無</option>
+                                                                    {(columnsMap[currentSelectedBlock.dataSheetEdges] || []).map(col => <option key={col} value={col}>{col}</option>)}
+                                                                </select>
                                                             </div>
                                                         </div>
                                                     )}
@@ -4701,6 +5092,76 @@
 
                                             {activeTab === 'style' && (
                                                 <div className="panel-content">
+                                                    {/* ======= 🛠️ 流程圖 (Flowchart) 樣式頁籤 ======= */}
+                                                    {currentSelectedBlock.type === 'flowchart' && (
+                                                        <>
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🎨 節點外觀設定</h4>
+                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>固定寬度 (px)</label>
+                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeWidth || 160} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeWidth', parseInt(e.target.value))} min="50" max="500" />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>邊緣圓角 (px)</label>
+                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeBorderRadius !== undefined ? currentSelectedBlock.flowStyleNodeBorderRadius : 8} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderRadius', parseInt(e.target.value))} min="0" />
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>預設背景顏色</label>
+                                                                        <input type="color" value={currentSelectedBlock.flowStyleDefaultNodeBg || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDefaultNodeBg', e.target.value)} />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>預設字體顏色</label>
+                                                                        <input type="color" value={currentSelectedBlock.flowStyleDefaultNodeColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDefaultNodeColor', e.target.value)} />
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>邊框顏色</label>
+                                                                        <input type="color" value={currentSelectedBlock.flowStyleNodeBorderColor || '#cccccc'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderColor', e.target.value)} />
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>邊框粗細 (px)</label>
+                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeBorderWidth !== undefined ? currentSelectedBlock.flowStyleNodeBorderWidth : 1.5} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderWidth', parseFloat(e.target.value))} min="0" step="0.5" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📝 文字樣式設定</h4>
+                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>主標題大小</label>
+                                                                        <select value={currentSelectedBlock.flowStyleTitleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleTitleSize', e.target.value)}>
+                                                                            <option value="0.9rem">小</option><option value="1.1rem">標準</option><option value="1.3rem">大</option><option value="1.5rem">特大</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                        <label>主標題粗細</label>
+                                                                        <select value={currentSelectedBlock.flowStyleTitleWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleTitleWeight', e.target.value)}>
+                                                                            <option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>描述文字大小</label>
+                                                                    <select value={currentSelectedBlock.flowStyleDescSize || '0.85rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDescSize', e.target.value)}>
+                                                                        <option value="0.75rem">極小</option><option value="0.85rem">小 (預設)</option><option value="1rem">標準</option><option value="1.1rem">大</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+
+                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 連線樣式設定</h4>
+                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                    <label>連線顏色</label>
+                                                                    <input type="color" value={currentSelectedBlock.flowStyleLineColor || '#666666'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleLineColor', e.target.value)} />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                     {/* 🌟 動作按鈕專屬樣式設定 */}
                                                     {currentSelectedBlock.type === 'button' && (
                                                         <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
@@ -5825,7 +6286,7 @@
                                         if (!compJSON) return null;
                                         return (
                                             <div key={String(block.i)}>
-                                                <ChartComponent
+                                                <ChartComponent dataMap={dataMap}
                                                     comp={compJSON} rawData={dataMap[compJSON.dataSourceId] || []} filteredData={getFilteredDataForComp(compJSON)}
                                                     aggregateData={aggregateData} filters={filters} onFilterChange={handlePreviewFilterChange}
                                                     missingDropdowns={getEditorMissingDropdowns(compJSON)} isDropdownDisabled={checkEditorDropdownDisabled(compJSON)}
@@ -5868,7 +6329,8 @@
                         const ex = formatExamples[exType] || formatExamples.barChart;
                         return (
                             <div className="modal-overlay" onClick={() => setShowFormatModal(false)}>
-                                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '700px', padding: '30px' }}>
+                                {/* 🌟 加入 maxHeight 與 overflowY 避免雙表超出螢幕 */}
+                                <div className="modal-content" onClick={e => e.stopPropagation()} style={{ width: '750px', padding: '30px', maxHeight: '90vh', overflowY: 'auto' }}>
                                     <button className="close-modal-btn" onClick={() => setShowFormatModal(false)}>✕</button>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px', paddingRight: '20px' }}>
@@ -5876,12 +6338,20 @@
                                             <h2 style={{ color: '#086788', margin: 0, fontSize: '1.4rem' }}>
                                                 💡 {ex.title} - 格式範例
                                             </h2>
-                                            {/* 👇 複製表格魔法按鈕 👇 */}
+                                            {/* 👇 複製表格魔法按鈕 (升級支援雙表複製) 👇 */}
                                             <button
                                                 onClick={(e) => {
-                                                    const headerText = ex.headers.join('\t');
-                                                    const rowsText = ex.rows.map(row => row.join('\t')).join('\n');
-                                                    navigator.clipboard.writeText(`${headerText}\n${rowsText}`);
+                                                    let copyText = '';
+                                                    if (ex.tables) {
+                                                        // 雙表模式：加上表頭名稱並用換行隔開
+                                                        copyText = ex.tables.map(t => `${t.title}\n${t.headers.join('\t')}\n${t.rows.map(row => row.join('\t')).join('\n')}`).join('\n\n\n');
+                                                    } else {
+                                                        // 單表模式
+                                                        const headerText = ex.headers.join('\t');
+                                                        const rowsText = ex.rows.map(row => row.join('\t')).join('\n');
+                                                        copyText = `${headerText}\n${rowsText}`;
+                                                    }
+                                                    navigator.clipboard.writeText(copyText);
 
                                                     const btn = e.currentTarget;
                                                     const originalHtml = btn.innerHTML;
@@ -5902,25 +6372,49 @@
                                                 📋 複製內容
                                             </button>
                                         </div>
-                                        <p style={{ color: '#555', lineHeight: '1.6', margin: 0, fontSize: '0.95rem' }}>{ex.desc}</p>
+                                        <p style={{ color: '#555', lineHeight: '1.6', margin: 0, fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{ex.desc}</p>
                                     </div>
 
-                                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                        <table className="custom-table" style={{ width: '100%', minWidth: '500px', margin: 0 }}>
-                                            <thead>
-                                                <tr>
-                                                    {ex.headers.map((h, i) => <th key={i} style={{ background: '#f5f5f5', color: '#333', borderBottom: '2px solid #ccc', padding: '12px 15px' }}>{h}</th>)}
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {ex.rows.map((row, i) => (
-                                                    <tr key={i}>
-                                                        {row.map((cell, j) => <td key={j} style={{ color: '#444', padding: '10px 15px', borderBottom: '1px solid #eee' }}>{cell}</td>)}
+                                    {/* 🌟 根據單表或雙表結構動態渲染 */}
+                                    {ex.tables ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                            {ex.tables.map((t, idx) => (
+                                                <div key={idx}>
+                                                    <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '8px', paddingLeft: '5px', borderLeft: '3px solid #086788' }}>{t.title}</div>
+                                                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                                                        <table className="custom-table" style={{ width: '100%', minWidth: '500px', margin: 0 }}>
+                                                            <thead>
+                                                                <tr>{t.headers.map((h, i) => <th key={i} style={{ background: '#f5f5f5', color: '#333', borderBottom: '2px solid #ccc', padding: '12px 15px' }}>{h}</th>)}</tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {t.rows.map((row, i) => (
+                                                                    <tr key={i}>{row.map((cell, j) => <td key={j} style={{ color: '#444', padding: '10px 15px', borderBottom: '1px solid #eee' }}>{cell}</td>)}</tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #ddd', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                                            <table className="custom-table" style={{ width: '100%', minWidth: '500px', margin: 0 }}>
+                                                <thead>
+                                                    <tr>
+                                                        {ex.headers.map((h, i) => <th key={i} style={{ background: '#f5f5f5', color: '#333', borderBottom: '2px solid #ccc', padding: '12px 15px' }}>{h}</th>)}
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                </thead>
+                                                <tbody>
+                                                    {ex.rows.map((row, i) => (
+                                                        <tr key={i}>
+                                                            {row.map((cell, j) => <td key={j} style={{ color: '#444', padding: '10px 15px', borderBottom: '1px solid #eee' }}>{cell}</td>)}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+
                                     <div style={{ marginTop: '20px', background: '#fff3cd', padding: '15px', borderRadius: '8px', border: '1px solid #ffeeba', fontSize: '0.9rem', color: '#856404', lineHeight: '1.6' }}>
                                         <div style={{ fontWeight: '900', fontSize: '1rem', color: '#d35400', marginBottom: '8px' }}>
                                             🚨 必看！資料防坑黃金定律：
