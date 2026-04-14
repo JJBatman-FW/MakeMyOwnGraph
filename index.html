@@ -3280,12 +3280,23 @@
                         const shape = node[config.flowNodeShapeCol] === '圓形' ? 'circle' : 'rect';
                         const desc = node[config.flowNodeDescCol] || '';
 
-                        const nodeWidth = config.flowStyleNodeWidth || 160;
-                        const isCircle = shape === 'circle';
+                        // 🌟 核心：查閱該節點是否有專屬的「微調字典」
+                        const overrides = config.flowNodeOverrides || {};
+                        const nodeSetting = overrides[nodeId] || {};
 
+                        // 💡 決定最終的屬性：優先使用「字典(nodeSetting)」，沒有才使用「全域(config)」，再沒有才使用「資料表(data)」，最後是寫死的「保底值」
+                        const nodeWidth = nodeSetting.width !== undefined ? nodeSetting.width : (config.flowStyleNodeWidth || 160);
+
+                        const isCircle = shape === 'circle';
                         const nodeHeight = isCircle ? nodeWidth : (desc ? 90 : 60);
 
-                        g.setNode(nodeId, { width: nodeWidth, height: nodeHeight, data: node });
+                        // 儲存算好的寬高與最終會用到的屬性，傳遞給第二階段使用
+                        g.setNode(nodeId, {
+                            width: nodeWidth,
+                            height: nodeHeight,
+                            data: node,
+                            finalStyles: nodeSetting // 把字典傳下去給 HTML 渲染時用
+                        });
                     });
 
                     edgesData.forEach(edge => {
@@ -3366,18 +3377,22 @@
 
                         {graphLayout.nodes.map(node => {
                             const data = node.data;
+                            const finalStyles = node.finalStyles || {}; // 🌟 取出第一階段傳遞下來的字典
+
                             const shape = data[config.flowNodeShapeCol] === '圓形' ? 'circle' : 'rect';
                             const isCircle = shape === 'circle';
 
-                            const titleSize = config.flowStyleTitleSize || '1.1rem';
-                            const titleWeight = config.flowStyleTitleWeight || 'bold';
-                            const descSize = config.flowStyleDescSize || '0.85rem';
+                            // 🌟 智慧取值：優先吃字典 (finalStyles)，沒有才吃全域 (config)
+                            const titleSize = finalStyles.titleSize || config.flowStyleTitleSize || '1.1rem';
+                            const titleWeight = finalStyles.titleWeight || config.flowStyleTitleWeight || 'bold';
+                            const descSize = finalStyles.descSize || config.flowStyleDescSize || '0.85rem';
 
-                            const bg = data[config.flowNodeBgCol] || config.flowStyleDefaultNodeBg || '#ffffff';
-                            const color = data[config.flowNodeColorCol] || config.flowStyleDefaultNodeColor || '#333333';
-                            const borderW = config.flowStyleNodeBorderWidth !== undefined ? config.flowStyleNodeBorderWidth : 1.5;
-                            const borderC = config.flowStyleNodeBorderColor || '#cccccc';
-                            const radius = config.flowStyleNodeBorderRadius !== undefined ? config.flowStyleNodeBorderRadius : 8;
+                            const bg = finalStyles.bg || data[config.flowNodeBgCol] || config.flowStyleDefaultNodeBg || '#ffffff';
+                            const color = finalStyles.color || data[config.flowNodeColorCol] || config.flowStyleDefaultNodeColor || '#333333';
+
+                            const borderW = finalStyles.borderW !== undefined ? finalStyles.borderW : (config.flowStyleNodeBorderWidth !== undefined ? config.flowStyleNodeBorderWidth : 1.5);
+                            const borderC = finalStyles.borderC || config.flowStyleNodeBorderColor || '#cccccc';
+                            const radius = finalStyles.borderRadius !== undefined ? finalStyles.borderRadius : (config.flowStyleNodeBorderRadius !== undefined ? config.flowStyleNodeBorderRadius : 8);
 
                             const desc = data[config.flowNodeDescCol] || '';
 
@@ -3688,6 +3703,8 @@
                                             flowStyleEdgeLabelOffsetY: c.flowStyleEdgeLabelOffsetY || 0,
                                             flowEdgeOverrides: c.flowEdgeOverrides || {},
                                             editingEdgeId: c.editingEdgeId || '',
+                                            flowNodeOverrides: c.flowNodeOverrides || {},
+                                            editingNodeId: c.editingNodeId || '',
                                         }));
                                         setBlocks(loadedBlocks);
                                     }
@@ -3844,6 +3861,8 @@
                     baseComp.flowEdgeToCol = '';     // 連線終點
                     baseComp.flowEdgeOverrides = {};
                     baseComp.editingEdgeId = '';
+                    baseComp.flowNodeOverrides = {};
+                    baseComp.editingNodeId = '';
                 }
                 setBlocks(prev => [...prev, baseComp]);
                 setSelectedBlockId(newId);
@@ -4076,6 +4095,8 @@
                     flowStyleEdgeLabelOffsetY: b.flowStyleEdgeLabelOffsetY || 0,
                     flowEdgeOverrides: b.flowEdgeOverrides || {},
                     editingEdgeId: b.editingEdgeId || '',
+                    flowNodeOverrides: b.flowNodeOverrides || {},
+                    editingNodeId: b.editingNodeId || '',
                 }))
             };
             // 🌟 編輯器即時預覽過濾器
@@ -5128,63 +5149,109 @@
                                                     {currentSelectedBlock.type === 'flowchart' && (
                                                         <>
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🎨 節點外觀設定</h4>
-                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>固定寬度 (px)</label>
-                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeWidth || 160} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeWidth', parseInt(e.target.value))} min="50" max="500" />
-                                                                    </div>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>邊緣圓角 (px)</label>
-                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeBorderRadius !== undefined ? currentSelectedBlock.flowStyleNodeBorderRadius : 8} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderRadius', parseInt(e.target.value))} min="0" />
-                                                                    </div>
-                                                                </div>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>預設背景顏色</label>
-                                                                        <input type="color" value={currentSelectedBlock.flowStyleDefaultNodeBg || '#ffffff'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDefaultNodeBg', e.target.value)} />
-                                                                    </div>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>預設字體顏色</label>
-                                                                        <input type="color" value={currentSelectedBlock.flowStyleDefaultNodeColor || '#333333'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDefaultNodeColor', e.target.value)} />
-                                                                    </div>
-                                                                </div>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>邊框顏色</label>
-                                                                        <input type="color" value={currentSelectedBlock.flowStyleNodeBorderColor || '#cccccc'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderColor', e.target.value)} />
-                                                                    </div>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>邊框粗細 (px)</label>
-                                                                        <input type="number" value={currentSelectedBlock.flowStyleNodeBorderWidth !== undefined ? currentSelectedBlock.flowStyleNodeBorderWidth : 1.5} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleNodeBorderWidth', parseFloat(e.target.value))} min="0" step="0.5" />
-                                                                    </div>
-                                                                </div>
+                                                            <div className="form-group" style={{ background: '#fff3cd', padding: '10px', borderRadius: '6px', border: '1px solid #ffeeba', marginBottom: '20px' }}>
+                                                                <label style={{ color: '#856404', fontWeight: 'bold' }}>🎯 選擇要微調的節點</label>
+                                                                <select value={currentSelectedBlock.editingNodeId || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'editingNodeId', e.target.value)}>
+                                                                    <option value="">-- 全域預設設定 (套用至所有節點) --</option>
+                                                                    {(dataMap[currentSelectedBlock.dataSourceId] || []).map((node, idx) => {
+                                                                        const nodeId = String(node[currentSelectedBlock.dataSheetXCol] || '').trim();
+                                                                        const nodeName = String(node[(currentSelectedBlock.dataSheetYCols || [])[0]] || '').trim();
+                                                                        if (!nodeId) return null;
+                                                                        return <option key={idx} value={nodeId}>{nodeName || nodeId}</option>;
+                                                                    })}
+                                                                </select>
                                                             </div>
 
-                                                            <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📝 文字樣式設定</h4>
-                                                            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>主標題大小</label>
-                                                                        <select value={currentSelectedBlock.flowStyleTitleSize || '1.1rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleTitleSize', e.target.value)}>
-                                                                            <option value="0.9rem">小</option><option value="1.1rem">標準</option><option value="1.3rem">大</option><option value="1.5rem">特大</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                        <label>主標題粗細</label>
-                                                                        <select value={currentSelectedBlock.flowStyleTitleWeight || 'bold'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleTitleWeight', e.target.value)}>
-                                                                            <option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option>
-                                                                        </select>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                                                    <label>描述文字大小</label>
-                                                                    <select value={currentSelectedBlock.flowStyleDescSize || '0.85rem'} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'flowStyleDescSize', e.target.value)}>
-                                                                        <option value="0.75rem">極小</option><option value="0.85rem">小 (預設)</option><option value="1rem">標準</option><option value="1.1rem">大</option>
-                                                                    </select>
-                                                                </div>
-                                                            </div>
+                                                            {(() => {
+                                                                // 判斷現在是在改全域，還是改特定節點
+                                                                const editingId = currentSelectedBlock.editingNodeId;
+                                                                const isGlobal = !editingId;
+                                                                const overrides = currentSelectedBlock.flowNodeOverrides || {};
+                                                                const currentSettings = isGlobal ? currentSelectedBlock : (overrides[editingId] || {});
 
+                                                                // 專屬的更新函式
+                                                                const handleChange = (key, globalKey, value) => {
+                                                                    if (isGlobal) {
+                                                                        updateBlockProperty(currentSelectedBlock.i, globalKey, value);
+                                                                    } else {
+                                                                        const newOverrides = { ...overrides };
+                                                                        if (!newOverrides[editingId]) newOverrides[editingId] = {};
+                                                                        newOverrides[editingId][key] = value;
+                                                                        updateBlockProperty(currentSelectedBlock.i, 'flowNodeOverrides', newOverrides);
+                                                                    }
+                                                                };
+
+                                                                // 取值幫手：如果是個別設定，沒填就回傳空字串讓使用者知道可以留空
+                                                                const getVal = (key, globalKey, fallback = '') => {
+                                                                    if (isGlobal) return currentSelectedBlock[globalKey] !== undefined ? currentSelectedBlock[globalKey] : fallback;
+                                                                    return currentSettings[key] !== undefined ? currentSettings[key] : '';
+                                                                };
+
+                                                                return (
+                                                                    <>
+                                                                        <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🎨 {isGlobal ? '預設' : '專屬'}節點外觀</h4>
+                                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>固定寬度 (px)</label>
+                                                                                    <input type="number" value={getVal('width', 'flowStyleNodeWidth', 160)} onChange={(e) => handleChange('width', 'flowStyleNodeWidth', e.target.value === '' ? undefined : parseInt(e.target.value))} placeholder={isGlobal ? "160" : "預設值"} min="50" max="500" />
+                                                                                </div>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>邊緣圓角 (px)</label>
+                                                                                    <input type="number" value={getVal('borderRadius', 'flowStyleNodeBorderRadius', 8)} onChange={(e) => handleChange('borderRadius', 'flowStyleNodeBorderRadius', e.target.value === '' ? undefined : parseInt(e.target.value))} placeholder={isGlobal ? "8" : "預設值"} min="0" />
+                                                                                </div>
+                                                                            </div>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>背景顏色</label>
+                                                                                    <input type="color" value={getVal('bg', 'flowStyleDefaultNodeBg', '#ffffff')} onChange={(e) => handleChange('bg', 'flowStyleDefaultNodeBg', e.target.value)} />
+                                                                                </div>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>字體顏色</label>
+                                                                                    <input type="color" value={getVal('color', 'flowStyleDefaultNodeColor', '#333333')} onChange={(e) => handleChange('color', 'flowStyleDefaultNodeColor', e.target.value)} />
+                                                                                </div>
+                                                                            </div>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>邊框顏色</label>
+                                                                                    <input type="color" value={getVal('borderC', 'flowStyleNodeBorderColor', '#cccccc')} onChange={(e) => handleChange('borderC', 'flowStyleNodeBorderColor', e.target.value)} />
+                                                                                </div>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>邊框粗細 (px)</label>
+                                                                                    <input type="number" value={getVal('borderW', 'flowStyleNodeBorderWidth', 1.5)} onChange={(e) => handleChange('borderW', 'flowStyleNodeBorderWidth', e.target.value === '' ? undefined : parseFloat(e.target.value))} placeholder={isGlobal ? "1.5" : "預設值"} min="0" step="0.5" />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>📝 {isGlobal ? '預設' : '專屬'}文字樣式</h4>
+                                                                        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>主標題大小</label>
+                                                                                    <select value={getVal('titleSize', 'flowStyleTitleSize', '1.1rem')} onChange={(e) => handleChange('titleSize', 'flowStyleTitleSize', e.target.value)}>
+                                                                                        {!isGlobal && <option value="">(使用預設)</option>}
+                                                                                        <option value="0.9rem">小</option><option value="1.1rem">標準</option><option value="1.3rem">大</option><option value="1.5rem">特大</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                    <label>主標題粗細</label>
+                                                                                    <select value={getVal('titleWeight', 'flowStyleTitleWeight', 'bold')} onChange={(e) => handleChange('titleWeight', 'flowStyleTitleWeight', e.target.value)}>
+                                                                                        {!isGlobal && <option value="">(使用預設)</option>}
+                                                                                        <option value="normal">正常</option><option value="bold">粗體</option><option value="900">特粗</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                                <label>描述文字大小</label>
+                                                                                <select value={getVal('descSize', 'flowStyleDescSize', '0.85rem')} onChange={(e) => handleChange('descSize', 'flowStyleDescSize', e.target.value)}>
+                                                                                    {!isGlobal && <option value="">(使用預設)</option>}
+                                                                                    <option value="0.75rem">極小</option><option value="0.85rem">小</option><option value="1rem">標準</option><option value="1.1rem">大</option>
+                                                                                </select>
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                );
+                                                            })()}
                                                             <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#086788' }}>🔗 連線與標籤設定</h4>
                                                             <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e9ecef' }}>
 
