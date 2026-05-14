@@ -1396,14 +1396,15 @@
         /* 💻 模式一：橫向發展 (左到右) */
         .bracket-wrapper.is-horizontal {
             flex-direction: row;
-            width: max-content; /* 🌟 關鍵魔法：允許內容無限向右撐開產生捲軸 */
+            width: max-content;
+            /* 🌟 關鍵魔法：允許內容無限向右撐開產生捲軸 */
             min-width: 100%;
             padding-right: 40px;
         }
 
-        /* 🌟 鎖定每輪方格固定寬度為 180px，不會被擠壓變形 */
         .bracket-wrapper.is-horizontal .bracket-round {
-            flex: 0 0 220px; /* 🌟 固定每一輪的寬度，保證隊伍名稱不會斷行 */
+            flex: 0 0 220px;
+            /* 🌟 固定每一輪的寬度，保證隊伍名稱不會斷行 */
             flex-direction: column;
             position: relative;
         }
@@ -1422,10 +1423,11 @@
         .bracket-wrapper.is-horizontal .bracket-match-wrapper {
             flex-direction: column;
             flex: 1;
-            padding: 10px 25px; /* 上下左右安全距離 */
+            padding: 10px 25px;
+            /* 上下左右安全距離 */
         }
 
-        /* 橫向連線 (配合 40px 的 gap 精準連線) */
+        /* 🌟 橫向連線魔法 (精準抓取 25% 與 50% 的黃金比例) */
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::after {
             content: '';
             position: absolute;
@@ -1453,24 +1455,29 @@
         /* 📱 模式二：直向發展 (下到上，冠軍在最頂部！) */
         .bracket-wrapper.is-vertical {
             flex-direction: column-reverse;
-            height: max-content; /* 🌟 關鍵魔法：允許內容無限向上撐開產生捲軸 */
+            /* 🌟 關鍵修正：輪上下堆疊 */
+            overflow-x: auto;
+            /* 🌟 關鍵魔法：當比賽數量增加時，允許單輪寬度撐開產生捲軸 */
             min-height: 100%;
             padding-top: 40px;
         }
 
         .bracket-wrapper.is-vertical .bracket-round {
-            flex: 0 0 120px; /* 🌟 固定每一輪的高度 */
+            flex: 0 0 120px;
+            /* 🌟 固定每一輪的高度 */
             flex-direction: column;
             position: relative;
         }
 
         .bracket-wrapper.is-vertical .bracket-round-matches {
             flex-direction: row;
+            /* 🌟 關鍵修正：比賽水平堆疊 */
             flex: 1;
         }
 
         .bracket-wrapper.is-vertical .bracket-match-pair {
             flex-direction: row;
+            /* 🌟 關鍵修正：比賽容器水平堆疊 */
             flex: 1;
             position: relative;
         }
@@ -1481,7 +1488,7 @@
             padding: 20px 10px;
         }
 
-        /* 🌟 直向連線魔法 */
+        /* 🌟 直向連線魔法 (精準抓取 25% 與 50% 的黃金比例) */
         .bracket-wrapper.is-vertical .bracket-match-pair.has-lines::after {
             content: '';
             position: absolute;
@@ -3129,22 +3136,18 @@
                                                                     const winnerA = hasScore && scoreA > scoreB;
                                                                     const winnerB = hasScore && scoreB > scoreA;
 
-                                                                    // 🌟 改變比例：把 100% 縮小成 85%，縫隙就自然跑出來了！
-                                                                    const boxWidthPercent = bracketDir === 'vertical' ? `${(round.matches.length / maxMatches) * 85}%` : '100%';
-                                                                    const boxHeightPercent = bracketDir === 'horizontal' ? `${(round.matches.length / maxMatches) * 100}%` : 'auto';
-
                                                                     return (
-                                                                        // 🌟 讓 wrapper 透過 flex: 1 自動平分空間，不再依賴詭異的百分比！
-                                                                        <div key={mIdx} className="bracket-match-wrapper">
+                                                                        // 🌟 魔法 1：直向模式時設置 stretch，讓同一排的所有方格自動撐到最高的那格一樣高！
+                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: bracketDir === 'vertical' ? 'stretch' : 'center' }}>
 
                                                                             {/* 外層方格：拿掉百分比限制，讓它 100% 填滿 wrapper 給的安全區域 */}
-                                                                            <div className="bracket-match" style={{ 
-                                                                                width: '100%', 
-                                                                                height: '100%', 
-                                                                                maxHeight: bracketDir === 'horizontal' ? '80px' : 'none', // 橫向時限制最大高度才不會太肥
-                                                                                maxWidth: bracketDir === 'vertical' ? '160px' : 'none',   // 直向時限制最大寬度
-                                                                                background: matchBg, 
-                                                                                border: `${matchBorderW}px solid ${matchBorderC}` 
+                                                                            <div className="bracket-match" style={{
+                                                                                width: '100%',
+                                                                                height: bracketDir === 'vertical' ? '100%' : 'auto', /* 🌟 直向模式高填滿 wrapper */
+                                                                                maxHeight: bracketDir === 'horizontal' ? '80px' : 'none', /* 橫向時限制最大高度才不會太肥 */
+                                                                                maxWidth: bracketDir === 'vertical' ? '160px' : 'none',   /* 直向時限制最大寬度才不會太肥 */
+                                                                                background: matchBg,
+                                                                                border: `${matchBorderW}px solid ${matchBorderC}`
                                                                             }}>
                                                                                 {comp.timeColumn && match[comp.timeColumn] && (
                                                                                     <div className="bracket-time">{match[comp.timeColumn]}</div>
