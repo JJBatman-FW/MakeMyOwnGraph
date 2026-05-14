@@ -2901,11 +2901,10 @@
                             return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定<br />賽程階段、位置編號與隊伍欄位</p></div>;
                         }
 
-                        // === 1. 建立完美的骨架系統 (Skeleton) 解決錯位與缺漏 ===
+                        // === 1. 建立完美的骨架系統 (Skeleton) ===
                         const scale = parseInt(comp.bracketScale) || 8;
-                        const numRounds = Math.log2(scale); // 32隊 -> 5輪
+                        const numRounds = Math.log2(scale);
 
-                        // 先分群使用者的資料
                         const rawRoundsData = {};
                         filteredData.forEach(row => {
                             const roundName = row[comp.roundColumn];
@@ -2916,31 +2915,25 @@
                             }
                         });
 
-                        // 推測輪次順序 (依據資料量，越多場的越前面)
                         const sortedRoundNames = Object.keys(rawRoundsData).sort((a, b) => rawRoundsData[b].length - rawRoundsData[a].length);
-
                         const finalRounds = [];
-                        let currentMatchCount = scale / 2; // 32強第一輪就是 16 場
+                        let currentMatchCount = scale / 2;
 
                         for (let i = 0; i < numRounds; i++) {
                             const rName = sortedRoundNames[i] || `第 ${i + 1} 輪`;
                             const rData = rawRoundsData[rName] || [];
 
-                            // 🌟 終極修復：根據資料表裡的 pos，精準將比賽放入骨架的對應位置！
+                            // 🌟 終極防錯：不再用數學餘數算位置，直接照 pos 排序後「依序」補滿空格！
+                            // 這樣就算你編號跳號、寫 17~24，也能完美從左到右排好，不會中空產生 TBD 把後面的格子往右擠！
+                            const sortedMatches = rData.sort((a, b) => parseInt(a.pos) - parseInt(b.pos));
                             const matchesSkeleton = new Array(currentMatchCount).fill(null);
 
-                            rData.forEach(match => {
-                                // 將使用者的 pos 轉換為陣列的 index (例如 pos:1 -> index:0)
-                                // 如果你是接續編號 (如16強從17開始)，我們取餘數確保它能正確塞入 8 個坑位中
-                                let index = (match.pos - 1) % currentMatchCount;
-
-                                if (index >= 0 && index < currentMatchCount) {
-                                    matchesSkeleton[index] = match;
-                                }
-                            });
+                            for (let j = 0; j < Math.min(sortedMatches.length, currentMatchCount); j++) {
+                                matchesSkeleton[j] = sortedMatches[j];
+                            }
 
                             finalRounds.push({ name: rName, matches: matchesSkeleton });
-                            currentMatchCount = currentMatchCount / 2; // 下一輪所需方格減半
+                            currentMatchCount = currentMatchCount / 2;
                         }
 
                         // === 2. 解析視角與樣式變數 ===
@@ -2979,12 +2972,12 @@
                                         return (
                                             <div key={rIdx} className="bracket-round">
 
-                                                {/* 🌟 整合標籤：橫向模式在上方，直向模式在左側(Sticky 黏住不跑位) */}
                                                 <h4 className="bracket-round-title" style={{
                                                     color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily,
                                                     ...(bracketDir === 'horizontal'
                                                         ? { borderBottom: `${labelBorderW}px solid ${labelBorderC}`, textAlign: 'center', margin: '0 0 15px 0', paddingBottom: '8px', display: 'block', width: '100%' }
-                                                        : { borderRight: `${labelBorderW}px solid ${labelBorderC}`, writingMode: 'vertical-rl', textOrientation: 'mixed', textAlign: 'center', margin: '0 20px 0 0', paddingRight: '10px', position: 'sticky', left: 0, background: '#fff', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' })
+                                                        // 🌟 核心修復：加上 width: '40px', flexShrink: 0 確保每行左側標題佔用空間一模一樣，右側賽程才能完美對齊！
+                                                        : { borderRight: `${labelBorderW}px solid ${labelBorderC}`, writingMode: 'vertical-rl', textOrientation: 'mixed', textAlign: 'center', margin: '0 20px 0 0', paddingRight: '10px', position: 'sticky', left: 0, background: '#fff', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', flexShrink: 0 })
                                                 }}>
                                                     <div style={bracketDir === 'vertical' ? { writingMode: 'horizontal-tb' } : {}}>{round.name}</div>
                                                 </h4>
@@ -2994,7 +2987,6 @@
                                                         <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`}>
                                                             {pair.map((match, mIdx) => {
 
-                                                                // 🌟 如果沒資料，畫出透明佔位符撐住排版，確保連線不會歪！
                                                                 if (!match) {
                                                                     return (
                                                                         <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'center' }}>
@@ -3024,7 +3016,6 @@
                                                                             )}
 
                                                                             <div style={{ display: 'flex', flexDirection: bracketDir === 'vertical' ? 'row' : 'column', flex: 1, width: '100%' }}>
-                                                                                {/* 隊伍 A */}
                                                                                 <div className={`bracket-team ${winnerA ? 'winner' : ''} ${hasScore && !winnerA ? 'loser' : ''}`} style={{
                                                                                     background: winnerA ? winnerBg : 'transparent', color: winnerA ? winnerFontC : matchFontC, fontFamily: matchFontFamily,
                                                                                     borderBottom: bracketDir === 'vertical' ? 'none' : `1px solid ${matchBorderC}`, borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
@@ -3034,7 +3025,6 @@
                                                                                     <span className="bracket-score" style={{ fontSize: matchFontSize, fontWeight: winnerA ? winnerFontW : matchFontWeight }}>{hasScore ? scoreA : '-'}</span>
                                                                                 </div>
 
-                                                                                {/* 隊伍 B */}
                                                                                 <div className={`bracket-team ${winnerB ? 'winner' : ''} ${hasScore && !winnerB ? 'loser' : ''}`} style={{
                                                                                     background: winnerB ? winnerBg : 'transparent', color: winnerB ? winnerFontC : matchFontC, fontFamily: matchFontFamily,
                                                                                     flex: 1, display: 'flex', justifyContent: bracketDir === 'vertical' ? 'center' : 'space-between', alignItems: 'center', gap: bracketDir === 'vertical' ? '8px' : '0', padding: '8px 10px', boxSizing: 'border-box'
@@ -3202,7 +3192,7 @@
                 try {
                     const dagre = window.dagreD3.dagre;
                     const g = new dagre.graphlib.Graph();
-                    g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 120 });
+                    g.setGraph({ rankdir: 'TB', nodesep: 70, ranksep: 130 });
                     g.setDefaultEdgeLabel(() => ({}));
 
                     nodesData.forEach(node => {
