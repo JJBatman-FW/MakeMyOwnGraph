@@ -1254,44 +1254,38 @@
         .bracket-wrapper.is-horizontal {
             flex-direction: row;
             width: max-content;
-            /* 🌟 允許向右撐開產生捲軸 */
+            /* 🌟 產生捲軸 */
             min-width: 100%;
             padding-right: 40px;
-            overflow-x: auto;
+            gap: 30px;
         }
 
         .bracket-wrapper.is-horizontal .bracket-round {
-            flex: 0 0 220px;
             flex-direction: column;
-            position: relative;
-            display: flex;
+            height: 100%;
         }
 
         .bracket-wrapper.is-horizontal .bracket-round-matches {
             flex-direction: column;
             flex: 1;
-            display: flex;
-            min-width: 0;
-            min-height: 0;
         }
 
         .bracket-wrapper.is-horizontal .bracket-match-pair {
             flex-direction: column;
             flex: 1;
             position: relative;
-            display: flex;
         }
 
         .bracket-wrapper.is-horizontal .bracket-match-wrapper {
             flex-direction: column;
             flex: 1;
             padding: 10px 25px;
-            display: flex;
+            min-height: 120px;
+            /* 🌟 防壓扁核心：保證高度 */
             justify-content: center;
-            align-items: center;
         }
 
-        /* 橫向連線魔法 */
+        /* 橫向連線魔法 (精準 25% 與 75% 中心點) */
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::after {
             content: '';
             position: absolute;
@@ -1316,49 +1310,41 @@
             z-index: 1;
         }
 
-        /* 📱 模式二：直向發展 (下到上，冠軍在最頂部！) */
+        /* 📱 模式二：直向發展 (下到上，冠軍在最頂部) */
         .bracket-wrapper.is-vertical {
             flex-direction: column-reverse;
-            /* 下到上疊加 */
-            height: max-content;
-            /* 🌟 允許向上撐開產生捲軸 */
-            min-height: 100%;
+            width: max-content;
+            /* 🌟 產生橫向捲軸的關鍵 */
+            min-width: 100%;
             padding-top: 40px;
-            overflow-x: auto;
-            /* 允許橫向滑動看 32 強 */
-            overflow-y: auto;
-            gap: 30px;
+            gap: 40px;
+            /* 增加輪與輪的垂直間距 */
         }
 
         .bracket-wrapper.is-vertical .bracket-round {
-            flex: 0 0 140px;
             flex-direction: row;
-            position: relative;
-            display: flex;
+            width: 100%;
+            min-height: 120px;
         }
 
         .bracket-wrapper.is-vertical .bracket-round-matches {
             flex-direction: row;
             flex: 1;
-            display: flex;
-            min-width: 0;
-            min-height: 0;
         }
 
         .bracket-wrapper.is-vertical .bracket-match-pair {
             flex-direction: row;
             flex: 1;
             position: relative;
-            display: flex;
         }
 
         .bracket-wrapper.is-vertical .bracket-match-wrapper {
             flex-direction: row;
             flex: 1;
             padding: 20px 10px;
-            display: flex;
+            min-width: 220px;
+            /* 🌟 防壓扁核心：保證每場比賽至少寬度 */
             justify-content: center;
-            align-items: center;
         }
 
         /* 直向連線魔法 */
@@ -1386,6 +1372,7 @@
             z-index: 1;
         }
 
+        /* 直向模式隊伍上下排列 */
         .bracket-wrapper.is-vertical .bracket-team {
             flex-direction: column;
             text-align: center;
@@ -2902,7 +2889,7 @@
 
                         // === 1. 建立完美的骨架系統 (Skeleton) 解決錯位與缺漏 ===
                         const scale = parseInt(comp.bracketScale) || 8;
-                        const numRounds = Math.log2(scale); // 例如 32隊 -> 5輪
+                        const numRounds = Math.log2(scale); // 32隊 -> 5輪
 
                         // 先分群使用者的資料
                         const rawRoundsData = {};
@@ -2915,31 +2902,29 @@
                             }
                         });
 
-                        // 推測輪次順序 (依據資料量，32強最多排第一)
+                        // 推測輪次順序 (依據資料量排序，越多場的越前面)
                         const sortedRoundNames = Object.keys(rawRoundsData).sort((a, b) => rawRoundsData[b].length - rawRoundsData[a].length);
 
                         const finalRounds = [];
-                        let currentMatchCount = scale / 2; // 第一輪比賽數
+                        let currentMatchCount = scale / 2; // 32強第一輪就是 16 場
 
                         for (let i = 0; i < numRounds; i++) {
                             const rName = sortedRoundNames[i] || `第 ${i + 1} 輪`;
                             const rData = rawRoundsData[rName] || [];
 
-                            // 🌟 產生包含 null 的固定長度陣列，這就是不跑版的秘密！
+                            // 🌟 防呆重點：不再依賴絕對位置，只要把這輪的比賽依照 pos 排序後，依序放入骨架即可！
+                            const sortedMatches = rData.sort((a, b) => a.pos - b.pos);
                             const matchesSkeleton = new Array(currentMatchCount).fill(null);
 
-                            rData.forEach(match => {
-                                const index = match.pos - 1;
-                                if (index >= 0 && index < currentMatchCount) {
-                                    matchesSkeleton[index] = match;
-                                }
-                            });
+                            for (let j = 0; j < Math.min(sortedMatches.length, currentMatchCount); j++) {
+                                matchesSkeleton[j] = sortedMatches[j];
+                            }
 
                             finalRounds.push({ name: rName, matches: matchesSkeleton });
-                            currentMatchCount = currentMatchCount / 2; // 下一輪坑位減半
+                            currentMatchCount = currentMatchCount / 2; // 下一輪所需方格減半
                         }
 
-                        // === 2. 解析視角與樣式變數 ===
+                        // === 2. 解析視角與樣式 ===
                         const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
                         const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
                         const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
@@ -2979,7 +2964,7 @@
                                                 <h4 className="bracket-round-title" style={{
                                                     color: labelColor, fontSize: labelFontSize, fontWeight: labelFontWeight, fontFamily: labelFontFamily,
                                                     ...(bracketDir === 'horizontal'
-                                                        ? { borderBottom: `${labelBorderW}px solid ${labelBorderC}`, textAlign: 'center', margin: '0 0 15px 0', paddingBottom: '8px', display: 'block' }
+                                                        ? { borderBottom: `${labelBorderW}px solid ${labelBorderC}`, textAlign: 'center', margin: '0 0 15px 0', paddingBottom: '8px', display: 'block', width: '100%' }
                                                         : { borderRight: `${labelBorderW}px solid ${labelBorderC}`, writingMode: 'vertical-rl', textOrientation: 'mixed', textAlign: 'center', margin: '0 20px 0 0', paddingRight: '10px', position: 'sticky', left: 0, background: '#fff', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' })
                                                 }}>
                                                     <div style={bracketDir === 'vertical' ? { writingMode: 'horizontal-tb' } : {}}>{round.name}</div>
@@ -2990,11 +2975,11 @@
                                                         <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`}>
                                                             {pair.map((match, mIdx) => {
 
-                                                                // 🌟 如果沒資料，畫出透明佔位符撐住排版！
+                                                                // 🌟 空資料的隱形佔位符，撐住排版確保連線不會歪
                                                                 if (!match) {
                                                                     return (
-                                                                        <div key={mIdx} className="bracket-match-wrapper">
-                                                                            <div className="bracket-match" style={{ width: '100%', height: bracketDir === 'vertical' ? '100%' : 'auto', maxHeight: bracketDir === 'horizontal' ? '80px' : 'none', maxWidth: bracketDir === 'vertical' ? '160px' : 'none', background: 'transparent', border: `2px dashed #ddd`, opacity: 0.5 }}>
+                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'center' }}>
+                                                                            <div className="bracket-match" style={{ width: '100%', height: '100%', maxHeight: bracketDir === 'horizontal' ? '80px' : 'none', maxWidth: bracketDir === 'vertical' ? '180px' : 'none', background: 'transparent', border: `2px dashed #ddd`, opacity: 0.5 }}>
                                                                                 <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#999', fontSize: '0.8rem' }}>TBD</div>
                                                                             </div>
                                                                         </div>
@@ -3008,12 +2993,11 @@
                                                                 const winnerB = hasScore && scoreB > scoreA;
 
                                                                 return (
-                                                                    <div key={mIdx} className="bracket-match-wrapper">
-                                                                        {/* 🌟 拔除百分比限制，交給 CSS Flex 自然伸展 */}
+                                                                    <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'center' }}>
                                                                         <div className="bracket-match" style={{
-                                                                            width: '100%', height: bracketDir === 'vertical' ? '100%' : 'auto',
+                                                                            width: '100%', height: '100%',
                                                                             maxHeight: bracketDir === 'horizontal' ? '80px' : 'none',
-                                                                            maxWidth: bracketDir === 'vertical' ? '160px' : 'none',
+                                                                            maxWidth: bracketDir === 'vertical' ? '180px' : 'none',
                                                                             background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}`
                                                                         }}>
                                                                             {comp.timeColumn && match[comp.timeColumn] && (
