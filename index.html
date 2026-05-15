@@ -1253,15 +1253,17 @@
         /* 💻 模式一：橫向發展 (左到右) */
         .bracket-wrapper.is-horizontal {
             flex-direction: row;
-            width: max-content;
-            min-width: 100%;
+            width: 100%;
+            min-height: 100%;
             padding-right: 40px;
-            gap: 30px;
+            gap: 40px;
             overflow-x: auto;
+            overflow-y: auto;
         }
 
         .bracket-wrapper.is-horizontal .bracket-round {
-            flex: 0 0 220px;
+            flex: 0 0 160px;
+            /* 🌟 核心修復：嚴格鎖定寬度為 160px，線條就會完美貼在方格上！ */
             flex-direction: column;
             position: relative;
             display: flex;
@@ -1275,7 +1277,6 @@
             min-height: 0;
         }
 
-        /* 🌟 核心：強制 flex: 1 1 0 讓空間分配絕對平均 */
         .bracket-wrapper.is-horizontal .bracket-match-pair {
             flex-direction: column;
             flex: 1 1 0;
@@ -1287,21 +1288,21 @@
         .bracket-wrapper.is-horizontal .bracket-match-wrapper {
             flex-direction: column;
             flex: 1 1 0;
-            padding: 10px 25px;
+            padding: 10px 0;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100px;
+            /* 🌟 橫向不需要 stretch，讓它乖乖垂直置中就好 */
         }
 
         /* 橫向連線魔法 */
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::after {
             content: '';
             position: absolute;
-            right: 0px;
+            right: -20px;
             top: 25%;
             bottom: 25%;
-            width: 25px;
+            width: 20px;
             border-right: 2px solid #ccc;
             border-top: 2px solid #ccc;
             border-bottom: 2px solid #ccc;
@@ -1312,9 +1313,9 @@
         .bracket-wrapper.is-horizontal .bracket-match-pair.has-lines::before {
             content: '';
             position: absolute;
-            right: -30px;
+            right: -40px;
             top: 50%;
-            width: 30px;
+            width: 20px;
             border-top: 2px solid #ccc;
             z-index: 1;
         }
@@ -2958,31 +2959,47 @@
 
                                         // 🌟 核心：鎖定總寬度 (160px 方格 + 40px 間距 = 200px) 來撐開畫布
                                         const maxMatches = scale / 2;
-                                        const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 200}px` : '100%';
+                                        // 直向模式撐開寬度；橫向模式不撐寬度
+                                        const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 180}px` : '160px'; 
+                                        
+                                        // 🚨 你抓到的 BUG 救星：橫向模式時，強迫畫布向下長高！1場比賽給 90px 的高度空間，它就會把格子完美推開！
+                                        const minScrollHeight = bracketDir === 'horizontal' ? `${maxMatches * 90}px` : '100%';
 
                                         return (
-                                            // 👇 🌟 核心修復：把 minWidth 加在父容器身上，讓標籤知道它的巡邏範圍有多長！
-                                            <div key={rIdx} className="bracket-round" style={{ minWidth: minScorllWidth }}>
+                                            // 🌟 把它加在父容器的 style 裡！
+                                            <div key={rIdx} className="bracket-round" style={{ minWidth: minScorllWidth, minHeight: minScrollHeight }}>
                                                 <h4 className="bracket-round-title" style={{
-                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900',
+                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900', 
                                                     borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
                                                     borderBottom: bracketDir === 'horizontal' ? `2px solid ${labelColor}` : 'none',
                                                     writingMode: bracketDir === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
-                                                    textAlign: 'center', padding: '10px', position: 'sticky', left: 0, background: '#fff', zIndex: 10, width: bracketDir === 'vertical' ? '40px' : '100%', flexShrink: 0
+                                                    textAlign: 'center', padding: '10px', position: 'sticky', left: 0, top: 0, background: '#fff', zIndex: 10, width: bracketDir === 'vertical' ? '40px' : '100%', flexShrink: 0, margin: 0
                                                 }}>{round.name}</h4>
 
-                                                <div className="bracket-round-matches" style={{ minWidth: minScorllWidth }}>
+                                                <div className="bracket-round-matches" style={{ flex: 1 }}>
                                                     {matchPairs.map((pair, pIdx) => {
-                                                        const exactPercent = 100 / matchPairs.length;
+                                                            const exactPercent = 100 / matchPairs.length;
                                                         return (
-                                                            <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`} style={{ flex: 'none', width: bracketDir === 'vertical' ? `${exactPercent}%` : '100%' }}>
-                                                                {pair.map((match, mIdx) => {
+                                                                // 🚨 核心修復：橫向模式時，將 flex 改回 '1 1 0' 讓它在垂直方向完美平分父容器的高度！
+                                                                <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`} style={{ 
+                                                                    flex: bracketDir === 'horizontal' ? '1 1 0' : 'none', 
+                                                                    width: bracketDir === 'vertical' ? `${exactPercent}%` : '100%' 
+                                                                }}>
+                                                                    {pair.map((match, mIdx) => {
 
                                                                     // 共通方格容器設定：固定 160px，並強迫填滿高度 (接住連線)
-                                                                    const matchContainerStyle = {
-                                                                        width: '160px', minWidth: '160px', flexShrink: 0, height: '100%',
-                                                                        /* 🚨 核心修復：拔除 maxHeight，讓橫向方塊自然撐滿父容器的高度，中心點才會精準對齊連線！ */
-                                                                        background: match ? matchBg : 'transparent',
+                                                                    const matchContainerStyle = { 
+                                                                        width: '160px', minWidth: '160px', flexShrink: 0, 
+                                                                        
+                                                                        // 🚨 烏龍修復 1：橫向才需要 100% 撐高接線，直向只要 auto 維持文字原本高度就好！
+                                                                        height: bracketDir === 'horizontal' ? '100%' : 'auto', 
+                                                                        
+                                                                        // 🚨 烏龍修復 2：直向模式時，加上這行強迫方塊「靠上對齊」，徹底解除被父容器強制拉長變摩天大樓的封印！
+                                                                        alignSelf: bracketDir === 'vertical' ? 'flex-start' : 'center',
+                                                                        
+                                                                        minHeight: '60px',
+                                                                        maxHeight: 'none', 
+                                                                        background: match ? matchBg : 'transparent', 
                                                                         border: match ? `${matchBorderW}px solid ${matchBorderC}` : '2px dashed #ddd',
                                                                         opacity: match ? 1 : 0.5,
                                                                         display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
