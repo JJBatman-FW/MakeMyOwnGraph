@@ -2961,9 +2961,10 @@
                                         const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 200}px` : '100%';
 
                                         return (
-                                            <div key={rIdx} className="bracket-round">
+                                            // 👇 🌟 核心修復：把 minWidth 加在父容器身上，讓標籤知道它的巡邏範圍有多長！
+                                            <div key={rIdx} className="bracket-round" style={{ minWidth: minScorllWidth }}>
                                                 <h4 className="bracket-round-title" style={{
-                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900',
+                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900', 
                                                     borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
                                                     borderBottom: bracketDir === 'horizontal' ? `2px solid ${labelColor}` : 'none',
                                                     writingMode: bracketDir === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
