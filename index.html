@@ -2904,7 +2904,7 @@
                             return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定<br />賽程階段、位置編號與隊伍欄位</p></div>;
                         }
 
-                        // 1. 骨架系統：確保空格也被填滿，防止格子往左擠
+                        // === 1. 建立骨架系統 (解決對齊問題) ===
                         const scale = parseInt(comp.bracketScale) || 8;
                         const numRounds = Math.log2(scale);
                         const rawRoundsData = {};
@@ -2924,23 +2924,22 @@
                         for (let i = 0; i < numRounds; i++) {
                             const rName = sortedRoundNames[i] || `第 ${i + 1} 輪`;
                             const rData = rawRoundsData[rName] || [];
+                            const sortedMatches = rData.sort((a, b) => parseInt(a.pos) - parseInt(b.pos));
                             const matchesSkeleton = new Array(currentMatchCount).fill(null);
-                            rData.forEach(match => {
-                                let index = (parseInt(match.pos) - 1) % currentMatchCount;
-                                if (index >= 0 && index < currentMatchCount) matchesSkeleton[index] = match;
-                            });
+                            for (let j = 0; j < Math.min(sortedMatches.length, currentMatchCount); j++) {
+                                matchesSkeleton[j] = sortedMatches[j];
+                            }
                             finalRounds.push({ name: rName, matches: matchesSkeleton });
                             currentMatchCount = currentMatchCount / 2;
                         }
 
+                        // === 2. 樣式變數 ===
                         const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
                         const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
                         const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
                         const bracketDir = isMobileView ? 'horizontal' : (comp.chartOrientation || 'vertical');
 
-                        // 🌟 核心參數
                         const labelColor = comp.roundLabelColor || '#086788';
-                        const labelFontSize = comp.roundLabelFontSize || '1.1rem';
                         const matchBg = comp.matchBgColor || '#ffffff';
                         const matchBorderC = comp.matchBorderColor || '#eeeeee';
                         const matchBorderW = comp.matchBorderWidth !== undefined ? comp.matchBorderWidth : 2;
@@ -2957,14 +2956,15 @@
                                         const matchPairs = [];
                                         for (let i = 0; i < round.matches.length; i += 2) matchPairs.push(round.matches.slice(i, i + 2));
 
-                                        // 🌟 寬度魔法：鎖死 320px 做為一組對戰寬度，強制撐開畫布產生捲軸
+                                        // 🌟 核心：鎖定總寬度 (160px 方格 + 40px 間距 = 200px) 來撐開畫布
                                         const maxMatches = scale / 2;
-                                        const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 320}px` : '100%';
+                                        const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 200}px` : '100%';
 
                                         return (
                                             <div key={rIdx} className="bracket-round">
                                                 <h4 className="bracket-round-title" style={{
-                                                    color: labelColor, fontSize: labelFontSize, fontWeight: '900', borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
+                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900',
+                                                    borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
                                                     borderBottom: bracketDir === 'horizontal' ? `2px solid ${labelColor}` : 'none',
                                                     writingMode: bracketDir === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
                                                     textAlign: 'center', padding: '10px', position: 'sticky', left: 0, background: '#fff', zIndex: 10, width: bracketDir === 'vertical' ? '40px' : '100%', flexShrink: 0
@@ -2976,10 +2976,23 @@
                                                         return (
                                                             <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`} style={{ flex: 'none', width: bracketDir === 'vertical' ? `${exactPercent}%` : '100%' }}>
                                                                 {pair.map((match, mIdx) => {
+
+                                                                    // 共通方格容器設定：固定 160px，並強迫填滿高度 (接住連線)
+                                                                    const matchContainerStyle = {
+                                                                        width: '160px', minWidth: '160px', height: '100%',
+                                                                        maxHeight: bracketDir === 'horizontal' ? '80px' : 'none',
+                                                                        background: match ? matchBg : 'transparent',
+                                                                        border: match ? `${matchBorderW}px solid ${matchBorderC}` : '2px dashed #ddd',
+                                                                        opacity: match ? 1 : 0.5,
+                                                                        display: 'flex', flexDirection: 'column'
+                                                                    };
+
                                                                     if (!match) {
                                                                         return (
                                                                             <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'stretch' }}>
-                                                                                <div className="bracket-match" style={{ width: '280px', minWidth: '280px', height: '100%', border: '2px dashed #ddd', opacity: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>TBD</div>
+                                                                                <div className="bracket-match" style={matchContainerStyle}>
+                                                                                    <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: '0.8rem' }}>TBD</div>
+                                                                                </div>
                                                                             </div>
                                                                         );
                                                                     }
@@ -2992,18 +3005,28 @@
 
                                                                     return (
                                                                         <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'stretch' }}>
-                                                                            <div className="bracket-match" style={{ width: '280px', minWidth: '280px', flexShrink: 0, height: '100%', background: matchBg, border: `${matchBorderW}px solid ${matchBorderC}`, display: 'flex', flexDirection: 'column' }}>
-                                                                                {comp.timeColumn && match[comp.timeColumn] && <div style={{ fontSize: '0.7rem', textAlign: 'center', padding: '2px', borderBottom: `1px solid ${matchBorderC}`, background: '#fcfcfc' }}>{match[comp.timeColumn]}</div>}
+                                                                            <div className="bracket-match" style={matchContainerStyle}>
+                                                                                {comp.timeColumn && match[comp.timeColumn] && (
+                                                                                    <div style={{ fontSize: '0.7rem', textAlign: 'center', padding: '2px', borderBottom: `1px solid ${matchBorderC}`, background: '#fcfcfc' }}>{match[comp.timeColumn]}</div>
+                                                                                )}
 
-                                                                                {/* 🌟 左右並排核心：flexDirection: 'row' */}
                                                                                 <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%' }}>
-                                                                                    <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: winA ? winnerBg : 'transparent', color: winA ? winnerFontC : '#333', borderRight: `1px solid ${matchBorderC}` }}>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500' }}>{match[comp.teamAColumn] || 'TBD'}</span>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500' }}>{hasScore ? scoreA : '-'}</span>
+                                                                                    {/* 隊伍 A (左側) */}
+                                                                                    <div className={`bracket-team ${winA ? 'winner' : ''}`} style={{
+                                                                                        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '8px 5px',
+                                                                                        background: winA ? winnerBg : 'transparent', color: winA ? winnerFontC : '#333', borderRight: `1px solid ${matchBorderC}`
+                                                                                    }}>
+                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500', textAlign: 'center' }}>{match[comp.teamAColumn] || 'TBD'}</span>
+                                                                                        <span style={{ fontSize: '1rem', fontWeight: winA ? winnerFontW : 'bold' }}>{hasScore ? scoreA : '-'}</span>
                                                                                     </div>
-                                                                                    <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: winB ? winnerBg : 'transparent', color: winB ? winnerFontC : '#333' }}>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500' }}>{match[comp.teamBColumn] || 'TBD'}</span>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500' }}>{hasScore ? scoreB : '-'}</span>
+
+                                                                                    {/* 隊伍 B (右側) */}
+                                                                                    <div className={`bracket-team ${winB ? 'winner' : ''}`} style={{
+                                                                                        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '8px 5px',
+                                                                                        background: winB ? winnerBg : 'transparent', color: winB ? winnerFontC : '#333'
+                                                                                    }}>
+                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500', textAlign: 'center' }}>{match[comp.teamBColumn] || 'TBD'}</span>
+                                                                                        <span style={{ fontSize: '1rem', fontWeight: winB ? winnerFontW : 'bold' }}>{hasScore ? scoreB : '-'}</span>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
