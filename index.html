@@ -2964,7 +2964,7 @@
                                             // 👇 🌟 核心修復：把 minWidth 加在父容器身上，讓標籤知道它的巡邏範圍有多長！
                                             <div key={rIdx} className="bracket-round" style={{ minWidth: minScorllWidth }}>
                                                 <h4 className="bracket-round-title" style={{
-                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900', 
+                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900',
                                                     borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
                                                     borderBottom: bracketDir === 'horizontal' ? `2px solid ${labelColor}` : 'none',
                                                     writingMode: bracketDir === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
@@ -2980,14 +2980,13 @@
 
                                                                     // 共通方格容器設定：固定 160px，並強迫填滿高度 (接住連線)
                                                                     const matchContainerStyle = {
-                                                                        width: '160px', minWidth: '160px', height: '100%',
-                                                                        maxHeight: bracketDir === 'horizontal' ? '80px' : 'none',
+                                                                        width: '160px', minWidth: '160px', flexShrink: 0, height: '100%',
+                                                                        /* 🚨 核心修復：拔除 maxHeight，讓橫向方塊自然撐滿父容器的高度，中心點才會精準對齊連線！ */
                                                                         background: match ? matchBg : 'transparent',
                                                                         border: match ? `${matchBorderW}px solid ${matchBorderC}` : '2px dashed #ddd',
                                                                         opacity: match ? 1 : 0.5,
-                                                                        display: 'flex', flexDirection: 'column'
+                                                                        display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
                                                                     };
-
                                                                     if (!match) {
                                                                         return (
                                                                             <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'stretch' }}>
