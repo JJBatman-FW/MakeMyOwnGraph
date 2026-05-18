@@ -2905,13 +2905,13 @@
                             return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}><p style={{ color: '#999', textAlign: 'center' }}>請在右側面板綁定<br />賽程階段、位置編號與隊伍欄位</p></div>;
                         }
 
-                        // === 1. 建立骨架系統 (解決對齊問題) ===
+                        // === 1. 建立骨架與「強制對號入座」系統 ===
                         const scale = parseInt(comp.bracketScale) || 8;
                         const numRounds = Math.log2(scale);
                         const rawRoundsData = {};
                         filteredData.forEach(row => {
                             const roundName = row[comp.roundColumn];
-                            const pos = parseInt(row[comp.posColumn]);
+                            const pos = parseInt(String(row[comp.posColumn]).replace(/\D/g, ''));
                             if (roundName && !isNaN(pos)) {
                                 if (!rawRoundsData[roundName]) rawRoundsData[roundName] = [];
                                 rawRoundsData[roundName].push({ ...row, pos });
@@ -2925,16 +2925,20 @@
                         for (let i = 0; i < numRounds; i++) {
                             const rName = sortedRoundNames[i] || `第 ${i + 1} 輪`;
                             const rData = rawRoundsData[rName] || [];
-                            const sortedMatches = rData.sort((a, b) => parseInt(a.pos) - parseInt(b.pos));
+
                             const matchesSkeleton = new Array(currentMatchCount).fill(null);
-                            for (let j = 0; j < Math.min(sortedMatches.length, currentMatchCount); j++) {
-                                matchesSkeleton[j] = sortedMatches[j];
-                            }
+                            rData.forEach(match => {
+                                let index = (match.pos - 1) % currentMatchCount;
+                                if (index >= 0 && index < currentMatchCount) {
+                                    matchesSkeleton[index] = match;
+                                }
+                            });
+
                             finalRounds.push({ name: rName, matches: matchesSkeleton });
                             currentMatchCount = currentMatchCount / 2;
                         }
 
-                        // === 2. 樣式變數 ===
+                        // === 2. 樣式與視角解析 ===
                         const safeEditorBp = typeof editorBreakpoint !== 'undefined' ? editorBreakpoint : 'desktop';
                         const safePreviewDev = typeof previewDevice !== 'undefined' ? previewDevice : 'desktop';
                         const isMobileView = (isEditing && safeEditorBp === 'mobile') || (!isEditing && safePreviewDev === 'mobile') || window.innerWidth <= 768;
@@ -2949,6 +2953,16 @@
                         const winnerFontC = comp.winnerFontColor || '#086788';
                         const winnerFontW = comp.winnerFontWeight || '900';
 
+                        // 👇👇👇 🌟 尺寸控制中心 🌟 👇👇👇
+                        // 這次我們改成純數字，方便下面做精準的數學運算！
+                        const boxWidthVertical = 160;   // 直向：方格寬度
+                        const boxHeightVertical = 70;   // 直向：方格高度
+                        const boxWidthHorizontal = 160; // 橫向：方格寬度
+                        const boxHeightHorizontal = 120; // 橫向：方格高度
+
+                        const gapBetweenMatches = 60;   // 🌟 關鍵：兩個方格之間的「安全留白距離」(越大越不擠)
+                        // 👆👆👆 🌟 尺寸控制中心 🌟 👆👆👆
+
                         return (
                             <div className="bracket-main-container" style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
                                 <div className={`bracket-wrapper is-${bracketDir}`} style={{ flex: 1, position: 'relative', overflowX: 'auto', overflowY: 'auto' }}>
@@ -2957,19 +2971,26 @@
                                         const matchPairs = [];
                                         for (let i = 0; i < round.matches.length; i += 2) matchPairs.push(round.matches.slice(i, i + 2));
 
-                                        // 🌟 核心：鎖定總寬度 (160px 方格 + 40px 間距 = 200px) 來撐開畫布
-                                        const maxMatches = scale / 2;
-                                        // 直向模式撐開寬度；橫向模式不撐寬度
-                                        const minScorllWidth = bracketDir === 'vertical' ? `${maxMatches * 180}px` : '160px'; 
-                                        
-                                        // 🚨 你抓到的 BUG 救星：橫向模式時，強迫畫布向下長高！1場比賽給 90px 的高度空間，它就會把格子完美推開！
-                                        const minScrollHeight = bracketDir === 'horizontal' ? `${maxMatches * 90}px` : '100%';
+                                        // 🌟 1. 真正的數學真理：畫布尺寸 = 最多場數 * (方格尺寸 + 安全間距)
+                                        const actualMaxMatches = Math.max(...finalRounds.map(r => r.matches.length));
+
+                                        const minScorllWidth = bracketDir === 'vertical'
+                                            ? `${actualMaxMatches * (boxWidthVertical + gapBetweenMatches)}px`
+                                            : 'auto';
+
+                                        const minScrollHeight = bracketDir === 'horizontal'
+                                            ? `${actualMaxMatches * (boxHeightHorizontal + gapBetweenMatches)}px`
+                                            : 'auto';
 
                                         return (
-                                            // 🌟 把它加在父容器的 style 裡！
-                                            <div key={rIdx} className="bracket-round" style={{ minWidth: minScorllWidth, minHeight: minScrollHeight }}>
+                                            <div key={rIdx} className="bracket-round" style={{
+                                                minWidth: minScorllWidth,
+                                                minHeight: minScrollHeight,
+                                                ...(bracketDir === 'horizontal' ? { flex: `0 0 ${boxWidthHorizontal}px` } : {})
+                                            }}>
+
                                                 <h4 className="bracket-round-title" style={{
-                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900', 
+                                                    color: labelColor, fontSize: comp.roundLabelFontSize || '1.1rem', fontWeight: '900',
                                                     borderRight: bracketDir === 'vertical' ? `2px solid ${labelColor}` : 'none',
                                                     borderBottom: bracketDir === 'horizontal' ? `2px solid ${labelColor}` : 'none',
                                                     writingMode: bracketDir === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
@@ -2978,35 +2999,30 @@
 
                                                 <div className="bracket-round-matches" style={{ flex: 1 }}>
                                                     {matchPairs.map((pair, pIdx) => {
-                                                            const exactPercent = 100 / matchPairs.length;
+                                                        const exactPercent = 100 / matchPairs.length;
                                                         return (
-                                                                // 🚨 核心修復：橫向模式時，將 flex 改回 '1 1 0' 讓它在垂直方向完美平分父容器的高度！
-                                                                <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`} style={{ 
-                                                                    flex: bracketDir === 'horizontal' ? '1 1 0' : 'none', 
-                                                                    width: bracketDir === 'vertical' ? `${exactPercent}%` : '100%' 
-                                                                }}>
-                                                                    {pair.map((match, mIdx) => {
+                                                            <div key={pIdx} className={`bracket-match-pair ${!isLastRound && pair.length === 2 ? 'has-lines' : ''}`} style={{
+                                                                flex: bracketDir === 'horizontal' ? '1 1 0' : 'none',
+                                                                width: bracketDir === 'vertical' ? `${exactPercent}%` : '100%'
+                                                            }}>
+                                                                {pair.map((match, mIdx) => {
 
-                                                                    // 共通方格容器設定：固定 160px，並強迫填滿高度 (接住連線)
-                                                                    const matchContainerStyle = { 
-                                                                        width: '160px', minWidth: '160px', flexShrink: 0, 
-                                                                        
-                                                                        // 🚨 烏龍修復 1：橫向才需要 100% 撐高接線，直向只要 auto 維持文字原本高度就好！
-                                                                        height: bracketDir === 'horizontal' ? '100%' : 'auto', 
-                                                                        
-                                                                        // 🚨 烏龍修復 2：直向模式時，加上這行強迫方塊「靠上對齊」，徹底解除被父容器強制拉長變摩天大樓的封印！
-                                                                        alignSelf: bracketDir === 'vertical' ? 'flex-start' : 'center',
-                                                                        
-                                                                        minHeight: '60px',
-                                                                        maxHeight: 'none', 
-                                                                        background: match ? matchBg : 'transparent', 
+                                                                    // 🌟 2. 寫死方格尺寸：套用控制中心的數值
+                                                                    const matchContainerStyle = {
+                                                                        width: `${bracketDir === 'horizontal' ? boxWidthHorizontal : boxWidthVertical}px`,
+                                                                        height: `${bracketDir === 'horizontal' ? boxHeightHorizontal : boxHeightVertical}px`,
+                                                                        flexShrink: 0,
+                                                                        background: match ? matchBg : 'transparent',
                                                                         border: match ? `${matchBorderW}px solid ${matchBorderC}` : '2px dashed #ddd',
                                                                         opacity: match ? 1 : 0.5,
-                                                                        display: 'flex', flexDirection: 'column', boxSizing: 'border-box'
+                                                                        display: 'flex',
+                                                                        flexDirection: bracketDir === 'horizontal' ? 'column' : 'row',
+                                                                        boxSizing: 'border-box'
                                                                     };
+
                                                                     if (!match) {
                                                                         return (
-                                                                            <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'stretch' }}>
+                                                                            <div key={mIdx} className="bracket-match-wrapper" style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                                                 <div className="bracket-match" style={matchContainerStyle}>
                                                                                     <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: '0.8rem' }}>TBD</div>
                                                                                 </div>
@@ -3021,30 +3037,34 @@
                                                                     const winB = hasScore && scoreB > scoreA;
 
                                                                     return (
-                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ alignItems: 'stretch' }}>
+                                                                        <div key={mIdx} className="bracket-match-wrapper" style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                                             <div className="bracket-match" style={matchContainerStyle}>
-                                                                                {comp.timeColumn && match[comp.timeColumn] && (
-                                                                                    <div style={{ fontSize: '0.7rem', textAlign: 'center', padding: '2px', borderBottom: `1px solid ${matchBorderC}`, background: '#fcfcfc' }}>{match[comp.timeColumn]}</div>
-                                                                                )}
+                                                                                {/* 隊伍 A */}
+                                                                                <div className={`bracket-team ${winA ? 'winner' : ''}`} style={{
+                                                                                    flex: 1, display: 'flex',
+                                                                                    flexDirection: bracketDir === 'horizontal' ? 'column' : 'row',
+                                                                                    justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '4px 5px',
+                                                                                    background: winA ? winnerBg : 'transparent', color: winA ? winnerFontC : '#333',
+                                                                                    borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
+                                                                                    borderBottom: bracketDir === 'horizontal' ? `1px solid ${matchBorderC}` : 'none',
+                                                                                    boxSizing: 'border-box',
+                                                                                    overflow: 'hidden'
+                                                                                }}>
+                                                                                    <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500', textAlign: 'center', wordBreak: 'break-word', lineHeight: '1.2', flex: 1 }}>{match[comp.teamAColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score" style={{ fontSize: '1.1rem', fontWeight: winA ? winnerFontW : 'bold' }}>{hasScore ? scoreA : '-'}</span>
+                                                                                </div>
 
-                                                                                <div style={{ display: 'flex', flexDirection: 'row', flex: 1, height: '100%' }}>
-                                                                                    {/* 隊伍 A (左側) */}
-                                                                                    <div className={`bracket-team ${winA ? 'winner' : ''}`} style={{
-                                                                                        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '8px 5px',
-                                                                                        background: winA ? winnerBg : 'transparent', color: winA ? winnerFontC : '#333', borderRight: `1px solid ${matchBorderC}`
-                                                                                    }}>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500', textAlign: 'center' }}>{match[comp.teamAColumn] || 'TBD'}</span>
-                                                                                        <span style={{ fontSize: '1rem', fontWeight: winA ? winnerFontW : 'bold' }}>{hasScore ? scoreA : '-'}</span>
-                                                                                    </div>
-
-                                                                                    {/* 隊伍 B (右側) */}
-                                                                                    <div className={`bracket-team ${winB ? 'winner' : ''}`} style={{
-                                                                                        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '8px 5px',
-                                                                                        background: winB ? winnerBg : 'transparent', color: winB ? winnerFontC : '#333'
-                                                                                    }}>
-                                                                                        <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500', textAlign: 'center' }}>{match[comp.teamBColumn] || 'TBD'}</span>
-                                                                                        <span style={{ fontSize: '1rem', fontWeight: winB ? winnerFontW : 'bold' }}>{hasScore ? scoreB : '-'}</span>
-                                                                                    </div>
+                                                                                {/* 隊伍 B */}
+                                                                                <div className={`bracket-team ${winB ? 'winner' : ''}`} style={{
+                                                                                    flex: 1, display: 'flex',
+                                                                                    flexDirection: bracketDir === 'horizontal' ? 'column' : 'row',
+                                                                                    justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '4px 5px',
+                                                                                    background: winB ? winnerBg : 'transparent', color: winB ? winnerFontC : '#333',
+                                                                                    boxSizing: 'border-box',
+                                                                                    overflow: 'hidden'
+                                                                                }}>
+                                                                                    <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500', textAlign: 'center', wordBreak: 'break-word', lineHeight: '1.2', flex: 1 }}>{match[comp.teamBColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score" style={{ fontSize: '1.1rem', fontWeight: winB ? winnerFontW : 'bold' }}>{hasScore ? scoreB : '-'}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
