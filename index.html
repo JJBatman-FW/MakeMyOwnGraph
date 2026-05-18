@@ -2957,8 +2957,8 @@
                         // 這次我們改成純數字，方便下面做精準的數學運算！
                         const boxWidthVertical = 200;   // 直向：方格寬度
                         const boxHeightVertical = 70;   // 直向：方格高度
-                        const boxWidthHorizontal = 120; // 橫向：方格寬度
-                        const boxHeightHorizontal = 120; // 橫向：方格高度
+                        const boxWidthHorizontal = 160; // 橫向：方格寬度
+                        const boxHeightHorizontal = 100; // 橫向：方格高度
 
                         const gapBetweenMatches = 60;   // 🌟 關鍵：兩個方格之間的「安全留白距離」(越大越不擠)
                         // 👆👆👆 🌟 尺寸控制中心 🌟 👆👆👆
@@ -3042,29 +3042,53 @@
                                                                                 {/* 隊伍 A */}
                                                                                 <div className={`bracket-team ${winA ? 'winner' : ''}`} style={{
                                                                                     flex: 1, display: 'flex',
-                                                                                    flexDirection: bracketDir === 'horizontal' ? 'column' : 'row',
-                                                                                    justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '4px 5px',
+                                                                                    // 🌟 核心切換：橫向為 row(左右)，直向為 column(上下)
+                                                                                    flexDirection: bracketDir === 'horizontal' ? 'row' : 'column',
+                                                                                    // 🌟 橫向時將分數推到最右邊(space-between)，直向時全部置中(center)
+                                                                                    justifyContent: bracketDir === 'horizontal' ? 'space-between' : 'center',
+                                                                                    alignItems: 'center', gap: '4px', padding: '4px 8px',
                                                                                     background: winA ? winnerBg : 'transparent', color: winA ? winnerFontC : '#333',
                                                                                     borderRight: bracketDir === 'vertical' ? `1px solid ${matchBorderC}` : 'none',
                                                                                     borderBottom: bracketDir === 'horizontal' ? `1px solid ${matchBorderC}` : 'none',
                                                                                     boxSizing: 'border-box',
                                                                                     overflow: 'hidden'
                                                                                 }}>
-                                                                                    <span style={{ fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500', textAlign: 'center', wordBreak: 'break-word', lineHeight: '1.2', flex: 1 }}>{match[comp.teamAColumn] || 'TBD'}</span>
-                                                                                    <span className="bracket-score" style={{ fontSize: '1.1rem', fontWeight: winA ? winnerFontW : 'bold', width: '24px', flexShrink: 0, textAlign: 'center' }}>{hasScore ? scoreA : '-'}</span>
+                                                                                    <span style={{
+                                                                                        fontSize: matchFontSize, fontWeight: winA ? winnerFontW : '500',
+                                                                                        textAlign: bracketDir === 'horizontal' ? 'left' : 'center', // 橫向靠左，直向置中
+                                                                                        whiteSpace: 'normal', wordWrap: 'break-word', wordBreak: 'break-word', lineHeight: '1.2', flex: 1
+                                                                                    }}>{match[comp.teamAColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score" style={{
+                                                                                        fontSize: '1.1rem', fontWeight: winA ? winnerFontW : 'bold',
+                                                                                        // 橫向時鎖定分數寬度確保對齊，直向時讓它自然置中
+                                                                                        width: bracketDir === 'horizontal' ? '24px' : 'auto',
+                                                                                        flexShrink: 0, textAlign: 'center'
+                                                                                    }}>{hasScore ? scoreA : '-'}</span>
                                                                                 </div>
 
                                                                                 {/* 隊伍 B */}
                                                                                 <div className={`bracket-team ${winB ? 'winner' : ''}`} style={{
                                                                                     flex: 1, display: 'flex',
-                                                                                    flexDirection: bracketDir === 'horizontal' ? 'column' : 'row',
-                                                                                    justifyContent: 'center', alignItems: 'center', gap: '4px', padding: '4px 5px',
+                                                                                    // 🌟 核心切換：橫向為 row(左右)，直向為 column(上下)
+                                                                                    flexDirection: bracketDir === 'horizontal' ? 'row' : 'column',
+                                                                                    // 🌟 橫向時將分數推到最右邊(space-between)，直向時全部置中(center)
+                                                                                    justifyContent: bracketDir === 'horizontal' ? 'space-between' : 'center',
+                                                                                    alignItems: 'center', gap: '4px', padding: '4px 8px',
                                                                                     background: winB ? winnerBg : 'transparent', color: winB ? winnerFontC : '#333',
                                                                                     boxSizing: 'border-box',
                                                                                     overflow: 'hidden'
                                                                                 }}>
-                                                                                    <span style={{ fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500', textAlign: 'center', wordBreak: 'break-word', lineHeight: '1.2', flex: 1 }}>{match[comp.teamBColumn] || 'TBD'}</span>
-                                                                                    <span className="bracket-score" style={{ fontSize: '1.1rem', fontWeight: winB ? winnerFontW : 'bold', width: '24px', flexShrink: 0, textAlign: 'center' }}>{hasScore ? scoreB : '-'}</span>
+                                                                                    <span style={{
+                                                                                        fontSize: matchFontSize, fontWeight: winB ? winnerFontW : '500',
+                                                                                        textAlign: bracketDir === 'horizontal' ? 'left' : 'center', // 橫向靠左，直向置中
+                                                                                        whiteSpace: 'normal', wordWrap: 'break-word', wordBreak: 'break-word', lineHeight: '1.2', flex: 1
+                                                                                    }}>{match[comp.teamBColumn] || 'TBD'}</span>
+                                                                                    <span className="bracket-score" style={{
+                                                                                        fontSize: '1.1rem', fontWeight: winB ? winnerFontW : 'bold',
+                                                                                        // 橫向時鎖定分數寬度確保對齊，直向時讓它自然置中
+                                                                                        width: bracketDir === 'horizontal' ? '24px' : 'auto',
+                                                                                        flexShrink: 0, textAlign: 'center'
+                                                                                    }}>{hasScore ? scoreB : '-'}</span>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
