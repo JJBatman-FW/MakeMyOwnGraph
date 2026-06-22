@@ -8,7 +8,7 @@
 
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.0/babel.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.3/react-grid-layout.min.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1417,7 +1417,7 @@
             ]
         });
     </script>
-    <script type="text/babel" data-presets="react,env">
+    <script type="text/babel" data-presets="env" data-plugins="transform-react-jsx">
 
         const parseSheetUrl = (url) => {
             const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
