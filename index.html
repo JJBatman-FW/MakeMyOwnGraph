@@ -24,7 +24,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script>
-        
+
         const firebaseConfig = {
             apiKey: "AIzaSyAcvwNe51K8T3f-58oiNIU-WQbQZuYjOAo",
             authDomain: "makeowndashboard.firebaseapp.com",
@@ -1410,11 +1410,15 @@
 <body>
 
     <div id="root"></div>
-
+    <script>
+        Babel.registerPreset('react-classic', {
+            presets: [
+                [Babel.availablePresets['react'], { "runtime": "classic" }]
+            ]
+        });
+    </script>
     <script type="text/babel" data-presets="react,env">
-        /** @jsxRuntime classic */
-        /** @jsx React.createElement */
-        /** @jsxFrag React.Fragment */
+
         const parseSheetUrl = (url) => {
             const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
             const gidMatch = url.match(/gid=([0-9]+)/);
