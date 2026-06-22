@@ -4783,8 +4783,14 @@
                                                         <div style={{ background: '#f0f7fa', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #bce0ed' }}>
                                                             <div className="form-group" style={{ marginBottom: '15px' }}>
                                                                 <label style={{ fontWeight: 'bold', color: '#086788' }}>🗺️ 自訂地圖邊界資料 (GeoJSON/TopoJSON網址)</label>
-                                                                <input type="text" value={currentSelectedBlock.mapUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapUrl', e.target.value)} placeholder="https://..." />
-                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>預設為台灣縣市地圖。若需更改，請填入合法的 GeoJSON/TopoJSON 網址。</div>
+                                                                {/* 🚨 修正 1：將 mapUrl 改回正確的 mapTopoUrl */}
+                                                                <input type="text" value={currentSelectedBlock.mapTopoUrl || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapTopoUrl', e.target.value)} placeholder="https://..." />
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px', marginBottom: '15px' }}>預設為台灣縣市地圖。若需更改，請填入合法的 GeoJSON/TopoJSON 網址。</div>
+
+                                                                {/* 🌟 修正 2：補上超重要的「特徵鍵值」欄位，讓你的自訂地圖能成功對應資料！ */}
+                                                                <label style={{ fontWeight: 'bold', color: '#086788', display: 'block' }}>🔑 地圖特徵鍵值 (Feature Key)</label>
+                                                                <input type="text" value={currentSelectedBlock.mapFeatureKey || ''} onChange={(e) => updateBlockProperty(currentSelectedBlock.i, 'mapFeatureKey', e.target.value)} placeholder="預設：COUNTYNAME" style={{ marginTop: '5px' }} />
+                                                                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '5px' }}>地圖檔案中用來對應 Google Sheet 資料的屬性名稱。<br />例如：鄉鎮地圖通常是 <b>TOWNNAME</b>，一般地圖可能是 <b>name</b>。若留空則預設為 COUNTYNAME。</div>
                                                             </div>
 
                                                             <div className="form-group" style={{ marginBottom: 0 }}>
