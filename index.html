@@ -1411,7 +1411,10 @@
 
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script type="text/babel" data-presets="react,env">
+        /** @jsxRuntime classic */
+        /** @jsx React.createElement */
+        /** @jsxFrag React.Fragment */
         const parseSheetUrl = (url) => {
             const idMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
             const gidMatch = url.match(/gid=([0-9]+)/);
